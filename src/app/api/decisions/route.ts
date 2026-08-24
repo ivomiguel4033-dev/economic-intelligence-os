@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DecisionService } from "@/application/decision/decision-service";
-import { InMemoryDecisionRepository } from "@/infrastructure/decision/in-memory-decision-repository";
+import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import type { ModelProvider, ModelRequest, ModelResponse, ModelRouter } from "@/ai/model-provider";
 import { requireOrganizationContext } from "@/security/organization-context";
 
@@ -13,7 +13,7 @@ class UnconfiguredProvider implements ModelProvider {
 
 const provider = new UnconfiguredProvider();
 const router: ModelRouter = { route: () => provider };
-const repository = new InMemoryDecisionRepository();
+const repository = new PostgresDecisionRepository();
 const service = new DecisionService(repository, router);
 
 export async function POST(request: NextRequest) {
