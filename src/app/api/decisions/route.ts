@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DecisionService } from "@/application/decision/decision-service";
 import { InMemoryDecisionRepository } from "@/infrastructure/decision/in-memory-decision-repository";
 import type { ModelProvider, ModelRequest, ModelResponse, ModelRouter } from "@/ai/model-provider";
+import { requireOrganizationContext } from "@/security/organization-context";
 
 class UnconfiguredProvider implements ModelProvider {
   readonly name = "unconfigured";
@@ -17,9 +18,10 @@ const service = new DecisionService(repository, router);
 
 export async function POST(request: NextRequest) {
   try {
+    const context = requireOrganizationContext(request.headers);
     const body = await request.json();
     const decision = await service.create({
-      organizationId: String(body.organizationId ?? ""),
+      organizationId: context.organizationId,
       title: String(body.title ?? ""),
       objective: String(body.objective ?? ""),
       context: String(body.context ?? ""),
