@@ -24,6 +24,8 @@ jobs:
           else
             npm install --no-audit --no-fund
           fi
+      - name: Validate migrations
+        run: node scripts/validate-migrations.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Reject trusted identity headers in API routes
