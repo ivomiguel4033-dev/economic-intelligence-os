@@ -3,6 +3,7 @@ import { requireOrganizationContext } from "@/security/organization-context";
 import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import { PostgresOrchestrationRepository } from "@/infrastructure/orchestration/postgres-orchestration-repository";
 import { createOrchestrationRuntime } from "@/orchestration/runtime-factory";
+import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
@@ -32,6 +33,11 @@ export async function POST(request: NextRequest) {
       evidenceCount: Number(body.action?.evidenceCount ?? claims.reduce((sum, claim) => sum + claim.evidence.length, 0)),
     };
 
+    await enforceRuntimeBilling(context.organizationId, "aiBoard");
+    if (action.externalSideEffect) {
+      await enforceRuntimeBilling(context.organizationId, "autonomousExecution");
+    }
+
     const runtime = createOrchestrationRuntime();
     const result = await runtime.run(decision, claims, action);
     const runs = new PostgresOrchestrationRepository();
@@ -40,7 +46,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...result, runId: persisted.id, persistedAt: persisted.createdAt }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid orchestration request";
-    const status = message.includes("No AI providers configured") ? 503 : 400;
+    const status = message.includes("No AI providers configured") ? 503
+      : message.includes("subscription") || message.includes("plan") || message.includes("usage limit") || message.includes("Payment recovery") ? 402
+      : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }
