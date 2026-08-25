@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStripeSignature } from "@/billing/webhook-signature";
-import { db } from "@/infrastructure/database/postgres";
+import { registerStripeEvent, markStripeEventFailed, markStripeEventProcessed } from "@/billing/stripe-event-store";
+import { processStripeEvent } from "@/billing/stripe-event-processor";
 
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -12,20 +13,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid Stripe signature" }, { status: 400 });
   }
 
-  const event = JSON.parse(payload) as { id: string; type: string; livemode: boolean; data?: { object?: Record<string, unknown> } };
+  const event = JSON.parse(payload) as { id: string; type: string; livemode: boolean; data?: { object?: never } };
   const expectedLive = process.env.STRIPE_LIVEMODE === "true";
   if (event.livemode !== expectedLive) {
     return NextResponse.json({ error: "Stripe event mode mismatch" }, { status: 400 });
   }
 
-  const inserted = await db.query(
-    `INSERT INTO stripe_webhook_events (event_id, event_type, livemode, payload)
-     VALUES ($1,$2,$3,$4)
-     ON CONFLICT (event_id) DO NOTHING
-     RETURNING event_id`,
-    [event.id, event.type, event.livemode, payload],
-  );
+  const registration = await registerStripeEvent({ id: event.id, type: event.type, livemode: event.livemode, rawPayload: payload });
+  if (registration === "duplicate") return NextResponse.json({ received: true, duplicate: true });
 
-  if (!inserted.rowCount) return NextResponse.json({ received: true, duplicate: true });
-  return NextResponse.json({ received: true });
+  try {
+    await processStripeEvent(event);
+    await markStripeEventProcessed(event.id);
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    await markStripeEventFailed(event.id, error);
+    return NextResponse.json({ error: "Stripe event processing failed" }, { status: 500 });
+  }
 }
