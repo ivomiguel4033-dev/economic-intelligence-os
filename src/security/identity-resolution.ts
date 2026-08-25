@@ -13,10 +13,10 @@ export async function resolveVerifiedIdentity(identity: VerifiedIdentity): Promi
   assertIdentityFresh(identity);
   if (identity.email && !identity.emailVerified) throw new Error("Verified email required");
   const result = await db.query(
-    `SELECT a.id AS actor_id, ei.provider, ei.subject, a.email
-     FROM external_identities ei
-     JOIN actors a ON a.id=ei.actor_id
-     WHERE ei.provider=$1 AND ei.subject=$2 AND a.disabled_at IS NULL`,
+    `SELECT a.id AS actor_id, ai.provider, ai.subject, COALESCE(a.email, ai.email) AS email
+     FROM actor_identities ai
+     JOIN actors a ON a.id=ai.actor_id
+     WHERE ai.provider=$1 AND ai.subject=$2 AND a.disabled_at IS NULL`,
     [identity.provider, identity.subject],
   );
   if (!result.rows[0]) throw new Error("Identity is not linked to an active actor");
