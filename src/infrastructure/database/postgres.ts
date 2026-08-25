@@ -15,6 +15,9 @@ function database(): Pool {
   return pool;
 }
 
-export const db = {
-  query: (...args: Parameters<Pool["query"]>) => database().query(...args),
+export const db: Pick<Pool, "query"> = {
+  query: ((...args: unknown[]) => {
+    const query = database().query.bind(database()) as (...queryArgs: unknown[]) => unknown;
+    return query(...args);
+  }) as Pool["query"],
 };
