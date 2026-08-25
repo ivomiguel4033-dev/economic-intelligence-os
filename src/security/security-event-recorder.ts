@@ -10,7 +10,8 @@ function digest(value?: string | null): string | null {
 
 export async function recordSecurityEvent(input: {
   eventType: string;
-  outcome: "success" | "denied" | "error";
+  outcome: "allowed" | "denied" | "failed";
+  severity?: "info" | "warning" | "high" | "critical";
   actorId?: string;
   organizationId?: string;
   ip?: string | null;
@@ -19,10 +20,11 @@ export async function recordSecurityEvent(input: {
 }): Promise<void> {
   await db.query(
     `INSERT INTO security_events
-      (event_type, outcome, actor_id, organization_id, ip_hash, user_agent_hash, metadata, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())`,
+      (event_type, severity, outcome, actor_id, organization_id, ip_hash, user_agent_hash, metadata, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW())`,
     [
       input.eventType,
+      input.severity ?? "info",
       input.outcome,
       input.actorId ?? null,
       input.organizationId ?? null,
