@@ -1,11 +1,24 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { IdentityVerifier, VerifiedIdentity } from "@/security/identity";
+import type { AuthAssurance } from "@/security/step-up-auth";
 
 export interface OIDCVerifierConfig {
   issuer: string;
   audience: string;
   jwksUrl: string;
   providerName: string;
+}
+
+function assuranceFromClaims(amr: unknown, acr: unknown): AuthAssurance {
+  const methods = Array.isArray(amr) ? amr.map(String) : [];
+  const acrValue = typeof acr === "string" ? acr.toLowerCase() : "";
+  if (methods.some((m) => ["webauthn", "hwk", "fido", "fido2"].includes(m.toLowerCase())) || /phishing|aal3|phr/.test(acrValue)) {
+    return "phishing-resistant";
+  }
+  if (methods.some((m) => ["mfa", "otp", "totp", "sms"].includes(m.toLowerCase())) || /mfa|aal2/.test(acrValue)) {
+    return "mfa";
+  }
+  return "password";
 }
 
 export class OIDCVerifier implements IdentityVerifier {
@@ -30,6 +43,8 @@ export class OIDCVerifier implements IdentityVerifier {
       emailVerified: payload.email_verified === true,
       issuedAt: payload.iat,
       expiresAt: payload.exp,
+      authTime: typeof payload.auth_time === "number" ? payload.auth_time : payload.iat,
+      assurance: assuranceFromClaims(payload.amr, payload.acr),
     };
   }
 }
