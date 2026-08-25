@@ -28,6 +28,8 @@ jobs:
         run: node scripts/validate-migrations.mjs
       - name: Tenant isolation regression checks
         run: node scripts/security-regression.mjs
+      - name: Execution reliability regression checks
+        run: node scripts/execution-reliability-regression.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Reject trusted identity headers in API routes
