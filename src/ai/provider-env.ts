@@ -1,4 +1,5 @@
 import { OpenAICompatibleProvider } from "@/ai/providers/openai-compatible-provider";
+import { TelemetryProvider } from "@/ai/providers/telemetry-provider";
 import type { ModelProvider } from "@/ai/model-provider";
 import { assertSafeProviderUrl } from "@/security/provider-url-policy";
 
@@ -15,7 +16,8 @@ export function providersFromEnvironment(): ModelProvider[] {
     const model = process.env[`${entry.prefix}_MODEL`];
     if (!baseUrl || !apiKey || !model) continue;
     const safeUrl = assertSafeProviderUrl(baseUrl);
-    providers.push(new OpenAICompatibleProvider({ name: entry.name, baseUrl: safeUrl.toString(), apiKey, model }));
+    const provider = new OpenAICompatibleProvider({ name: entry.name, baseUrl: safeUrl.toString(), apiKey, model });
+    providers.push(new TelemetryProvider(provider));
   }
   return providers;
 }
