@@ -3,23 +3,20 @@ import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-d
 import { PostgresOrchestrationRepository } from "@/infrastructure/orchestration/postgres-orchestration-repository";
 import { createOrchestrationRuntime } from "@/orchestration/runtime-factory";
 import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
-import { oidcVerifierFromEnvironment } from "@/security/oidc-verifier";
-import { authenticateRequest } from "@/security/request-auth";
-import { resolveVerifiedIdentity } from "@/security/identity-resolution";
-import { resolveOrganizationForActor } from "@/security/organization-selection";
-import { resolveAccessContext } from "@/security/access-context";
+import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { requireAuthorization } from "@/security/authorization-policy";
+import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const verifier = oidcVerifierFromEnvironment();
-    const verified = await authenticateRequest(request.headers.get("authorization"), verifier);
-    const actor = await resolveVerifiedIdentity(verified);
-    const organizationId = await resolveOrganizationForActor(actor.actorId, body.organizationId ? String(body.organizationId) : undefined);
-    const access = await resolveAccessContext(actor.actorId, organizationId);
+    const access = await resolveAuthenticatedContext(
+      request.headers.get("authorization"),
+      body.organizationId ? String(body.organizationId) : undefined,
+    );
+    const organizationId = access.organizationId;
     requireAuthorization(access, { organizationId, resourceType: "decision" }, "execute");
 
     const decisionId = String(body.decisionId ?? "");
@@ -44,6 +41,11 @@ export async function POST(request: NextRequest) {
       evidenceCount: Number(body.action?.evidenceCount ?? claims.reduce((sum, claim) => sum + claim.evidence.length, 0)),
     };
 
+    if (action.externalSideEffect) {
+      requireStepUp(access, action.riskTier === "high" || action.riskTier === "critical" ? "phishing-resistant" : "mfa");
+      requireRecentAuthentication(access, 600);
+    }
+
     await enforceRuntimeBilling(organizationId, "aiBoard");
     if (action.externalSideEffect) await enforceRuntimeBilling(organizationId, "autonomousExecution");
 
@@ -56,7 +58,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid orchestration request";
     const status = message.includes("No AI providers configured") || message.includes("OIDC verifier is not configured") ? 503
-      : message.includes("authentication") || message.includes("Bearer") || message.includes("Identity") ? 401
+      : message.includes("authentication") || message.includes("Bearer") || message.includes("Identity") || message.includes("token") ? 401
+      : message.includes("Step-up") || message.includes("Recent authentication") ? 401
       : message.includes("Access denied") || message.includes("membership") || message.includes("Organization access") ? 403
       : message.includes("subscription") || message.includes("plan") || message.includes("usage limit") || message.includes("Payment recovery") ? 402
       : 400;
