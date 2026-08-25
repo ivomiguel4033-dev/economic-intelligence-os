@@ -28,9 +28,12 @@ CREATE TABLE IF NOT EXISTS security_sessions (
   session_hash text NOT NULL UNIQUE,
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
+  revocation_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   last_seen_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE security_sessions ADD COLUMN IF NOT EXISTS revocation_reason text;
 
 CREATE INDEX IF NOT EXISTS actor_identities_actor_idx ON actor_identities(actor_id);
 CREATE INDEX IF NOT EXISTS security_sessions_actor_org_idx ON security_sessions(actor_id, organization_id, expires_at DESC);
