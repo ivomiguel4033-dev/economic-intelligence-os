@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DecisionService } from "@/application/decision/decision-service";
 import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import type { ModelProvider, ModelRequest, ModelResponse, ModelRouter } from "@/ai/model-provider";
-import { requireOrganizationContext } from "@/security/organization-context";
+import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 
 class UnconfiguredProvider implements ModelProvider {
   readonly name = "unconfigured";
@@ -18,8 +18,11 @@ const service = new DecisionService(repository, router);
 
 export async function POST(request: NextRequest) {
   try {
-    const context = requireOrganizationContext(request.headers);
     const body = await request.json();
+    const context = await resolveAuthenticatedContext(
+      request.headers.get("authorization"),
+      typeof body.organizationId === "string" ? body.organizationId : undefined,
+    );
     const decision = await service.create({
       organizationId: context.organizationId,
       title: String(body.title ?? ""),
@@ -28,9 +31,8 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(decision, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Invalid request" },
-      { status: 400 },
-    );
+    const message = error instanceof Error ? error.message : "Invalid request";
+    const status = /Bearer|Identity|OIDC|token|membership|Organization access/i.test(message) ? 401 : 400;
+    return NextResponse.json({ error: message }, { status });
   }
 }
