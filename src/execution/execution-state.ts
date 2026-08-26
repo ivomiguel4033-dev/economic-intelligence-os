@@ -13,18 +13,25 @@ export async function createExecutionRun(input: { organizationId: string; action
   return String(result.rows[0].id);
 }
 
-export async function transitionExecution(runId: string, state: ExecutionState, input?: { result?: unknown; uncertaintyReason?: string }): Promise<void> {
-  await db.query(
-    `UPDATE execution_runs SET state=$2, result=COALESCE($3::jsonb,result), uncertainty_reason=$4, updated_at=NOW() WHERE id=$1`,
-    [runId, state, input?.result === undefined ? null : JSON.stringify(input.result), input?.uncertaintyReason ?? null],
+export async function transitionExecution(organizationId: string, runId: string, state: ExecutionState, input?: { result?: unknown; uncertaintyReason?: string }): Promise<void> {
+  const result = await db.query(
+    `UPDATE execution_runs
+     SET state=$3, result=COALESCE($4::jsonb,result), uncertainty_reason=$5, updated_at=NOW()
+     WHERE id=$1 AND organization_id=$2`,
+    [runId, organizationId, state, input?.result === undefined ? null : JSON.stringify(input.result), input?.uncertaintyReason ?? null],
   );
+  if (result.rowCount !== 1) throw new Error("Execution run not found for organization");
 }
 
-export async function recordExecutionAttempt(input: { runId: string; attempt: number; outcome: "started" | "succeeded" | "failed" | "uncertain"; errorCode?: string; errorMessage?: string }): Promise<void> {
-  await db.query(
+export async function recordExecutionAttempt(input: { organizationId: string; runId: string; attempt: number; outcome: "started" | "succeeded" | "failed" | "uncertain"; errorCode?: string; errorMessage?: string }): Promise<void> {
+  const result = await db.query(
     `INSERT INTO execution_attempts (execution_run_id, attempt, outcome, error_code, error_message, finished_at)
-     VALUES ($1,$2,$3,$4,$5,CASE WHEN $3='started' THEN NULL ELSE NOW() END)
-     ON CONFLICT (execution_run_id, attempt) DO UPDATE SET outcome=EXCLUDED.outcome, error_code=EXCLUDED.error_code, error_message=EXCLUDED.error_message, finished_at=EXCLUDED.finished_at`,
-    [input.runId, input.attempt, input.outcome, input.errorCode ?? null, input.errorMessage?.slice(0, 1000) ?? null],
+     SELECT r.id,$3,$4,$5,$6,CASE WHEN $4='started' THEN NULL ELSE NOW() END
+     FROM execution_runs r
+     WHERE r.id=$1 AND r.organization_id=$2
+     ON CONFLICT (execution_run_id, attempt) DO UPDATE SET outcome=EXCLUDED.outcome, error_code=EXCLUDED.error_code, error_message=EXCLUDED.error_message, finished_at=EXCLUDED.finished_at
+     RETURNING id`,
+    [input.runId, input.organizationId, input.attempt, input.outcome, input.errorCode ?? null, input.errorMessage?.slice(0, 1000) ?? null],
   );
+  if (result.rowCount !== 1) throw new Error("Execution run not found for organization");
 }
