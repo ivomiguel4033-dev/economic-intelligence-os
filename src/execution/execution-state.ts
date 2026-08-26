@@ -1,6 +1,7 @@
 import { db } from "@/infrastructure/database/postgres";
 
 export type ExecutionState = "pending" | "running" | "succeeded" | "failed" | "uncertain" | "dead_lettered";
+export type ExecutionLeaseGuard = { leaseKey: string; ownerId: string; fencingToken: string };
 
 export async function createExecutionRun(input: { organizationId: string; actionId: string; actionType: string; idempotencyKey: string }): Promise<string> {
   const result = await db.query(
@@ -18,13 +19,34 @@ export async function transitionExecution(
   runId: string,
   expectedState: ExecutionState,
   state: ExecutionState,
-  input?: { result?: unknown; uncertaintyReason?: string },
+  input?: { result?: unknown; uncertaintyReason?: string; leaseGuard?: ExecutionLeaseGuard },
 ): Promise<void> {
+  const guard = input?.leaseGuard;
   const result = await db.query(
     `UPDATE execution_runs
      SET state=$4, result=COALESCE($5::jsonb,result), uncertainty_reason=$6, updated_at=NOW()
-     WHERE id=$1 AND organization_id=$2 AND state=$3`,
-    [runId, organizationId, expectedState, state, input?.result === undefined ? null : JSON.stringify(input.result), input?.uncertaintyReason ?? null],
+     WHERE id=$1 AND organization_id=$2 AND state=$3
+       AND (
+         $7::text IS NULL OR EXISTS (
+           SELECT 1 FROM execution_leases l
+           WHERE l.organization_id=$2
+             AND l.lease_key=$7
+             AND l.owner_id=$8
+             AND l.fencing_token=$9::bigint
+             AND l.expires_at > NOW()
+         )
+       )`,
+    [
+      runId,
+      organizationId,
+      expectedState,
+      state,
+      input?.result === undefined ? null : JSON.stringify(input.result),
+      input?.uncertaintyReason ?? null,
+      guard?.leaseKey ?? null,
+      guard?.ownerId ?? null,
+      guard?.fencingToken ?? null,
+    ],
   );
   if (result.rowCount !== 1) {
     throw new Error(`Execution transition rejected for organization: expected ${expectedState} -> ${state}`);
