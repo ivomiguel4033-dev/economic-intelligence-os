@@ -26,11 +26,30 @@ export class ResilientExternalExecutor<T> {
     const key = executionIdempotencyKey({ organizationId: action.organizationId, actionId: action.id, actionType: action.actionType });
     const lease = new ExecutionLease(action.organizationId);
     const leaseKey = `execute:${key}`;
-    const fence = await lease.acquireWithFence(leaseKey, 120);
+    const leaseTtlSeconds = 120;
+    const fence = await lease.acquireWithFence(leaseKey, leaseTtlSeconds);
     if (!fence) throw new Error("Execution already in progress");
     const leaseGuard: ExecutionLeaseGuard = { leaseKey, ownerId: fence.ownerId, fencingToken: fence.fencingToken };
 
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    let leaseLost = false;
+    const startHeartbeat = () => {
+      heartbeat = setInterval(() => {
+        void lease.renew(leaseKey, leaseTtlSeconds).then((renewed) => {
+          if (!renewed) leaseLost = true;
+        }).catch(() => { leaseLost = true; });
+      }, Math.floor((leaseTtlSeconds * 1000) / 3));
+      heartbeat.unref?.();
+    };
+    const assertLease = async (message: string) => {
+      if (leaseLost || !(await lease.renew(leaseKey, leaseTtlSeconds))) {
+        leaseLost = true;
+        throw new Error(message);
+      }
+    };
+
     try {
+      startHeartbeat();
       const existing = await this.options.idempotencyStore.get(key);
       if (existing !== undefined) return existing;
 
@@ -43,11 +62,11 @@ export class ResilientExternalExecutor<T> {
 
       for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt += 1) {
         attempts = attempt;
-        if (!(await lease.renew(leaseKey, 120))) throw new Error("Execution lease lost before attempt");
+        await assertLease("Execution lease lost before attempt");
         await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "started" });
         try {
           const result = await this.executor.execute(action);
-          if (!(await lease.renew(leaseKey, 120))) throw new Error("Execution lease lost after external side effect");
+          await assertLease("Execution lease lost after external side effect");
           await this.options.idempotencyStore.putIfAbsent(key, result);
           await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "succeeded" });
           await transitionExecution(action.organizationId, runId, "running", "succeeded", { result, leaseGuard });
@@ -57,6 +76,7 @@ export class ResilientExternalExecutor<T> {
           const error = executionError(rawError);
           lastError = error;
           incrementMetric("ai_failures_total");
+          if (leaseLost) throw error;
           if (error.outcomeUncertain) {
             await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "uncertain", errorCode: error.code, errorMessage: error.message });
             await transitionExecution(action.organizationId, runId, "running", "uncertain", { uncertaintyReason: error.message, leaseGuard });
@@ -71,11 +91,13 @@ export class ResilientExternalExecutor<T> {
       }
 
       const message = lastError?.message ?? "External execution failed";
+      await assertLease("Execution lease lost before terminal transition");
       await transitionExecution(action.organizationId, runId, "running", "failed", { leaseGuard });
       await deadLetterAction(action, message, attempts);
       await transitionExecution(action.organizationId, runId, "failed", "dead_lettered", { leaseGuard });
       throw lastError ?? new Error(message);
     } finally {
+      if (heartbeat) clearInterval(heartbeat);
       await lease.release(leaseKey);
     }
   }
