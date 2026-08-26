@@ -65,8 +65,14 @@ try {
   assert.equal(activeLease.rowCount, 1);
   assert.equal(activeLease.rows[0].active, true);
 
-  // Expired leases must be recoverable by another worker.
-  await pool.query(`UPDATE execution_leases SET expires_at=NOW() - INTERVAL '1 second' WHERE lease_key=$1`, [leaseKey]);
+  // Expired leases must be recoverable by another worker while preserving
+  // the invariant that expiry is always strictly after acquisition time.
+  await pool.query(
+    `UPDATE execution_leases
+     SET acquired_at=NOW() - INTERVAL '2 seconds', expires_at=NOW() - INTERVAL '1 second'
+     WHERE lease_key=$1`,
+    [leaseKey],
+  );
   assert.equal(await acquireLease(leaseKey, "takeover-owner"), true);
   const takeover = await pool.query(`SELECT owner_id FROM execution_leases WHERE lease_key=$1`, [leaseKey]);
   assert.equal(takeover.rows[0].owner_id, "takeover-owner");
