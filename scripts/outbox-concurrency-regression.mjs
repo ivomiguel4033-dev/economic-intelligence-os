@@ -4,17 +4,20 @@ import pg from "pg";
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-async function recoverStale(maxProcessingSeconds = 300, retryAfterSeconds = 1) {
+async function recoverStale(maxProcessingSeconds = 300, retryAfterSeconds = 1, maxAttempts = 5) {
   const result = await pool.query(
     `UPDATE execution_outbox
-     SET status='failed', available_at=NOW() + ($2 * INTERVAL '1 second'),
+     SET status=CASE WHEN attempts >= $3 THEN 'dead_lettered' ELSE 'failed' END,
+         available_at=CASE WHEN attempts >= $3 THEN available_at ELSE NOW() + ($2 * INTERVAL '1 second') END,
          claimed_at=NULL, claimed_by=NULL,
-         last_error='stale processing claim reclaimed', updated_at=NOW()
+         last_error='stale processing claim reclaimed',
+         dead_lettered_at=CASE WHEN attempts >= $3 THEN NOW() ELSE NULL END,
+         updated_at=NOW()
      WHERE status='processing'
        AND claimed_at IS NOT NULL
        AND claimed_at <= NOW() - ($1 * INTERVAL '1 second')
-     RETURNING id`,
-    [maxProcessingSeconds, retryAfterSeconds],
+     RETURNING id, status`,
+    [maxProcessingSeconds, retryAfterSeconds, maxAttempts],
   );
   return result.rows;
 }
@@ -31,7 +34,7 @@ async function claim(workerId, limit = 10) {
      )
      UPDATE execution_outbox o
      SET status='processing', claimed_at=NOW(), claimed_by=$1,
-         attempts=o.attempts + 1, last_error=NULL, updated_at=NOW()
+         attempts=o.attempts + 1, last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
      FROM candidates c
      WHERE o.id=c.id
      RETURNING o.id, o.organization_id, o.dedupe_key, o.attempts`,
@@ -105,14 +108,35 @@ try {
     [organizationA],
   );
 
-  const recovered = await recoverStale(300, 1);
-  assert.ok(recovered.some((row) => row.id === stale.rows[0].id), 'stale processing claim must be recovered');
+  const recovered = await recoverStale(300, 1, 5);
+  assert.ok(recovered.some((row) => row.id === stale.rows[0].id && row.status === 'failed'), 'stale processing claim must be recovered');
 
   await pool.query(`UPDATE execution_outbox SET available_at=NOW() WHERE id=$1`, [stale.rows[0].id]);
   const reclaimed = await claim('recovery-worker', 10);
   const recoveredClaim = reclaimed.find((row) => row.id === stale.rows[0].id);
   assert.ok(recoveredClaim, 'recovered message must become claimable again');
   assert.equal(recoveredClaim.attempts, 2, 'recovered delivery must preserve attempt history');
+
+  const poison = await pool.query(
+    `INSERT INTO execution_outbox
+       (organization_id, event_type, dedupe_key, payload, status, attempts, claimed_at, claimed_by)
+     VALUES ($1, 'test.poison', 'poison-key', '{}'::jsonb, 'processing', 5, NOW() - INTERVAL '10 minutes', 'dead-worker')
+     RETURNING id`,
+    [organizationA],
+  );
+
+  const deadLettered = await recoverStale(300, 1, 5);
+  assert.ok(deadLettered.some((row) => row.id === poison.rows[0].id && row.status === 'dead_lettered'), 'exhausted stale claim must be dead-lettered');
+
+  const poisonRow = await pool.query(
+    `SELECT status, dead_lettered_at IS NOT NULL AS stamped FROM execution_outbox WHERE id=$1`,
+    [poison.rows[0].id],
+  );
+  assert.equal(poisonRow.rows[0].status, 'dead_lettered');
+  assert.equal(poisonRow.rows[0].stamped, true);
+
+  const afterDeadLetter = await claim('late-worker', 100);
+  assert.ok(!afterDeadLetter.some((row) => row.id === poison.rows[0].id), 'dead-lettered message must never be reclaimed');
 
   console.log('outbox concurrency regression checks passed');
 } finally {

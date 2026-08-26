@@ -27,23 +27,31 @@ export async function enqueueOutbox(input: {
   return String(result.rows[0].id);
 }
 
-export async function reclaimStaleOutbox(maxProcessingSeconds = 300, retryAfterSeconds = 5): Promise<number> {
+export async function reclaimStaleOutbox(
+  maxProcessingSeconds = 300,
+  retryAfterSeconds = 5,
+  maxAttempts = 5,
+): Promise<{ reclaimed: number; deadLettered: number }> {
   const staleAfter = Math.max(30, Math.min(maxProcessingSeconds, 86400));
   const retryDelay = Math.max(1, Math.min(retryAfterSeconds, 3600));
+  const attemptLimit = Math.max(1, Math.min(maxAttempts, 100));
   const result = await db.query(
     `UPDATE execution_outbox
-     SET status='failed',
-         available_at=NOW() + ($2 * INTERVAL '1 second'),
+     SET status=CASE WHEN attempts >= $3 THEN 'dead_lettered' ELSE 'failed' END,
+         available_at=CASE WHEN attempts >= $3 THEN available_at ELSE NOW() + ($2 * INTERVAL '1 second') END,
          claimed_at=NULL,
          claimed_by=NULL,
          last_error='stale processing claim reclaimed',
+         dead_lettered_at=CASE WHEN attempts >= $3 THEN NOW() ELSE NULL END,
          updated_at=NOW()
      WHERE status='processing'
        AND claimed_at IS NOT NULL
-       AND claimed_at <= NOW() - ($1 * INTERVAL '1 second')`,
-    [staleAfter, retryDelay],
+       AND claimed_at <= NOW() - ($1 * INTERVAL '1 second')
+     RETURNING status`,
+    [staleAfter, retryDelay, attemptLimit],
   );
-  return result.rowCount ?? 0;
+  const deadLettered = result.rows.filter((row) => row.status === "dead_lettered").length;
+  return { reclaimed: (result.rowCount ?? 0) - deadLettered, deadLettered };
 }
 
 export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxMessage[]> {
@@ -60,7 +68,7 @@ export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxM
      )
      UPDATE execution_outbox o
      SET status='processing', claimed_at=NOW(), claimed_by=$1,
-         attempts=o.attempts + 1, last_error=NULL, updated_at=NOW()
+         attempts=o.attempts + 1, last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
      FROM candidates c
      WHERE o.id=c.id
      RETURNING o.id, o.organization_id, o.execution_run_id, o.event_type,
@@ -94,14 +102,23 @@ export async function markOutboxFailed(input: {
   workerId: string;
   error: string;
   retryAfterSeconds?: number;
-}): Promise<void> {
+  maxAttempts?: number;
+}): Promise<"failed" | "dead_lettered"> {
   const delay = Math.max(1, Math.min(input.retryAfterSeconds ?? 30, 3600));
+  const attemptLimit = Math.max(1, Math.min(input.maxAttempts ?? 5, 100));
   const result = await db.query(
     `UPDATE execution_outbox
-     SET status='failed', available_at=NOW() + ($5 * INTERVAL '1 second'),
-         claimed_at=NULL, claimed_by=NULL, last_error=$4, updated_at=NOW()
-     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3`,
-    [input.id, input.organizationId, input.workerId, input.error.slice(0, 1000), delay],
+     SET status=CASE WHEN attempts >= $6 THEN 'dead_lettered' ELSE 'failed' END,
+         available_at=CASE WHEN attempts >= $6 THEN available_at ELSE NOW() + ($5 * INTERVAL '1 second') END,
+         claimed_at=NULL,
+         claimed_by=NULL,
+         last_error=$4,
+         dead_lettered_at=CASE WHEN attempts >= $6 THEN NOW() ELSE NULL END,
+         updated_at=NOW()
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3
+     RETURNING status`,
+    [input.id, input.organizationId, input.workerId, input.error.slice(0, 1000), delay, attemptLimit],
   );
   if (result.rowCount !== 1) throw new Error("Outbox failure acknowledgement rejected");
+  return result.rows[0].status === "dead_lettered" ? "dead_lettered" : "failed";
 }
