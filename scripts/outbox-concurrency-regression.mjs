@@ -26,8 +26,8 @@ async function claim(workerId, limit = 10) {
 }
 
 try {
-  const orgA = await pool.query(`INSERT INTO organizations (name) VALUES ('outbox-a') RETURNING id`);
-  const orgB = await pool.query(`INSERT INTO organizations (name) VALUES ('outbox-b') RETURNING id`);
+  const orgA = await pool.query(`INSERT INTO organizations (name, slug) VALUES ('outbox-a', 'outbox-a') RETURNING id`);
+  const orgB = await pool.query(`INSERT INTO organizations (name, slug) VALUES ('outbox-b', 'outbox-b') RETURNING id`);
   const organizationA = orgA.rows[0].id;
   const organizationB = orgB.rows[0].id;
 
@@ -85,6 +85,6 @@ try {
 
   console.log('outbox concurrency regression checks passed');
 } finally {
-  await pool.query(`DELETE FROM organizations WHERE name IN ('outbox-a','outbox-b')`).catch(() => {});
+  await pool.query(`DELETE FROM organizations WHERE slug IN ('outbox-a','outbox-b')`).catch(() => {});
   await pool.end();
 }
