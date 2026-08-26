@@ -46,6 +46,8 @@ jobs:
         run: npm run migrate
       - name: Database concurrency regression checks
         run: node scripts/database-concurrency-regression.mjs
+      - name: Transactional outbox concurrency regression checks
+        run: node scripts/outbox-concurrency-regression.mjs
       - name: Tenant isolation regression checks
         run: node scripts/security-regression.mjs
       - name: Execution reliability regression checks
