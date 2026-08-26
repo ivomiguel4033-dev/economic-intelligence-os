@@ -4,6 +4,21 @@ import pg from "pg";
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+async function recoverStale(maxProcessingSeconds = 300, retryAfterSeconds = 1) {
+  const result = await pool.query(
+    `UPDATE execution_outbox
+     SET status='failed', available_at=NOW() + ($2 * INTERVAL '1 second'),
+         claimed_at=NULL, claimed_by=NULL,
+         last_error='stale processing claim reclaimed', updated_at=NOW()
+     WHERE status='processing'
+       AND claimed_at IS NOT NULL
+       AND claimed_at <= NOW() - ($1 * INTERVAL '1 second')
+     RETURNING id`,
+    [maxProcessingSeconds, retryAfterSeconds],
+  );
+  return result.rows;
+}
+
 async function claim(workerId, limit = 10) {
   const result = await pool.query(
     `WITH candidates AS (
@@ -38,7 +53,6 @@ try {
     [organizationA],
   );
 
-  // Same dedupe key is valid in another tenant.
   await pool.query(
     `INSERT INTO execution_outbox (organization_id, event_type, dedupe_key, payload)
      VALUES ($1, 'test.event', 'key-1', '{}'::jsonb)`,
@@ -82,6 +96,23 @@ try {
     [owned.id, organizationA, ownerId],
   );
   assert.equal(acceptedAck.rowCount, 1);
+
+  const stale = await pool.query(
+    `INSERT INTO execution_outbox
+       (organization_id, event_type, dedupe_key, payload, status, attempts, claimed_at, claimed_by)
+     VALUES ($1, 'test.stale', 'stale-key', '{}'::jsonb, 'processing', 1, NOW() - INTERVAL '10 minutes', 'dead-worker')
+     RETURNING id`,
+    [organizationA],
+  );
+
+  const recovered = await recoverStale(300, 1);
+  assert.ok(recovered.some((row) => row.id === stale.rows[0].id), 'stale processing claim must be recovered');
+
+  await pool.query(`UPDATE execution_outbox SET available_at=NOW() WHERE id=$1`, [stale.rows[0].id]);
+  const reclaimed = await claim('recovery-worker', 10);
+  const recoveredClaim = reclaimed.find((row) => row.id === stale.rows[0].id);
+  assert.ok(recoveredClaim, 'recovered message must become claimable again');
+  assert.equal(recoveredClaim.attempts, 2, 'recovered delivery must preserve attempt history');
 
   console.log('outbox concurrency regression checks passed');
 } finally {

@@ -1,4 +1,4 @@
-import { claimOutbox, markOutboxDelivered, markOutboxFailed, type OutboxMessage } from "@/execution/transactional-outbox";
+import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, type OutboxMessage } from "@/execution/transactional-outbox";
 
 export type OutboxHandler = (message: OutboxMessage) => Promise<void>;
 
@@ -7,11 +7,13 @@ export class OutboxDispatcher {
     private readonly workerId: string,
     private readonly handler: OutboxHandler,
     private readonly retryAfterSeconds = 30,
+    private readonly staleClaimSeconds = 300,
   ) {
     if (!workerId) throw new Error("OutboxDispatcher requires workerId");
   }
 
-  async dispatchOnce(limit = 25): Promise<{ claimed: number; delivered: number; failed: number }> {
+  async dispatchOnce(limit = 25): Promise<{ claimed: number; delivered: number; failed: number; reclaimed: number }> {
+    const reclaimed = await reclaimStaleOutbox(this.staleClaimSeconds, this.retryAfterSeconds);
     const messages = await claimOutbox(this.workerId, limit);
     let delivered = 0;
     let failed = 0;
@@ -40,6 +42,6 @@ export class OutboxDispatcher {
       }
     }
 
-    return { claimed: messages.length, delivered, failed };
+    return { claimed: messages.length, delivered, failed, reclaimed };
   }
 }

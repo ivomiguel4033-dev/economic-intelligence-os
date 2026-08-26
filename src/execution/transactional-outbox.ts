@@ -27,6 +27,25 @@ export async function enqueueOutbox(input: {
   return String(result.rows[0].id);
 }
 
+export async function reclaimStaleOutbox(maxProcessingSeconds = 300, retryAfterSeconds = 5): Promise<number> {
+  const staleAfter = Math.max(30, Math.min(maxProcessingSeconds, 86400));
+  const retryDelay = Math.max(1, Math.min(retryAfterSeconds, 3600));
+  const result = await db.query(
+    `UPDATE execution_outbox
+     SET status='failed',
+         available_at=NOW() + ($2 * INTERVAL '1 second'),
+         claimed_at=NULL,
+         claimed_by=NULL,
+         last_error='stale processing claim reclaimed',
+         updated_at=NOW()
+     WHERE status='processing'
+       AND claimed_at IS NOT NULL
+       AND claimed_at <= NOW() - ($1 * INTERVAL '1 second')`,
+    [staleAfter, retryDelay],
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxMessage[]> {
   if (!workerId) throw new Error("Outbox workerId is required");
   const batch = Math.max(1, Math.min(limit, 100));
