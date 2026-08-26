@@ -24,7 +24,7 @@ export class ResilientExternalExecutor<T> {
     if (!this.breaker.canExecute()) throw new Error("External execution circuit is open");
 
     const key = executionIdempotencyKey({ organizationId: action.organizationId, actionId: action.id, actionType: action.actionType });
-    const lease = new ExecutionLease();
+    const lease = new ExecutionLease(action.organizationId);
     const leaseKey = `execute:${key}`;
     if (!(await lease.acquire(leaseKey, 120))) throw new Error("Execution already in progress");
 
@@ -33,7 +33,7 @@ export class ResilientExternalExecutor<T> {
       if (existing !== undefined) return existing;
 
       const runId = await createExecutionRun({ organizationId: action.organizationId, actionId: action.id, actionType: action.actionType, idempotencyKey: key });
-      await transitionExecution(runId, "running");
+      await transitionExecution(action.organizationId, runId, "running");
       const retryPolicy = this.options.retryPolicy ?? DEFAULT_EXTERNAL_RETRY;
       incrementMetric("ai_requests_total");
       let lastError: ExternalExecutionError | undefined;
@@ -41,12 +41,12 @@ export class ResilientExternalExecutor<T> {
 
       for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt += 1) {
         attempts = attempt;
-        await recordExecutionAttempt({ runId, attempt, outcome: "started" });
+        await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "started" });
         try {
           const result = await this.executor.execute(action);
           await this.options.idempotencyStore.putIfAbsent(key, result);
-          await recordExecutionAttempt({ runId, attempt, outcome: "succeeded" });
-          await transitionExecution(runId, "succeeded", { result });
+          await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "succeeded" });
+          await transitionExecution(action.organizationId, runId, "succeeded", { result });
           this.breaker.success();
           return result;
         } catch (rawError) {
@@ -54,12 +54,12 @@ export class ResilientExternalExecutor<T> {
           lastError = error;
           incrementMetric("ai_failures_total");
           if (error.outcomeUncertain) {
-            await recordExecutionAttempt({ runId, attempt, outcome: "uncertain", errorCode: error.code, errorMessage: error.message });
-            await transitionExecution(runId, "uncertain", { uncertaintyReason: error.message });
+            await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "uncertain", errorCode: error.code, errorMessage: error.message });
+            await transitionExecution(action.organizationId, runId, "uncertain", { uncertaintyReason: error.message });
             this.breaker.failure();
             throw error;
           }
-          await recordExecutionAttempt({ runId, attempt, outcome: "failed", errorCode: error.code, errorMessage: error.message });
+          await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "failed", errorCode: error.code, errorMessage: error.message });
           this.breaker.failure();
           if (error.retryable === false || attempt >= retryPolicy.maxAttempts || !this.breaker.canExecute()) break;
           await sleep(retryDelay(attempt, retryPolicy));
@@ -67,9 +67,9 @@ export class ResilientExternalExecutor<T> {
       }
 
       const message = lastError?.message ?? "External execution failed";
-      await transitionExecution(runId, "failed");
+      await transitionExecution(action.organizationId, runId, "failed");
       await deadLetterAction(action, message, attempts);
-      await transitionExecution(runId, "dead_lettered");
+      await transitionExecution(action.organizationId, runId, "dead_lettered");
       throw lastError ?? new Error(message);
     } finally {
       await lease.release(leaseKey);
