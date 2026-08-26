@@ -33,8 +33,6 @@ try {
   const organizationId = await createOrganization(`db-regression-${suffix}`);
   const secondOrganizationId = await createOrganization(`db-regression-second-${suffix}`);
 
-  // Idempotency must be atomic within a tenant, but the same external key must
-  // remain valid for another tenant. This prevents cross-tenant collisions.
   const idempotencyKey = `db-regression:${suffix}`;
   const inserts = await Promise.all(
     Array.from({ length: 10 }, (_, index) =>
@@ -64,7 +62,6 @@ try {
   );
   assert.equal(persisted.rows[0].count, 2);
 
-  // A distributed lease must have exactly one owner while unexpired inside a tenant.
   const leaseKey = `db-regression:${suffix}`;
   const contenders = Array.from({ length: 10 }, (_, index) => `owner-${index}`);
   const acquisitions = await Promise.all(
@@ -81,7 +78,6 @@ try {
   assert.equal(activeLease.rowCount, 1);
   assert.equal(activeLease.rows[0].active, true);
 
-  // The same lease key in another tenant is independent and must not block.
   assert.equal(await acquireLease(secondOrganizationId, leaseKey, "tenant-two-owner"), true);
   const crossTenantLeaseCount = await pool.query(
     `SELECT COUNT(*)::int AS count FROM execution_leases WHERE lease_key=$1`,
@@ -89,8 +85,6 @@ try {
   );
   assert.equal(crossTenantLeaseCount.rows[0].count, 2);
 
-  // Expired leases must be recoverable by another worker while preserving
-  // the invariant that expiry is always strictly after acquisition time.
   await pool.query(
     `UPDATE execution_leases
      SET acquired_at=NOW() - INTERVAL '2 seconds', expires_at=NOW() - INTERVAL '1 second'
@@ -104,7 +98,45 @@ try {
   );
   assert.equal(takeover.rows[0].owner_id, "takeover-owner");
 
-  // Tenant deletion must clean execution reliability state through FK cascades.
+  // State changes use compare-and-set semantics so stale workers cannot overwrite
+  // a state they no longer own. Exactly one transition out of running may win.
+  const run = await pool.query(
+    `INSERT INTO execution_runs (organization_id, action_id, action_type, idempotency_key)
+     VALUES ($1,$2,$3,$4) RETURNING id`,
+    [organizationId, "state-race", "regression", `state-race:${suffix}`],
+  );
+  const runId = run.rows[0].id;
+  const started = await pool.query(
+    `UPDATE execution_runs SET state='running' WHERE id=$1 AND organization_id=$2 AND state='pending' RETURNING state`,
+    [runId, organizationId],
+  );
+  assert.equal(started.rowCount, 1);
+
+  const terminalRace = await Promise.all([
+    pool.query(
+      `UPDATE execution_runs SET state='succeeded' WHERE id=$1 AND organization_id=$2 AND state='running' RETURNING state`,
+      [runId, organizationId],
+    ),
+    pool.query(
+      `UPDATE execution_runs SET state='uncertain' WHERE id=$1 AND organization_id=$2 AND state='running' RETURNING state`,
+      [runId, organizationId],
+    ),
+  ]);
+  assert.equal(terminalRace.filter((result) => result.rowCount === 1).length, 1);
+
+  const stateAfterRace = await pool.query(`SELECT state FROM execution_runs WHERE id=$1`, [runId]);
+  assert.ok(["succeeded", "uncertain"].includes(stateAfterRace.rows[0].state));
+
+  // The database-level transition guard must reject impossible jumps even if a
+  // future code path bypasses the runtime helper.
+  await assert.rejects(
+    pool.query(
+      `UPDATE execution_runs SET state='pending' WHERE id=$1 AND organization_id=$2`,
+      [runId, organizationId],
+    ),
+    (error) => error?.code === "23514",
+  );
+
   await pool.query(`DELETE FROM organizations WHERE id=$1`, [organizationId]);
   const firstTenantLeaseAfterDelete = await pool.query(
     `SELECT COUNT(*)::int AS count FROM execution_leases WHERE organization_id=$1`,

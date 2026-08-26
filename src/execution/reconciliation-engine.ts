@@ -28,13 +28,13 @@ export async function reconcileUncertainExecutions<T>(provider: ReconciliationPr
     try {
       const result = await provider.reconcile(candidate);
       if (result.status === "confirmed_succeeded") {
-        await transitionExecution(candidate.organizationId, candidate.runId, "succeeded", { result: result.result });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "succeeded", { result: result.result });
         resolved += 1;
       } else if (result.status === "confirmed_failed") {
-        await transitionExecution(candidate.organizationId, candidate.runId, "failed", { uncertaintyReason: result.reason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "failed", { uncertaintyReason: result.reason });
         resolved += 1;
       } else {
-        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason });
         remaining += 1;
       }
     } catch (error) {

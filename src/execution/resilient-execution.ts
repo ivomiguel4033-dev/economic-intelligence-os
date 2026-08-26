@@ -33,7 +33,7 @@ export class ResilientExternalExecutor<T> {
       if (existing !== undefined) return existing;
 
       const runId = await createExecutionRun({ organizationId: action.organizationId, actionId: action.id, actionType: action.actionType, idempotencyKey: key });
-      await transitionExecution(action.organizationId, runId, "running");
+      await transitionExecution(action.organizationId, runId, "pending", "running");
       const retryPolicy = this.options.retryPolicy ?? DEFAULT_EXTERNAL_RETRY;
       incrementMetric("ai_requests_total");
       let lastError: ExternalExecutionError | undefined;
@@ -46,7 +46,7 @@ export class ResilientExternalExecutor<T> {
           const result = await this.executor.execute(action);
           await this.options.idempotencyStore.putIfAbsent(key, result);
           await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "succeeded" });
-          await transitionExecution(action.organizationId, runId, "succeeded", { result });
+          await transitionExecution(action.organizationId, runId, "running", "succeeded", { result });
           this.breaker.success();
           return result;
         } catch (rawError) {
@@ -55,7 +55,7 @@ export class ResilientExternalExecutor<T> {
           incrementMetric("ai_failures_total");
           if (error.outcomeUncertain) {
             await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "uncertain", errorCode: error.code, errorMessage: error.message });
-            await transitionExecution(action.organizationId, runId, "uncertain", { uncertaintyReason: error.message });
+            await transitionExecution(action.organizationId, runId, "running", "uncertain", { uncertaintyReason: error.message });
             this.breaker.failure();
             throw error;
           }
@@ -67,9 +67,9 @@ export class ResilientExternalExecutor<T> {
       }
 
       const message = lastError?.message ?? "External execution failed";
-      await transitionExecution(action.organizationId, runId, "failed");
+      await transitionExecution(action.organizationId, runId, "running", "failed");
       await deadLetterAction(action, message, attempts);
-      await transitionExecution(action.organizationId, runId, "dead_lettered");
+      await transitionExecution(action.organizationId, runId, "failed", "dead_lettered");
       throw lastError ?? new Error(message);
     } finally {
       await lease.release(leaseKey);

@@ -13,14 +13,22 @@ export async function createExecutionRun(input: { organizationId: string; action
   return String(result.rows[0].id);
 }
 
-export async function transitionExecution(organizationId: string, runId: string, state: ExecutionState, input?: { result?: unknown; uncertaintyReason?: string }): Promise<void> {
+export async function transitionExecution(
+  organizationId: string,
+  runId: string,
+  expectedState: ExecutionState,
+  state: ExecutionState,
+  input?: { result?: unknown; uncertaintyReason?: string },
+): Promise<void> {
   const result = await db.query(
     `UPDATE execution_runs
-     SET state=$3, result=COALESCE($4::jsonb,result), uncertainty_reason=$5, updated_at=NOW()
-     WHERE id=$1 AND organization_id=$2`,
-    [runId, organizationId, state, input?.result === undefined ? null : JSON.stringify(input.result), input?.uncertaintyReason ?? null],
+     SET state=$4, result=COALESCE($5::jsonb,result), uncertainty_reason=$6, updated_at=NOW()
+     WHERE id=$1 AND organization_id=$2 AND state=$3`,
+    [runId, organizationId, expectedState, state, input?.result === undefined ? null : JSON.stringify(input.result), input?.uncertaintyReason ?? null],
   );
-  if (result.rowCount !== 1) throw new Error("Execution run not found for organization");
+  if (result.rowCount !== 1) {
+    throw new Error(`Execution transition rejected for organization: expected ${expectedState} -> ${state}`);
+  }
 }
 
 export async function recordExecutionAttempt(input: { organizationId: string; runId: string; attempt: number; outcome: "started" | "succeeded" | "failed" | "uncertain"; errorCode?: string; errorMessage?: string }): Promise<void> {
