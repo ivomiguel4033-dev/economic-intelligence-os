@@ -21,20 +21,22 @@ export async function reconcileUncertainExecutions<T>(provider: ReconciliationPr
   for (const candidate of candidates) {
     const lease = new ExecutionLease(candidate.organizationId);
     const leaseKey = `reconcile:${candidate.runId}`;
-    if (!(await lease.acquire(leaseKey, 60))) {
+    const fence = await lease.acquireWithFence(leaseKey, 60);
+    if (!fence) {
       skipped += 1;
       continue;
     }
+    const leaseGuard = { leaseKey, ownerId: fence.ownerId, fencingToken: fence.fencingToken };
     try {
       const result = await provider.reconcile(candidate);
       if (result.status === "confirmed_succeeded") {
-        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "succeeded", { result: result.result });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "succeeded", { result: result.result, leaseGuard });
         resolved += 1;
       } else if (result.status === "confirmed_failed") {
-        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "failed", { uncertaintyReason: result.reason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "failed", { uncertaintyReason: result.reason, leaseGuard });
         resolved += 1;
       } else {
-        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason, leaseGuard });
         remaining += 1;
       }
     } catch (error) {
