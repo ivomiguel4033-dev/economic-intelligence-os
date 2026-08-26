@@ -14,12 +14,12 @@ export interface ReconciliationProvider<T> {
 
 export async function reconcileUncertainExecutions<T>(provider: ReconciliationProvider<T>, limit = 100): Promise<{ checked: number; resolved: number; remaining: number; skipped: number }> {
   const candidates = await listUncertainExecutions(limit);
-  const lease = new ExecutionLease();
   let resolved = 0;
   let remaining = 0;
   let skipped = 0;
 
   for (const candidate of candidates) {
+    const lease = new ExecutionLease(candidate.organizationId);
     const leaseKey = `reconcile:${candidate.runId}`;
     if (!(await lease.acquire(leaseKey, 60))) {
       skipped += 1;
@@ -28,13 +28,13 @@ export async function reconcileUncertainExecutions<T>(provider: ReconciliationPr
     try {
       const result = await provider.reconcile(candidate);
       if (result.status === "confirmed_succeeded") {
-        await transitionExecution(candidate.runId, "succeeded", { result: result.result });
+        await transitionExecution(candidate.organizationId, candidate.runId, "succeeded", { result: result.result });
         resolved += 1;
       } else if (result.status === "confirmed_failed") {
-        await transitionExecution(candidate.runId, "failed", { uncertaintyReason: result.reason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "failed", { uncertaintyReason: result.reason });
         resolved += 1;
       } else {
-        await transitionExecution(candidate.runId, "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason });
+        await transitionExecution(candidate.organizationId, candidate.runId, "uncertain", { uncertaintyReason: result.reason ?? candidate.uncertaintyReason });
         remaining += 1;
       }
     } catch (error) {
