@@ -17,7 +17,7 @@ export class PostgresIdempotencyStore<T> implements IdempotencyStore<T> {
     const result = await db.query(
       `INSERT INTO execution_idempotency (idempotency_key, organization_id, action_id, result)
        VALUES ($1,$2,$3,$4::jsonb)
-       ON CONFLICT (idempotency_key) DO NOTHING`,
+       ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
       [key, this.organizationId, this.actionId, JSON.stringify(value)],
     );
     return (result.rowCount ?? 0) === 1;
