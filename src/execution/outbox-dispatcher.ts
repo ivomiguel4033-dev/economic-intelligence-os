@@ -29,6 +29,7 @@ export class OutboxDispatcher {
           id: message.id,
           organizationId: message.organizationId,
           workerId: this.workerId,
+          claimToken: message.claimToken,
         });
         delivered += 1;
       } catch (error) {
@@ -37,6 +38,7 @@ export class OutboxDispatcher {
           id: message.id,
           organizationId: message.organizationId,
           workerId: this.workerId,
+          claimToken: message.claimToken,
           error: reason,
           retryAfterSeconds: this.retryAfterSeconds,
           maxAttempts: this.maxAttempts,

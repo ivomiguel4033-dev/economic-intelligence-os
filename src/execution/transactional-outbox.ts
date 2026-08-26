@@ -8,6 +8,7 @@ export type OutboxMessage = {
   dedupeKey: string;
   payload: unknown;
   attempts: number;
+  claimToken: string;
 };
 
 export async function enqueueOutbox(input: {
@@ -68,11 +69,12 @@ export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxM
      )
      UPDATE execution_outbox o
      SET status='processing', claimed_at=NOW(), claimed_by=$1,
-         attempts=o.attempts + 1, last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
+         attempts=o.attempts + 1, claim_token=o.claim_token + 1,
+         last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
      FROM candidates c
      WHERE o.id=c.id
      RETURNING o.id, o.organization_id, o.execution_run_id, o.event_type,
-               o.dedupe_key, o.payload, o.attempts`,
+               o.dedupe_key, o.payload, o.attempts, o.claim_token::text AS claim_token`,
     [workerId, batch],
   );
   return result.rows.map((row) => ({
@@ -83,15 +85,16 @@ export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxM
     dedupeKey: String(row.dedupe_key),
     payload: row.payload,
     attempts: Number(row.attempts),
+    claimToken: String(row.claim_token),
   }));
 }
 
-export async function markOutboxDelivered(input: { id: string; organizationId: string; workerId: string }): Promise<void> {
+export async function markOutboxDelivered(input: { id: string; organizationId: string; workerId: string; claimToken: string }): Promise<void> {
   const result = await db.query(
     `UPDATE execution_outbox
      SET status='delivered', delivered_at=NOW(), claimed_at=NULL, claimed_by=NULL, updated_at=NOW()
-     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3`,
-    [input.id, input.organizationId, input.workerId],
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint`,
+    [input.id, input.organizationId, input.workerId, input.claimToken],
   );
   if (result.rowCount !== 1) throw new Error("Outbox delivery acknowledgement rejected");
 }
@@ -100,6 +103,7 @@ export async function markOutboxFailed(input: {
   id: string;
   organizationId: string;
   workerId: string;
+  claimToken: string;
   error: string;
   retryAfterSeconds?: number;
   maxAttempts?: number;
@@ -108,16 +112,16 @@ export async function markOutboxFailed(input: {
   const attemptLimit = Math.max(1, Math.min(input.maxAttempts ?? 5, 100));
   const result = await db.query(
     `UPDATE execution_outbox
-     SET status=CASE WHEN attempts >= $6 THEN 'dead_lettered' ELSE 'failed' END,
-         available_at=CASE WHEN attempts >= $6 THEN available_at ELSE NOW() + ($5 * INTERVAL '1 second') END,
+     SET status=CASE WHEN attempts >= $7 THEN 'dead_lettered' ELSE 'failed' END,
+         available_at=CASE WHEN attempts >= $7 THEN available_at ELSE NOW() + ($6 * INTERVAL '1 second') END,
          claimed_at=NULL,
          claimed_by=NULL,
-         last_error=$4,
-         dead_lettered_at=CASE WHEN attempts >= $6 THEN NOW() ELSE NULL END,
+         last_error=$5,
+         dead_lettered_at=CASE WHEN attempts >= $7 THEN NOW() ELSE NULL END,
          updated_at=NOW()
-     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint
      RETURNING status`,
-    [input.id, input.organizationId, input.workerId, input.error.slice(0, 1000), delay, attemptLimit],
+    [input.id, input.organizationId, input.workerId, input.claimToken, input.error.slice(0, 1000), delay, attemptLimit],
   );
   if (result.rowCount !== 1) throw new Error("Outbox failure acknowledgement rejected");
   return result.rows[0].status === "dead_lettered" ? "dead_lettered" : "failed";

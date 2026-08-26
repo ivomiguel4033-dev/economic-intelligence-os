@@ -34,10 +34,11 @@ async function claim(workerId, limit = 10) {
      )
      UPDATE execution_outbox o
      SET status='processing', claimed_at=NOW(), claimed_by=$1,
-         attempts=o.attempts + 1, last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
+         attempts=o.attempts + 1, claim_token=o.claim_token + 1,
+         last_error=NULL, dead_lettered_at=NULL, updated_at=NOW()
      FROM candidates c
      WHERE o.id=c.id
-     RETURNING o.id, o.organization_id, o.dedupe_key, o.attempts`,
+     RETURNING o.id, o.organization_id, o.dedupe_key, o.attempts, o.claim_token::text AS claim_token`,
     [workerId, limit],
   );
   return result.rows;
@@ -71,6 +72,7 @@ try {
   const ids = [...workerOne, ...workerTwo].map((row) => row.id);
   assert.equal(new Set(ids).size, 20, 'SKIP LOCKED must prevent duplicate claims');
   assert.ok([...workerOne, ...workerTwo].every((row) => row.attempts === 1));
+  assert.ok([...workerOne, ...workerTwo].every((row) => row.claim_token === '1'));
 
   const tenantB = await pool.query(
     `SELECT status FROM execution_outbox WHERE organization_id=$1 AND dedupe_key='key-1'`,
@@ -85,25 +87,25 @@ try {
   const rejectedAck = await pool.query(
     `UPDATE execution_outbox
      SET status='delivered', delivered_at=NOW(), claimed_at=NULL, claimed_by=NULL
-     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint
      RETURNING id`,
-    [owned.id, organizationA, wrongOwner],
+    [owned.id, organizationA, wrongOwner, owned.claim_token],
   );
   assert.equal(rejectedAck.rowCount, 0, 'another worker must not acknowledge the claim');
 
   const acceptedAck = await pool.query(
     `UPDATE execution_outbox
      SET status='delivered', delivered_at=NOW(), claimed_at=NULL, claimed_by=NULL
-     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint
      RETURNING id`,
-    [owned.id, organizationA, ownerId],
+    [owned.id, organizationA, ownerId, owned.claim_token],
   );
   assert.equal(acceptedAck.rowCount, 1);
 
   const stale = await pool.query(
     `INSERT INTO execution_outbox
-       (organization_id, event_type, dedupe_key, payload, status, attempts, claimed_at, claimed_by)
-     VALUES ($1, 'test.stale', 'stale-key', '{}'::jsonb, 'processing', 1, NOW() - INTERVAL '10 minutes', 'dead-worker')
+       (organization_id, event_type, dedupe_key, payload, status, attempts, claimed_at, claimed_by, claim_token)
+     VALUES ($1, 'test.stale', 'stale-key', '{}'::jsonb, 'processing', 1, NOW() - INTERVAL '10 minutes', 'recovery-worker', 1)
      RETURNING id`,
     [organizationA],
   );
@@ -116,6 +118,25 @@ try {
   const recoveredClaim = reclaimed.find((row) => row.id === stale.rows[0].id);
   assert.ok(recoveredClaim, 'recovered message must become claimable again');
   assert.equal(recoveredClaim.attempts, 2, 'recovered delivery must preserve attempt history');
+  assert.equal(recoveredClaim.claim_token, '2', 'every claim must advance the fencing token');
+
+  const staleSameWorkerAck = await pool.query(
+    `UPDATE execution_outbox
+     SET status='delivered', delivered_at=NOW(), claimed_at=NULL, claimed_by=NULL
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint
+     RETURNING id`,
+    [stale.rows[0].id, organizationA, 'recovery-worker', '1'],
+  );
+  assert.equal(staleSameWorkerAck.rowCount, 0, 'stale claim token must be rejected even when workerId is reused');
+
+  const currentSameWorkerAck = await pool.query(
+    `UPDATE execution_outbox
+     SET status='delivered', delivered_at=NOW(), claimed_at=NULL, claimed_by=NULL
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint
+     RETURNING id`,
+    [stale.rows[0].id, organizationA, 'recovery-worker', recoveredClaim.claim_token],
+  );
+  assert.equal(currentSameWorkerAck.rowCount, 1, 'current fencing token must acknowledge successfully');
 
   const poison = await pool.query(
     `INSERT INTO execution_outbox
