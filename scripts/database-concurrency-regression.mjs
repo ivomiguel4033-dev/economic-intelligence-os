@@ -31,26 +31,38 @@ async function acquireLease(leaseKey, ownerId, ttlSeconds = 30) {
 try {
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const organizationId = await createOrganization(`db-regression-${suffix}`);
+  const secondOrganizationId = await createOrganization(`db-regression-second-${suffix}`);
 
-  // Idempotency must be an atomic winner-takes-all write under contention.
+  // Idempotency must be atomic within a tenant, but the same external key must
+  // remain valid for another tenant. This prevents cross-tenant collisions.
   const idempotencyKey = `db-regression:${suffix}`;
   const inserts = await Promise.all(
     Array.from({ length: 10 }, (_, index) =>
       pool.query(
         `INSERT INTO execution_idempotency (idempotency_key, organization_id, action_id, result)
          VALUES ($1,$2,$3,$4::jsonb)
-         ON CONFLICT (idempotency_key) DO NOTHING
+         ON CONFLICT (organization_id, idempotency_key) DO NOTHING
          RETURNING idempotency_key`,
         [idempotencyKey, organizationId, "concurrency-test", JSON.stringify({ winner: index })],
       ),
     ),
   );
   assert.equal(inserts.filter((result) => result.rowCount === 1).length, 1);
+
+  const secondTenantInsert = await pool.query(
+    `INSERT INTO execution_idempotency (idempotency_key, organization_id, action_id, result)
+     VALUES ($1,$2,$3,$4::jsonb)
+     ON CONFLICT (organization_id, idempotency_key) DO NOTHING
+     RETURNING idempotency_key`,
+    [idempotencyKey, secondOrganizationId, "concurrency-test", JSON.stringify({ tenant: 2 })],
+  );
+  assert.equal(secondTenantInsert.rowCount, 1);
+
   const persisted = await pool.query(
     `SELECT COUNT(*)::int AS count FROM execution_idempotency WHERE idempotency_key=$1`,
     [idempotencyKey],
   );
-  assert.equal(persisted.rows[0].count, 1);
+  assert.equal(persisted.rows[0].count, 2);
 
   // A distributed lease must have exactly one owner while unexpired.
   const leaseKey = `db-regression:${suffix}`;
@@ -79,9 +91,10 @@ try {
 
   // Tenant deletion must clean execution reliability state through FK cascades.
   await pool.query(`DELETE FROM organizations WHERE id=$1`, [organizationId]);
+  await pool.query(`DELETE FROM organizations WHERE id=$1`, [secondOrganizationId]);
   const afterDelete = await pool.query(
-    `SELECT COUNT(*)::int AS count FROM execution_idempotency WHERE organization_id=$1`,
-    [organizationId],
+    `SELECT COUNT(*)::int AS count FROM execution_idempotency WHERE idempotency_key=$1`,
+    [idempotencyKey],
   );
   assert.equal(afterDelete.rows[0].count, 0);
 
