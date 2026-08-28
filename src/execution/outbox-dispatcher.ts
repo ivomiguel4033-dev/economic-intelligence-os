@@ -1,4 +1,5 @@
 import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, type OutboxMessage } from "@/execution/transactional-outbox";
+import { incrementMetric } from "@/observability/service-metrics";
 
 export type OutboxHandler = (message: OutboxMessage) => Promise<void>;
 
@@ -15,7 +16,11 @@ export class OutboxDispatcher {
 
   async dispatchOnce(limit = 25): Promise<{ claimed: number; delivered: number; failed: number; reclaimed: number; deadLettered: number }> {
     const recovered = await reclaimStaleOutbox(this.staleClaimSeconds, this.retryAfterSeconds, this.maxAttempts);
+    incrementMetric("outbox_reclaimed_total", recovered.reclaimed);
+    incrementMetric("outbox_dead_lettered_total", recovered.deadLettered);
+
     const messages = await claimOutbox(this.workerId, limit);
+    incrementMetric("outbox_claimed_total", messages.length);
     let delivered = 0;
     let failed = 0;
     let deadLettered = recovered.deadLettered;
@@ -32,6 +37,7 @@ export class OutboxDispatcher {
           claimToken: message.claimToken,
         });
         delivered += 1;
+        incrementMetric("outbox_delivered_total");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Outbox delivery failed";
         const outcome = await markOutboxFailed({
@@ -43,8 +49,13 @@ export class OutboxDispatcher {
           retryAfterSeconds: this.retryAfterSeconds,
           maxAttempts: this.maxAttempts,
         });
-        if (outcome === "dead_lettered") deadLettered += 1;
-        else failed += 1;
+        if (outcome === "dead_lettered") {
+          deadLettered += 1;
+          incrementMetric("outbox_dead_lettered_total");
+        } else {
+          failed += 1;
+          incrementMetric("outbox_failed_total");
+        }
       }
     }
 
