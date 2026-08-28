@@ -1,5 +1,6 @@
 import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, type OutboxMessage } from "@/execution/transactional-outbox";
 import { incrementMetric } from "@/observability/service-metrics";
+import { log } from "@/observability/structured-log";
 
 export type OutboxHandler = (message: OutboxMessage) => Promise<void>;
 
@@ -18,6 +19,16 @@ export class OutboxDispatcher {
     const recovered = await reclaimStaleOutbox(this.staleClaimSeconds, this.retryAfterSeconds, this.maxAttempts);
     incrementMetric("outbox_reclaimed_total", recovered.reclaimed);
     incrementMetric("outbox_dead_lettered_total", recovered.deadLettered);
+    if (recovered.reclaimed > 0 || recovered.deadLettered > 0) {
+      log(recovered.deadLettered > 0 ? "warn" : "info", {
+        event: "outbox.recovery.completed",
+        metadata: {
+          workerId: this.workerId,
+          reclaimed: recovered.reclaimed,
+          deadLettered: recovered.deadLettered,
+        },
+      });
+    }
 
     const messages = await claimOutbox(this.workerId, limit);
     incrementMetric("outbox_claimed_total", messages.length);
@@ -38,6 +49,16 @@ export class OutboxDispatcher {
         });
         delivered += 1;
         incrementMetric("outbox_delivered_total");
+        log("info", {
+          event: "outbox.delivery.succeeded",
+          organizationId: message.organizationId,
+          metadata: {
+            messageId: message.id,
+            eventType: message.eventType,
+            workerId: this.workerId,
+            attempts: message.attempts,
+          },
+        });
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Outbox delivery failed";
         const outcome = await markOutboxFailed({
@@ -56,6 +77,17 @@ export class OutboxDispatcher {
           failed += 1;
           incrementMetric("outbox_failed_total");
         }
+        log(outcome === "dead_lettered" ? "error" : "warn", {
+          event: outcome === "dead_lettered" ? "outbox.delivery.dead_lettered" : "outbox.delivery.failed",
+          organizationId: message.organizationId,
+          metadata: {
+            messageId: message.id,
+            eventType: message.eventType,
+            workerId: this.workerId,
+            attempts: message.attempts,
+            outcome,
+          },
+        });
       }
     }
 
