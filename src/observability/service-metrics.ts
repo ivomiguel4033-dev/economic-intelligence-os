@@ -37,3 +37,10 @@ export function snapshotMetrics(): Record<MetricKey, number> {
     outbox_dead_lettered_total: counters.get("outbox_dead_lettered_total") ?? 0,
   };
 }
+
+export function renderPrometheusMetrics(): string {
+  const snapshot = snapshotMetrics();
+  return `${Object.entries(snapshot)
+    .map(([metric, value]) => `${metric} ${value}`)
+    .join("\n")}\n`;
+}

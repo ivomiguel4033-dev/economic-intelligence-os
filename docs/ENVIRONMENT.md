@@ -6,6 +6,7 @@
 - `OIDC_AUDIENCE`: expected API audience.
 - `OIDC_JWKS_URL`: HTTPS JWKS endpoint.
 - `SECURITY_EVENT_HASH_PEPPER`: random secret of at least 32 characters.
+- `METRICS_TOKEN`: bearer token required to scrape the internal `/api/metrics` endpoint.
 
 ## Billing when enabled
 - `STRIPE_SECRET_KEY`: server-side Stripe credential.
@@ -17,3 +18,4 @@
 - Development and production credentials must be different.
 - Rotate a credential immediately if it appears in logs, source control, issue trackers or chat transcripts.
 - Changes to identity or billing credentials require a deployment verification pass.
+- Metrics scraping must use `Authorization: Bearer <METRICS_TOKEN>` and the endpoint must not be exposed without this token.
