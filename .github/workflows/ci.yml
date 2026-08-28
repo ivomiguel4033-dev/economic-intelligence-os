@@ -60,6 +60,8 @@ jobs:
       - run: npm run build
       - name: Metrics endpoint production regression checks
         run: node scripts/metrics-route-regression.mjs
+      - name: Health and readiness production regression checks
+        run: node scripts/health-readiness-route-regression.mjs
       - name: Reject trusted identity headers in API routes
         shell: bash
         run: |
