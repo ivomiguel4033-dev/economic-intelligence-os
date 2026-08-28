@@ -4,11 +4,16 @@ import { db } from "@/infrastructure/database/postgres";
 export const dynamic = "force-dynamic";
 
 const responseHeaders = { "Cache-Control": "no-store" };
+const readinessStatementTimeoutMs = 2_000;
 
 export async function GET() {
   const started = Date.now();
   try {
-    await db.query("SELECT 1");
+    // Keep the probe bounded inside PostgreSQL itself. Using SET LOCAL in the
+    // same transaction avoids leaking the timeout to another pooled request.
+    await db.query(
+      `BEGIN; SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'; SELECT 1; COMMIT;`,
+    );
     return NextResponse.json(
       {
         status: "ready",
