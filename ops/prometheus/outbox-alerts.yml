@@ -1,0 +1,41 @@
+groups:
+  - name: economic-intelligence-outbox
+    rules:
+      - alert: OutboxDeadLetterPresent
+        expr: outbox_slo_dead_letter_breached == 1
+        labels:
+          severity: critical
+          component: transactional-outbox
+        annotations:
+          summary: Transactional outbox contains dead-lettered messages
+          runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
+
+      - alert: OutboxBacklogSloBreached
+        expr: outbox_slo_backlog_breached == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: transactional-outbox
+        annotations:
+          summary: Transactional outbox ready backlog is above its SLO threshold
+          runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
+
+      - alert: OutboxFailedMessagesSloBreached
+        expr: outbox_slo_failed_breached == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: transactional-outbox
+        annotations:
+          summary: Transactional outbox failures are above their SLO threshold
+          runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
+
+      - alert: OutboxOldestReadyAgeSloBreached
+        expr: outbox_slo_oldest_ready_age_breached == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: transactional-outbox
+        annotations:
+          summary: Transactional outbox oldest ready message exceeds its SLO age
+          runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
