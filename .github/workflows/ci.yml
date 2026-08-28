@@ -58,6 +58,8 @@ jobs:
         run: node scripts/execution-reliability-regression.mjs
       - run: npm run typecheck
       - run: npm run build
+      - name: Metrics endpoint production regression checks
+        run: node scripts/metrics-route-regression.mjs
       - name: Reject trusted identity headers in API routes
         shell: bash
         run: |
