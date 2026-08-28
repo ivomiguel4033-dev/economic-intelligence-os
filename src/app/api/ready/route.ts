@@ -4,12 +4,11 @@ import { db } from "@/infrastructure/database/postgres";
 export const dynamic = "force-dynamic";
 
 const responseHeaders = { "Cache-Control": "no-store" };
-const databaseCheckTimeoutMs = 2_000;
 
 export async function GET() {
   const started = Date.now();
   try {
-    await db.query({ text: "SELECT 1", query_timeout: databaseCheckTimeoutMs });
+    await db.query("SELECT 1");
     return NextResponse.json(
       {
         status: "ready",
