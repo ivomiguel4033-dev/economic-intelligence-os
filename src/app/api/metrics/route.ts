@@ -1,6 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { getOutboxOperationalSnapshot } from "@/execution/transactional-outbox";
-import { renderPrometheusMetrics } from "@/observability/service-metrics";
+import {
+  renderPrometheusMetrics,
+  type OperationalGaugeKey,
+} from "@/observability/service-metrics";
+import {
+  evaluateOutboxSlo,
+  getOutboxSloThresholds,
+} from "@/operations/operational-slo";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +35,25 @@ export async function GET(request: Request) {
     return new Response("unauthorized\n", { status: 401 });
   }
 
-  let gauges = {};
+  let gauges: Partial<Record<OperationalGaugeKey, number>> = {};
   try {
     const outbox = await getOutboxOperationalSnapshot();
+    const thresholds = getOutboxSloThresholds();
+    const slo = evaluateOutboxSlo(outbox, thresholds);
+
     gauges = {
       outbox_ready: outbox.ready,
       outbox_processing: outbox.processing,
       outbox_failed: outbox.failed,
       outbox_dead_lettered: outbox.deadLettered,
       outbox_oldest_ready_age_seconds: outbox.oldestReadyAgeSeconds,
+      outbox_slo_ready_backlog_threshold: thresholds.readyBacklog,
+      outbox_slo_failed_messages_threshold: thresholds.failedMessages,
+      outbox_slo_oldest_ready_age_seconds_threshold: thresholds.oldestReadyAgeSeconds,
+      outbox_slo_backlog_breached: slo.backlogBreached ? 1 : 0,
+      outbox_slo_failed_breached: slo.failedBreached ? 1 : 0,
+      outbox_slo_dead_letter_breached: slo.deadLetterBreached ? 1 : 0,
+      outbox_slo_oldest_ready_age_breached: slo.oldestReadyAgeBreached ? 1 : 0,
     };
   } catch {
     // Counter metrics remain available if the database snapshot is temporarily unavailable.

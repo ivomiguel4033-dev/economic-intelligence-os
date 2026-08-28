@@ -18,7 +18,14 @@ export type OperationalGaugeKey =
   | "outbox_processing"
   | "outbox_failed"
   | "outbox_dead_lettered"
-  | "outbox_oldest_ready_age_seconds";
+  | "outbox_oldest_ready_age_seconds"
+  | "outbox_slo_ready_backlog_threshold"
+  | "outbox_slo_failed_messages_threshold"
+  | "outbox_slo_oldest_ready_age_seconds_threshold"
+  | "outbox_slo_backlog_breached"
+  | "outbox_slo_failed_breached"
+  | "outbox_slo_dead_letter_breached"
+  | "outbox_slo_oldest_ready_age_breached";
 
 const counters = new Map<MetricKey, number>();
 
