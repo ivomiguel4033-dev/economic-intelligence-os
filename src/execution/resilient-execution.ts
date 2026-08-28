@@ -82,6 +82,7 @@ export class ResilientExternalExecutor<T> {
             dedupeKey: `execution:${runId}:succeeded`,
             payload: lifecyclePayload(runId, "succeeded"),
           });
+          incrementMetric("execution_succeeded_total");
           this.breaker.success();
           return result;
         } catch (rawError) {
@@ -98,6 +99,7 @@ export class ResilientExternalExecutor<T> {
               dedupeKey: `execution:${runId}:uncertain`,
               payload: lifecyclePayload(runId, "uncertain"),
             });
+            incrementMetric("execution_uncertain_total");
             this.breaker.failure();
             throw error;
           }
@@ -118,6 +120,7 @@ export class ResilientExternalExecutor<T> {
         dedupeKey: `execution:${runId}:dead_lettered`,
         payload: lifecyclePayload(runId, "dead_lettered"),
       });
+      incrementMetric("execution_dead_lettered_total");
       throw lastError ?? new Error(message);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
