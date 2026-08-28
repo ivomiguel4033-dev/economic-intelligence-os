@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { getOutboxOperationalSnapshot } from "@/execution/transactional-outbox";
 import { renderPrometheusMetrics } from "@/observability/service-metrics";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,21 @@ export async function GET(request: Request) {
     return new Response("unauthorized\n", { status: 401 });
   }
 
-  return new Response(renderPrometheusMetrics(), {
+  let gauges = {};
+  try {
+    const outbox = await getOutboxOperationalSnapshot();
+    gauges = {
+      outbox_ready: outbox.ready,
+      outbox_processing: outbox.processing,
+      outbox_failed: outbox.failed,
+      outbox_dead_lettered: outbox.deadLettered,
+      outbox_oldest_ready_age_seconds: outbox.oldestReadyAgeSeconds,
+    };
+  } catch {
+    // Counter metrics remain available if the database snapshot is temporarily unavailable.
+  }
+
+  return new Response(renderPrometheusMetrics(gauges), {
     status: 200,
     headers: {
       "content-type": "text/plain; version=0.0.4; charset=utf-8",
