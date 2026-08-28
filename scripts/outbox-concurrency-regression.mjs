@@ -44,6 +44,22 @@ async function claim(workerId, limit = 10) {
   return result.rows;
 }
 
+async function transitionWithOutbox({ organizationId, runId, expectedState, state, eventType, dedupeKey, payload }) {
+  return pool.query(
+    `WITH transitioned AS (
+       UPDATE execution_runs
+       SET state=$4, updated_at=NOW()
+       WHERE id=$1 AND organization_id=$2 AND state=$3
+       RETURNING id, organization_id
+     )
+     INSERT INTO execution_outbox (organization_id, execution_run_id, event_type, dedupe_key, payload)
+     SELECT organization_id, id, $5, $6, $7::jsonb
+     FROM transitioned
+     RETURNING id`,
+    [runId, organizationId, expectedState, state, eventType, dedupeKey, JSON.stringify(payload)],
+  );
+}
+
 try {
   const orgA = await pool.query(`INSERT INTO organizations (name, slug) VALUES ('outbox-a', 'outbox-a') RETURNING id`);
   const orgB = await pool.query(`INSERT INTO organizations (name, slug) VALUES ('outbox-b', 'outbox-b') RETURNING id`);
@@ -158,6 +174,63 @@ try {
 
   const afterDeadLetter = await claim('late-worker', 100);
   assert.ok(!afterDeadLetter.some((row) => row.id === poison.rows[0].id), 'dead-lettered message must never be reclaimed');
+
+  const atomicRun = await pool.query(
+    `INSERT INTO execution_runs (organization_id, action_id, action_type, idempotency_key)
+     VALUES ($1, 'atomic-action', 'test.atomic', 'atomic-run') RETURNING id`,
+    [organizationA],
+  );
+  const atomicRunId = atomicRun.rows[0].id;
+
+  const atomicSuccess = await transitionWithOutbox({
+    organizationId: organizationA,
+    runId: atomicRunId,
+    expectedState: 'pending',
+    state: 'running',
+    eventType: 'execution.running',
+    dedupeKey: 'atomic-success',
+    payload: { runId: atomicRunId },
+  });
+  assert.equal(atomicSuccess.rowCount, 1, 'valid transition must atomically create one outbox event');
+
+  const atomicState = await pool.query(`SELECT state FROM execution_runs WHERE id=$1`, [atomicRunId]);
+  assert.equal(atomicState.rows[0].state, 'running');
+
+  await pool.query(
+    `INSERT INTO execution_outbox (organization_id, event_type, dedupe_key, payload)
+     VALUES ($1, 'test.conflict', 'atomic-conflict', '{}'::jsonb)`,
+    [organizationA],
+  );
+
+  await assert.rejects(
+    transitionWithOutbox({
+      organizationId: organizationA,
+      runId: atomicRunId,
+      expectedState: 'running',
+      state: 'succeeded',
+      eventType: 'execution.succeeded',
+      dedupeKey: 'atomic-conflict',
+      payload: { runId: atomicRunId },
+    }),
+    /duplicate key|unique constraint/i,
+    'outbox insertion failure must reject the whole statement',
+  );
+
+  const rolledBackState = await pool.query(`SELECT state FROM execution_runs WHERE id=$1`, [atomicRunId]);
+  assert.equal(rolledBackState.rows[0].state, 'running', 'failed outbox insert must roll back execution state transition');
+
+  const [raceOne, raceTwo] = await Promise.all([
+    transitionWithOutbox({ organizationId: organizationA, runId: atomicRunId, expectedState: 'running', state: 'succeeded', eventType: 'execution.succeeded', dedupeKey: 'atomic-race-1', payload: {} }),
+    transitionWithOutbox({ organizationId: organizationA, runId: atomicRunId, expectedState: 'running', state: 'failed', eventType: 'execution.failed', dedupeKey: 'atomic-race-2', payload: {} }),
+  ]);
+  assert.equal(raceOne.rowCount + raceTwo.rowCount, 1, 'CAS transition must allow only one concurrent terminal transition');
+
+  const raceEvents = await pool.query(
+    `SELECT count(*)::int AS count FROM execution_outbox
+     WHERE organization_id=$1 AND dedupe_key IN ('atomic-race-1','atomic-race-2')`,
+    [organizationA],
+  );
+  assert.equal(raceEvents.rows[0].count, 1, 'only the winning concurrent transition may emit an outbox event');
 
   console.log('outbox concurrency regression checks passed');
 } finally {
