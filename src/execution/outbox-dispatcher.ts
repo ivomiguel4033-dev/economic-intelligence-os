@@ -54,6 +54,7 @@ export class OutboxDispatcher {
           organizationId: message.organizationId,
           metadata: {
             messageId: message.id,
+            executionRunId: message.executionRunId,
             eventType: message.eventType,
             workerId: this.workerId,
             attempts: message.attempts,
@@ -82,6 +83,7 @@ export class OutboxDispatcher {
           organizationId: message.organizationId,
           metadata: {
             messageId: message.id,
+            executionRunId: message.executionRunId,
             eventType: message.eventType,
             workerId: this.workerId,
             attempts: message.attempts,
