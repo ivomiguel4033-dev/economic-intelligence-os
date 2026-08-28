@@ -21,6 +21,39 @@ async function waitForServer(baseUrl) {
   throw new Error(`Next server did not become ready: ${baseUrl}`);
 }
 
+function signalProcessTree(child, signal) {
+  if (!child.pid) return;
+
+  try {
+    // The regression server is started as its own process group so npm and
+    // the Next.js process it launches are terminated together. Killing only
+    // npm leaves next-server orphaned and keeps CI alive after the test ends.
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+async function stopServer(child) {
+  if (child.exitCode !== null) return;
+
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  signalProcessTree(child, "SIGTERM");
+
+  const stopped = await Promise.race([
+    exited.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), 5_000)),
+  ]);
+
+  if (!stopped) {
+    signalProcessTree(child, "SIGKILL");
+    await Promise.race([
+      exited,
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ]);
+  }
+}
+
 async function withServer(env, run) {
   const port = nextPort++;
   const baseUrl = `http://${host}:${port}`;
@@ -30,6 +63,7 @@ async function withServer(env, run) {
     {
       env: { ...process.env, ...env },
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
     },
   );
 
@@ -42,12 +76,7 @@ async function withServer(env, run) {
     await waitForServer(baseUrl);
     await run(baseUrl);
   } finally {
-    child.kill("SIGTERM");
-    await Promise.race([
-      new Promise((resolve) => child.once("exit", resolve)),
-      new Promise((resolve) => setTimeout(resolve, 5_000)),
-    ]);
-    if (!child.killed) child.kill("SIGKILL");
+    await stopServer(child);
   }
 
   assert(!/UnhandledPromiseRejection/i.test(stderr), "Metrics regression server emitted an unhandled rejection");
