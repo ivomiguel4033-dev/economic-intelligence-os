@@ -3,7 +3,7 @@ import { evaluateExecution, type ProposedAction } from "@/execution/execution-po
 import { executionIdempotencyKey, type IdempotencyStore } from "@/execution/idempotency";
 import { DEFAULT_EXTERNAL_RETRY, retryDelay, type RetryPolicy } from "@/execution/retry-policy";
 import { deadLetterAction } from "@/execution/dead-letter";
-import { createExecutionRun, recordExecutionAttempt, transitionExecution, type ExecutionLeaseGuard } from "@/execution/execution-state";
+import { createExecutionRun, recordExecutionAttempt, transitionExecution, transitionExecutionWithOutbox, type ExecutionLeaseGuard } from "@/execution/execution-state";
 import { ExecutionLease } from "@/execution/execution-lease";
 import { incrementMetric } from "@/observability/service-metrics";
 
@@ -47,6 +47,12 @@ export class ResilientExternalExecutor<T> {
         throw new Error(message);
       }
     };
+    const lifecyclePayload = (runId: string, state: string) => ({
+      executionRunId: runId,
+      actionId: action.id,
+      actionType: action.actionType,
+      state,
+    });
 
     try {
       startHeartbeat();
@@ -69,7 +75,13 @@ export class ResilientExternalExecutor<T> {
           await assertLease("Execution lease lost after external side effect");
           await this.options.idempotencyStore.putIfAbsent(key, result);
           await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "succeeded" });
-          await transitionExecution(action.organizationId, runId, "running", "succeeded", { result, leaseGuard });
+          await transitionExecutionWithOutbox(action.organizationId, runId, "running", "succeeded", {
+            result,
+            leaseGuard,
+            eventType: "execution.succeeded",
+            dedupeKey: `execution:${runId}:succeeded`,
+            payload: lifecyclePayload(runId, "succeeded"),
+          });
           this.breaker.success();
           return result;
         } catch (rawError) {
@@ -79,7 +91,13 @@ export class ResilientExternalExecutor<T> {
           if (leaseLost) throw error;
           if (error.outcomeUncertain) {
             await recordExecutionAttempt({ organizationId: action.organizationId, runId, attempt, outcome: "uncertain", errorCode: error.code, errorMessage: error.message });
-            await transitionExecution(action.organizationId, runId, "running", "uncertain", { uncertaintyReason: error.message, leaseGuard });
+            await transitionExecutionWithOutbox(action.organizationId, runId, "running", "uncertain", {
+              uncertaintyReason: error.message,
+              leaseGuard,
+              eventType: "execution.uncertain",
+              dedupeKey: `execution:${runId}:uncertain`,
+              payload: lifecyclePayload(runId, "uncertain"),
+            });
             this.breaker.failure();
             throw error;
           }
@@ -94,7 +112,12 @@ export class ResilientExternalExecutor<T> {
       await assertLease("Execution lease lost before terminal transition");
       await transitionExecution(action.organizationId, runId, "running", "failed", { leaseGuard });
       await deadLetterAction(action, message, attempts);
-      await transitionExecution(action.organizationId, runId, "failed", "dead_lettered", { leaseGuard });
+      await transitionExecutionWithOutbox(action.organizationId, runId, "failed", "dead_lettered", {
+        leaseGuard,
+        eventType: "execution.dead_lettered",
+        dedupeKey: `execution:${runId}:dead_lettered`,
+        payload: lifecyclePayload(runId, "dead_lettered"),
+      });
       throw lastError ?? new Error(message);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
