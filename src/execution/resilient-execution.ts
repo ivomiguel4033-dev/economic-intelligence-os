@@ -6,6 +6,7 @@ import { deadLetterAction } from "@/execution/dead-letter";
 import { createExecutionRun, recordExecutionAttempt, transitionExecution, transitionExecutionWithOutbox, type ExecutionLeaseGuard } from "@/execution/execution-state";
 import { ExecutionLease } from "@/execution/execution-lease";
 import { incrementMetric } from "@/observability/service-metrics";
+import { log } from "@/observability/structured-log";
 
 export interface ExternalExecutor<T> { execute(action: ProposedAction): Promise<T>; }
 export interface ExternalExecutionError extends Error { outcomeUncertain?: boolean; retryable?: boolean; code?: string; }
@@ -53,6 +54,19 @@ export class ResilientExternalExecutor<T> {
       actionType: action.actionType,
       state,
     });
+    const auditTerminalState = (runId: string, state: "succeeded" | "uncertain" | "dead_lettered", metadata: Record<string, unknown> = {}) => {
+      log(state === "succeeded" ? "info" : "warn", {
+        event: `execution.${state}`,
+        organizationId: action.organizationId,
+        metadata: {
+          executionRunId: runId,
+          actionId: action.id,
+          actionType: action.actionType,
+          state,
+          ...metadata,
+        },
+      });
+    };
 
     try {
       startHeartbeat();
@@ -83,6 +97,7 @@ export class ResilientExternalExecutor<T> {
             payload: lifecyclePayload(runId, "succeeded"),
           });
           incrementMetric("execution_succeeded_total");
+          auditTerminalState(runId, "succeeded", { attempts: attempt });
           this.breaker.success();
           return result;
         } catch (rawError) {
@@ -100,6 +115,7 @@ export class ResilientExternalExecutor<T> {
               payload: lifecyclePayload(runId, "uncertain"),
             });
             incrementMetric("execution_uncertain_total");
+            auditTerminalState(runId, "uncertain", { attempts: attempt, errorCode: error.code });
             this.breaker.failure();
             throw error;
           }
@@ -121,6 +137,7 @@ export class ResilientExternalExecutor<T> {
         payload: lifecyclePayload(runId, "dead_lettered"),
       });
       incrementMetric("execution_dead_lettered_total");
+      auditTerminalState(runId, "dead_lettered", { attempts, errorCode: lastError?.code });
       throw lastError ?? new Error(message);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
