@@ -11,6 +11,39 @@ export type OutboxMessage = {
   claimToken: string;
 };
 
+export type OutboxOperationalSnapshot = {
+  ready: number;
+  processing: number;
+  failed: number;
+  deadLettered: number;
+  oldestReadyAgeSeconds: number;
+};
+
+export async function getOutboxOperationalSnapshot(): Promise<OutboxOperationalSnapshot> {
+  const result = await db.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status IN ('pending','failed') AND available_at <= NOW())::int AS ready,
+       COUNT(*) FILTER (WHERE status='processing')::int AS processing,
+       COUNT(*) FILTER (WHERE status='failed')::int AS failed,
+       COUNT(*) FILTER (WHERE status='dead_lettered')::int AS dead_lettered,
+       COALESCE(
+         EXTRACT(EPOCH FROM (NOW() - MIN(available_at) FILTER (
+           WHERE status IN ('pending','failed') AND available_at <= NOW()
+         ))),
+         0
+       )::bigint AS oldest_ready_age_seconds
+     FROM execution_outbox`,
+  );
+  const row = result.rows[0] ?? {};
+  return {
+    ready: Number(row.ready ?? 0),
+    processing: Number(row.processing ?? 0),
+    failed: Number(row.failed ?? 0),
+    deadLettered: Number(row.dead_lettered ?? 0),
+    oldestReadyAgeSeconds: Number(row.oldest_ready_age_seconds ?? 0),
+  };
+}
+
 export async function enqueueOutbox(input: {
   organizationId: string;
   executionRunId?: string;
