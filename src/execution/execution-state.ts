@@ -53,6 +53,67 @@ export async function transitionExecution(
   }
 }
 
+export async function transitionExecutionWithOutbox(
+  organizationId: string,
+  runId: string,
+  expectedState: ExecutionState,
+  state: ExecutionState,
+  input: {
+    eventType: string;
+    dedupeKey: string;
+    payload: unknown;
+    result?: unknown;
+    uncertaintyReason?: string;
+    leaseGuard?: ExecutionLeaseGuard;
+  },
+): Promise<string> {
+  if (!input.eventType) throw new Error("Outbox eventType is required");
+  if (!input.dedupeKey) throw new Error("Outbox dedupeKey is required");
+
+  const guard = input.leaseGuard;
+  const result = await db.query(
+    `WITH transitioned AS (
+       UPDATE execution_runs
+       SET state=$4, result=COALESCE($5::jsonb,result), uncertainty_reason=$6, updated_at=NOW()
+       WHERE id=$1 AND organization_id=$2 AND state=$3
+         AND (
+           $7::text IS NULL OR EXISTS (
+             SELECT 1 FROM execution_leases l
+             WHERE l.organization_id=$2
+               AND l.lease_key=$7
+               AND l.owner_id=$8
+               AND l.fencing_token=$9::bigint
+               AND l.expires_at > NOW()
+           )
+         )
+       RETURNING id, organization_id
+     )
+     INSERT INTO execution_outbox (organization_id, execution_run_id, event_type, dedupe_key, payload)
+     SELECT organization_id, id, $10, $11, $12::jsonb
+     FROM transitioned
+     RETURNING id`,
+    [
+      runId,
+      organizationId,
+      expectedState,
+      state,
+      input.result === undefined ? null : JSON.stringify(input.result),
+      input.uncertaintyReason ?? null,
+      guard?.leaseKey ?? null,
+      guard?.ownerId ?? null,
+      guard?.fencingToken ?? null,
+      input.eventType,
+      input.dedupeKey,
+      JSON.stringify(input.payload),
+    ],
+  );
+
+  if (result.rowCount !== 1) {
+    throw new Error(`Execution transition with outbox rejected for organization: expected ${expectedState} -> ${state}`);
+  }
+  return String(result.rows[0].id);
+}
+
 export async function recordExecutionAttempt(input: { organizationId: string; runId: string; attempt: number; outcome: "started" | "succeeded" | "failed" | "uncertain"; errorCode?: string; errorMessage?: string }): Promise<void> {
   const result = await db.query(
     `INSERT INTO execution_attempts (execution_run_id, attempt, outcome, error_code, error_message, finished_at)
