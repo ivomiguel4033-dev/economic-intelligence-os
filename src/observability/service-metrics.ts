@@ -13,6 +13,13 @@ type MetricKey =
   | "outbox_reclaimed_total"
   | "outbox_dead_lettered_total";
 
+export type OperationalGaugeKey =
+  | "outbox_ready"
+  | "outbox_processing"
+  | "outbox_failed"
+  | "outbox_dead_lettered"
+  | "outbox_oldest_ready_age_seconds";
+
 const counters = new Map<MetricKey, number>();
 
 export function incrementMetric(metric: MetricKey, by = 1): void {
@@ -38,9 +45,17 @@ export function snapshotMetrics(): Record<MetricKey, number> {
   };
 }
 
-export function renderPrometheusMetrics(): string {
+export function renderPrometheusMetrics(
+  gauges: Partial<Record<OperationalGaugeKey, number>> = {},
+): string {
   const snapshot = snapshotMetrics();
-  return `${Object.entries(snapshot)
+  const values: Record<string, number> = { ...snapshot };
+
+  for (const [metric, value] of Object.entries(gauges)) {
+    if (Number.isFinite(value) && (value ?? 0) >= 0) values[metric] = value as number;
+  }
+
+  return `${Object.entries(values)
     .map(([metric, value]) => `${metric} ${value}`)
     .join("\n")}\n`;
 }
