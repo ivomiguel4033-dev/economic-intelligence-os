@@ -4,10 +4,12 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [instrumentation, drainState, readiness] = await Promise.all([
+const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute] = await Promise.all([
   readFile(new URL("../src/instrumentation.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/operations/drain-state.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/app/api/decisions/route.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/app/api/orchestrate/route.ts", import.meta.url), "utf8"),
 ]);
 
 assert(
@@ -26,6 +28,30 @@ assert(
   /export function beginDrain\(\): void\s*\{\s*draining = true;\s*\}/.test(drainState),
   "beginDrain must transition process-local admission state to draining",
 );
+assert(
+  /export function tryBeginTrackedWork\(\): \(\(\) => void\) \| null\s*\{\s*if \(draining\) return null;[\s\S]*?inFlightWork \+= 1;/.test(drainState),
+  "Tracked work admission must reject draining instances before incrementing in-flight work",
+);
+assert(
+  /if \(released\) return;\s*released = true;\s*inFlightWork -= 1;/.test(drainState),
+  "Tracked work release must be idempotent and decrement exactly once",
+);
+assert(
+  /export function getInFlightWorkCount\(\): number\s*\{\s*return inFlightWork;\s*\}/.test(drainState),
+  "Drain state must expose the current in-flight work count",
+);
+
+for (const [name, route] of [["decisions", decisionsRoute], ["orchestrate", orchestrateRoute]]) {
+  const admissionIndex = route.indexOf("const releaseWork = tryBeginTrackedWork()");
+  const authIndex = route.indexOf("resolveAuthenticatedContext(");
+  assert(admissionIndex >= 0, `${name} route must atomically admit tracked work`);
+  assert(authIndex >= 0, `${name} route authentication boundary missing`);
+  assert(admissionIndex < authIndex, `${name} route must reject draining before authentication or downstream work`);
+  assert(
+    /finally\s*\{\s*releaseWork\(\);\s*\}/.test(route),
+    `${name} route must release tracked work in a finally block`,
+  );
+}
 
 const drainCheckIndex = readiness.indexOf("if (isDraining())");
 const databaseProbeIndex = readiness.indexOf("await db.query(");

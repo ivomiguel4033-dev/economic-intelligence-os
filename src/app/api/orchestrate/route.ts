@@ -6,12 +6,13 @@ import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { requireAuthorization } from "@/security/authorization-policy";
 import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
-import { isDraining } from "@/operations/drain-state";
+import { tryBeginTrackedWork } from "@/operations/drain-state";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
 export async function POST(request: NextRequest) {
-  if (isDraining()) {
+  const releaseWork = tryBeginTrackedWork();
+  if (!releaseWork) {
     return NextResponse.json(
       { error: "Service is draining" },
       { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
@@ -72,5 +73,7 @@ export async function POST(request: NextRequest) {
       : message.includes("subscription") || message.includes("plan") || message.includes("usage limit") || message.includes("Payment recovery") ? 402
       : 400;
     return NextResponse.json({ error: message }, { status });
+  } finally {
+    releaseWork();
   }
 }
