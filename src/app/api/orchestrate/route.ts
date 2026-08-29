@@ -6,10 +6,18 @@ import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { requireAuthorization } from "@/security/authorization-policy";
 import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
+import { isDraining } from "@/operations/drain-state";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
 export async function POST(request: NextRequest) {
+  if (isDraining()) {
+    return NextResponse.json(
+      { error: "Service is draining" },
+      { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+    );
+  }
+
   try {
     const body = await request.json();
     const access = await resolveAuthenticatedContext(

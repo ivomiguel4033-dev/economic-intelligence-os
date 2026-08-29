@@ -3,6 +3,7 @@ import { DecisionService } from "@/application/decision/decision-service";
 import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import type { ModelProvider, ModelRequest, ModelResponse, ModelRouter } from "@/ai/model-provider";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
+import { isDraining } from "@/operations/drain-state";
 
 class UnconfiguredProvider implements ModelProvider {
   readonly name = "unconfigured";
@@ -17,6 +18,13 @@ const repository = new PostgresDecisionRepository();
 const service = new DecisionService(repository, router);
 
 export async function POST(request: NextRequest) {
+  if (isDraining()) {
+    return NextResponse.json(
+      { error: "Service is draining" },
+      { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+    );
+  }
+
   try {
     const body = await request.json();
     const context = await resolveAuthenticatedContext(
