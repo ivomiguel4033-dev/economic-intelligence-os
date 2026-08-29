@@ -26,6 +26,11 @@ export interface DrainDecision {
   blockers: string[];
 }
 
+export interface DrainWaitResult extends DrainDecision {
+  timedOut: boolean;
+  elapsedMs: number;
+}
+
 export function evaluateDeploymentSafety(signals: DeploymentSignals): DeploymentDecision {
   const blockers: string[] = [];
   if (!signals.ciGreen) blockers.push("CI is not green");
@@ -74,4 +79,50 @@ export function evaluateLocalDrainSafety(claimedOutboxMessages: number): DrainDe
 export async function evaluateWorkerDrainSafety(workerId: string): Promise<DrainDecision> {
   const claimedOutboxMessages = await getClaimedOutboxCount(workerId);
   return evaluateLocalDrainSafety(claimedOutboxMessages);
+}
+
+/**
+ * Waits for an already-draining worker to become safe to terminate. The wait is
+ * deliberately bounded so a broken dependency cannot hold shutdown forever.
+ * Evaluation errors fail closed and are retried until the deadline.
+ *
+ * Keep timeoutMs below the platform's hard termination window so the caller
+ * retains time for final logging/cleanup before SIGKILL.
+ */
+export async function waitForWorkerDrainSafety(
+  workerId: string,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+): Promise<DrainWaitResult> {
+  if (!workerId) throw new Error("Drain workerId is required");
+
+  const timeoutMs = Math.max(0, Math.min(options.timeoutMs ?? 25_000, 25_000));
+  const pollIntervalMs = Math.max(25, Math.min(options.pollIntervalMs ?? 250, 1_000));
+  const startedAt = Date.now();
+  let lastDecision: DrainDecision = {
+    safeToTerminate: false,
+    blockers: ["Drain safety has not been evaluated"],
+  };
+
+  while (true) {
+    try {
+      lastDecision = await evaluateWorkerDrainSafety(workerId);
+      if (lastDecision.safeToTerminate) {
+        return { ...lastDecision, timedOut: false, elapsedMs: Date.now() - startedAt };
+      }
+    } catch {
+      lastDecision = {
+        safeToTerminate: false,
+        blockers: ["Drain safety evaluation failed"],
+      };
+    }
+
+    const elapsedMs = Date.now() - startedAt;
+    if (elapsedMs >= timeoutMs) {
+      return { ...lastDecision, safeToTerminate: false, timedOut: true, elapsedMs };
+    }
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, Math.min(pollIntervalMs, timeoutMs - elapsedMs));
+    });
+  }
 }
