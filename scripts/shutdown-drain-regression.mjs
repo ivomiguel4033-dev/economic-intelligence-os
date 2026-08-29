@@ -95,4 +95,21 @@ assert(
   "Owned outbox claims must block termination",
 );
 
+assert(
+  /export async function waitForWorkerDrainSafety\([\s\S]*?Math\.min\(options\.timeoutMs \?\? 25_000, 25_000\)/.test(deploymentSafety),
+  "Drain coordinator must cap its wait below the platform hard termination window",
+);
+assert(
+  /catch\s*\{[\s\S]*?safeToTerminate:\s*false,[\s\S]*?Drain safety evaluation failed/.test(deploymentSafety),
+  "Drain coordinator evaluation errors must fail closed",
+);
+assert(
+  /elapsedMs >= timeoutMs[\s\S]*?safeToTerminate:\s*false,[\s\S]*?timedOut:\s*true/.test(deploymentSafety),
+  "Drain coordinator timeout must never report safe termination",
+);
+assert(
+  /if \(lastDecision\.safeToTerminate\)\s*\{[\s\S]*?timedOut:\s*false/.test(deploymentSafety),
+  "Drain coordinator may complete early only after an explicit safe decision",
+);
+
 console.log("Shutdown drain/readiness regression checks passed");
