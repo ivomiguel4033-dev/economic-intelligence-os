@@ -4,12 +4,14 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute] = await Promise.all([
+const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute, deploymentSafety, transactionalOutbox] = await Promise.all([
   readFile(new URL("../src/instrumentation.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/operations/drain-state.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/app/api/decisions/route.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/app/api/orchestrate/route.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/operations/deployment-safety.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/execution/transactional-outbox.ts", import.meta.url), "utf8"),
 ]);
 
 assert(
@@ -67,5 +69,30 @@ assert(/status:\s*["']not_ready["']/.test(drainingBranch), "Draining readiness m
 assert(/reason:\s*["']draining["']/.test(drainingBranch), "Draining readiness must expose the draining reason");
 assert(/status:\s*503/.test(drainingBranch), "Draining readiness must return HTTP 503");
 assert(/Retry-After["']?:\s*["']1["']/.test(drainingBranch), "Draining readiness must advertise retry timing");
+
+assert(
+  /WHERE status='processing' AND claimed_by=\$1/.test(transactionalOutbox),
+  "Drain safety must count only durable processing claims owned by the current worker",
+);
+assert(
+  /export async function evaluateWorkerDrainSafety\(workerId: string\)[\s\S]*?getClaimedOutboxCount\(workerId\)[\s\S]*?evaluateLocalDrainSafety\(claimedOutboxMessages\)/.test(deploymentSafety),
+  "Worker drain safety must combine durable owned outbox claims with process-local admission state",
+);
+assert(
+  /acceptingNewWork:\s*!isDraining\(\)[\s\S]*?inFlightExecutions:\s*getInFlightWorkCount\(\)[\s\S]*?claimedOutboxMessages/.test(deploymentSafety),
+  "Termination safety must require draining, zero in-flight work, and zero owned outbox claims",
+);
+assert(
+  /if \(signals\.acceptingNewWork\) blockers\.push\(["']Service is still accepting new work["']\)/.test(deploymentSafety),
+  "A non-draining instance must never be declared safe to terminate",
+);
+assert(
+  /signals\.inFlightExecutions > 0[\s\S]*?Executions are still in flight/.test(deploymentSafety),
+  "In-flight executions must block termination",
+);
+assert(
+  /signals\.claimedOutboxMessages > 0[\s\S]*?Outbox messages are still claimed/.test(deploymentSafety),
+  "Owned outbox claims must block termination",
+);
 
 console.log("Shutdown drain/readiness regression checks passed");
