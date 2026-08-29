@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "npm run start",
+    "startCommand": "node node_modules/next/dist/bin/next start",
     "healthcheckPath": "/api/ready",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
