@@ -44,6 +44,22 @@ export async function getOutboxOperationalSnapshot(): Promise<OutboxOperationalS
   };
 }
 
+/** Counts only durable claims owned by this process/worker. */
+export async function getClaimedOutboxCount(workerId: string): Promise<number> {
+  if (!workerId) throw new Error("Outbox workerId is required");
+  const result = await db.query(
+    `SELECT COUNT(*)::int AS claimed
+     FROM execution_outbox
+     WHERE status='processing' AND claimed_by=$1`,
+    [workerId],
+  );
+  const claimed = Number(result.rows[0]?.claimed ?? 0);
+  if (!Number.isSafeInteger(claimed) || claimed < 0) {
+    throw new Error("Invalid claimed outbox count");
+  }
+  return claimed;
+}
+
 export async function enqueueOutbox(input: {
   organizationId: string;
   executionRunId?: string;
