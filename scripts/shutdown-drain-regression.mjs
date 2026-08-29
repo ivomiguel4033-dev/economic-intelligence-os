@@ -23,7 +23,7 @@ assert(
   "SIGINT must enter drain state before shutdown",
 );
 assert(
-  /const enterDrain\s*=\s*\(\)\s*:\s*void\s*=>\s*\{[\s\S]*?beginDrain\(\);[\s\S]*?\}/.test(instrumentation),
+  /const enterDrain\s*=\s*\(signal:\s*NodeJS\.Signals\)\s*:\s*void\s*=>\s*\{[\s\S]*?beginDrain\(\);[\s\S]*?\}/.test(instrumentation),
   "Shutdown signal handler must call beginDrain",
 );
 assert(
