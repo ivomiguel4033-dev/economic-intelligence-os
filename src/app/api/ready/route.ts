@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/infrastructure/database/postgres";
+import { isDraining } from "@/operations/drain-state";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,18 @@ const responseHeaders = { "Cache-Control": "no-store" };
 const readinessStatementTimeoutMs = 2_000;
 
 export async function GET() {
+  if (isDraining()) {
+    return NextResponse.json(
+      {
+        status: "not_ready",
+        service: "economic-intelligence-os",
+        reason: "draining",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503, headers: { ...responseHeaders, "Retry-After": "1" } },
+    );
+  }
+
   const started = Date.now();
   try {
     // Keep the probe bounded inside PostgreSQL itself. Using SET LOCAL in the
