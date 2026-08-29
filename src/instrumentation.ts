@@ -1,3 +1,4 @@
+import { resolveOutboxWorkerId } from "./execution/outbox-dispatcher";
 import { log } from "./observability/structured-log";
 import { waitForWorkerDrainSafety } from "./operations/deployment-safety";
 import { beginDrain } from "./operations/drain-state";
@@ -13,11 +14,6 @@ type ProcessWithShutdownMarker = NodeJS.Process & {
   [SIGNAL_HANDLERS_INSTALLED]?: boolean;
   [SHUTDOWN_COORDINATION_STARTED]?: boolean;
 };
-
-function resolveWorkerId(): string | undefined {
-  const configured = process.env.OUTBOX_WORKER_ID?.trim();
-  return configured || undefined;
-}
 
 /**
  * Next.js invokes register once per server instance. Mark the process as
@@ -43,7 +39,7 @@ export async function register(): Promise<void> {
     if (currentProcess[SHUTDOWN_COORDINATION_STARTED]) return;
     currentProcess[SHUTDOWN_COORDINATION_STARTED] = true;
 
-    const workerId = resolveWorkerId();
+    const workerId = resolveOutboxWorkerId();
     if (!workerId) {
       log("error", {
         event: "shutdown.drain.uncoordinated",
