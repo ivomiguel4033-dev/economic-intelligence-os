@@ -56,6 +56,8 @@ jobs:
         run: node scripts/security-regression.mjs
       - name: Execution reliability regression checks
         run: node scripts/execution-reliability-regression.mjs
+      - name: Shutdown drain/readiness regression checks
+        run: node scripts/shutdown-drain-regression.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Metrics endpoint production regression checks
