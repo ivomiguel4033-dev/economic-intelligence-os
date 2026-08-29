@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute, deploymentSafety, transactionalOutbox] = await Promise.all([
+const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute, deploymentSafety, transactionalOutbox, outboxDispatcher] = await Promise.all([
   readFile(new URL("../src/instrumentation.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/operations/drain-state.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8"),
@@ -12,6 +12,7 @@ const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute,
   readFile(new URL("../src/app/api/orchestrate/route.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/operations/deployment-safety.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/execution/transactional-outbox.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/execution/outbox-dispatcher.ts", import.meta.url), "utf8"),
 ]);
 
 assert(
@@ -110,6 +111,31 @@ assert(
 assert(
   /if \(lastDecision\.safeToTerminate\)\s*\{[\s\S]*?timedOut:\s*false/.test(deploymentSafety),
   "Drain coordinator may complete early only after an explicit safe decision",
+);
+
+assert(
+  /import \{ resolveOutboxWorkerId \} from ["']\.\/execution\/outbox-dispatcher["']/.test(instrumentation),
+  "Shutdown must use the shared outbox worker identity resolver",
+);
+assert(
+  /const workerId = resolveOutboxWorkerId\(\)/.test(instrumentation),
+  "Shutdown must resolve worker identity through the shared resolver",
+);
+assert(
+  /export function resolveOutboxWorkerId\(env: NodeJS\.ProcessEnv = process\.env\): string \| undefined\s*\{\s*const configured = env\.OUTBOX_WORKER_ID\?\.trim\(\);\s*return configured \|\| undefined;\s*\}/.test(outboxDispatcher),
+  "Worker identity resolver must trim configured IDs and reject empty configuration",
+);
+assert(
+  /const normalizedWorkerId = workerId\.trim\(\);\s*if \(!normalizedWorkerId\) throw new Error\(["']OutboxDispatcher requires workerId["']\)/.test(outboxDispatcher),
+  "Dispatcher must reject empty or whitespace-only worker IDs",
+);
+assert(
+  /const configuredWorkerId = resolveOutboxWorkerId\(\);[\s\S]*?configuredWorkerId !== normalizedWorkerId[\s\S]*?throw new Error\(["']OutboxDispatcher workerId does not match OUTBOX_WORKER_ID["']\)/.test(outboxDispatcher),
+  "Dispatcher must fail closed when constructor and configured worker identities diverge",
+);
+assert(
+  /this\.workerId = normalizedWorkerId/.test(outboxDispatcher),
+  "Dispatcher must use the normalized worker identity for durable claims",
 );
 
 console.log("Shutdown drain/readiness regression checks passed");
