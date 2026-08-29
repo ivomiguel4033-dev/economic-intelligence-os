@@ -36,8 +36,21 @@ export function evaluateDeploymentSafety(signals: DeploymentSignals): Deployment
 
 export function evaluateDrainSafety(signals: DrainSignals): DrainDecision {
   const blockers: string[] = [];
+
+  // Drain counters are safety signals. Invalid telemetry must fail closed rather
+  // than accidentally declaring an instance safe to terminate.
+  if (!Number.isSafeInteger(signals.inFlightExecutions) || signals.inFlightExecutions < 0) {
+    blockers.push("In-flight execution count is invalid");
+  } else if (signals.inFlightExecutions > 0) {
+    blockers.push("Executions are still in flight");
+  }
+
+  if (!Number.isSafeInteger(signals.claimedOutboxMessages) || signals.claimedOutboxMessages < 0) {
+    blockers.push("Claimed outbox message count is invalid");
+  } else if (signals.claimedOutboxMessages > 0) {
+    blockers.push("Outbox messages are still claimed");
+  }
+
   if (signals.acceptingNewWork) blockers.push("Service is still accepting new work");
-  if (signals.inFlightExecutions > 0) blockers.push("Executions are still in flight");
-  if (signals.claimedOutboxMessages > 0) blockers.push("Outbox messages are still claimed");
   return { safeToTerminate: blockers.length === 0, blockers };
 }
