@@ -1,3 +1,5 @@
+import { getInFlightWorkCount, isDraining } from "./drain-state";
+
 export interface DeploymentSignals {
   readinessOk: boolean;
   ciGreen: boolean;
@@ -53,4 +55,20 @@ export function evaluateDrainSafety(signals: DrainSignals): DrainDecision {
 
   if (signals.acceptingNewWork) blockers.push("Service is still accepting new work");
   return { safeToTerminate: blockers.length === 0, blockers };
+}
+
+/**
+ * Evaluates process-local shutdown safety from the same admission state used by
+ * request handlers. The outbox claim count remains explicit because it is a
+ * durable database concern and must be supplied by the shutdown coordinator.
+ *
+ * This prevents a caller from accidentally reporting zero in-flight request
+ * work while the instance still owns tracked executions.
+ */
+export function evaluateLocalDrainSafety(claimedOutboxMessages: number): DrainDecision {
+  return evaluateDrainSafety({
+    acceptingNewWork: !isDraining(),
+    inFlightExecutions: getInFlightWorkCount(),
+    claimedOutboxMessages,
+  });
 }
