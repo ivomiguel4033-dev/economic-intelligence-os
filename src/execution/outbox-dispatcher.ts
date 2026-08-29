@@ -4,15 +4,30 @@ import { log } from "@/observability/structured-log";
 
 export type OutboxHandler = (message: OutboxMessage) => Promise<void>;
 
+export function resolveOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const configured = env.OUTBOX_WORKER_ID?.trim();
+  return configured || undefined;
+}
+
 export class OutboxDispatcher {
+  private readonly workerId: string;
+
   constructor(
-    private readonly workerId: string,
+    workerId: string,
     private readonly handler: OutboxHandler,
     private readonly retryAfterSeconds = 30,
     private readonly staleClaimSeconds = 300,
     private readonly maxAttempts = 5,
   ) {
-    if (!workerId) throw new Error("OutboxDispatcher requires workerId");
+    const normalizedWorkerId = workerId.trim();
+    if (!normalizedWorkerId) throw new Error("OutboxDispatcher requires workerId");
+
+    const configuredWorkerId = resolveOutboxWorkerId();
+    if (configuredWorkerId && configuredWorkerId !== normalizedWorkerId) {
+      throw new Error("OutboxDispatcher workerId does not match OUTBOX_WORKER_ID");
+    }
+
+    this.workerId = normalizedWorkerId;
   }
 
   async dispatchOnce(limit = 25): Promise<{ claimed: number; delivered: number; failed: number; reclaimed: number; deadLettered: number }> {
