@@ -26,6 +26,13 @@ export class OutboxClaimOwnershipError extends Error {
   }
 }
 
+export class OutboxIdempotencyConflictError extends Error {
+  constructor() {
+    super("Outbox dedupe key already exists with different event contents");
+    this.name = "OutboxIdempotencyConflictError";
+  }
+}
+
 function boundedInteger(value: number | undefined, fallback: number, min: number, max: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(Math.trunc(value), max));
@@ -82,11 +89,17 @@ export async function enqueueOutbox(input: {
   const result = await db.query(
     `INSERT INTO execution_outbox (organization_id, execution_run_id, event_type, dedupe_key, payload)
      VALUES ($1,$2,$3,$4,$5::jsonb)
-     ON CONFLICT (organization_id, dedupe_key) DO UPDATE SET dedupe_key=EXCLUDED.dedupe_key
+     ON CONFLICT (organization_id, dedupe_key) DO UPDATE
+       SET dedupe_key=EXCLUDED.dedupe_key
+       WHERE execution_outbox.execution_run_id IS NOT DISTINCT FROM EXCLUDED.execution_run_id
+         AND execution_outbox.event_type=EXCLUDED.event_type
+         AND execution_outbox.payload=EXCLUDED.payload
      RETURNING id`,
     [input.organizationId, input.executionRunId ?? null, input.eventType, input.dedupeKey, JSON.stringify(input.payload)],
   );
-  return String(result.rows[0].id);
+  const id = result.rows[0]?.id;
+  if (!id) throw new OutboxIdempotencyConflictError();
+  return String(id);
 }
 
 export async function reclaimStaleOutbox(
