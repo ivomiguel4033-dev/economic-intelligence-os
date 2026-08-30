@@ -76,8 +76,12 @@ assert(
   "Drain safety must count only durable processing claims owned by the current worker",
 );
 assert(
-  /export async function evaluateWorkerDrainSafety\(workerId: string\)[\s\S]*?getClaimedOutboxCount\(workerId\)[\s\S]*?evaluateLocalDrainSafety\(claimedOutboxMessages\)/.test(deploymentSafety),
-  "Worker drain safety must combine durable owned outbox claims with process-local admission state",
+  /export async function evaluateWorkerDrainSafety\(workerId: string\)[\s\S]*?requireDrainWorkerId\(workerId\)[\s\S]*?getClaimedOutboxCount\(normalizedWorkerId\)[\s\S]*?evaluateLocalDrainSafety\(claimedOutboxMessages\)/.test(deploymentSafety),
+  "Worker drain safety must normalize identity, query durable owned outbox claims, and combine them with process-local admission state",
+);
+assert(
+  /function requireDrainWorkerId\(workerId: string\): string\s*\{[\s\S]*?workerId\.trim\(\)[\s\S]*?if \(!normalizedWorkerId\) throw new Error\(["']Drain workerId is required["']\)[\s\S]*?return normalizedWorkerId/.test(deploymentSafety),
+  "Drain worker identity must be normalized and empty identities rejected before durable ownership lookup",
 );
 assert(
   /acceptingNewWork:\s*!isDraining\(\)[\s\S]*?inFlightExecutions:\s*getInFlightWorkCount\(\)[\s\S]*?claimedOutboxMessages/.test(deploymentSafety),
