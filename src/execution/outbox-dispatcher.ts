@@ -1,8 +1,10 @@
-import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, type OutboxMessage } from "@/execution/transactional-outbox";
+import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, renewOutboxClaim, type OutboxMessage } from "@/execution/transactional-outbox";
 import { incrementMetric } from "@/observability/service-metrics";
 import { log } from "@/observability/structured-log";
 
 export type OutboxHandler = (message: OutboxMessage) => Promise<void>;
+
+class OutboxClaimLostError extends Error {}
 
 export function resolveOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const configured = env.OUTBOX_WORKER_ID?.trim();
@@ -37,6 +39,56 @@ export class OutboxDispatcher {
     this.workerId = normalizedWorkerId;
   }
 
+  private claimHeartbeatMs(): number {
+    const staleSeconds = Number.isFinite(this.staleClaimSeconds)
+      ? Math.max(30, Math.min(Math.trunc(this.staleClaimSeconds), 86400))
+      : 300;
+    return Math.floor((staleSeconds * 1000) / 3);
+  }
+
+  private async runHandlerWithClaimHeartbeat(message: OutboxMessage): Promise<void> {
+    let claimLost = false;
+    let heartbeatInFlight: Promise<void> | undefined;
+
+    const heartbeat = setInterval(() => {
+      if (heartbeatInFlight || claimLost) return;
+      heartbeatInFlight = renewOutboxClaim({
+        id: message.id,
+        organizationId: message.organizationId,
+        workerId: this.workerId,
+        claimToken: message.claimToken,
+      }).then((renewed) => {
+        if (!renewed) claimLost = true;
+      }).catch((error) => {
+        log("warn", {
+          event: "outbox.claim.heartbeat_failed",
+          organizationId: message.organizationId,
+          metadata: {
+            messageId: message.id,
+            workerId: this.workerId,
+            error: error instanceof Error ? error.message : "Outbox claim heartbeat failed",
+          },
+        });
+      }).finally(() => {
+        heartbeatInFlight = undefined;
+      });
+    }, this.claimHeartbeatMs());
+    heartbeat.unref?.();
+
+    let handlerError: unknown;
+    try {
+      await this.handler(message);
+    } catch (error) {
+      handlerError = error;
+    } finally {
+      clearInterval(heartbeat);
+      if (heartbeatInFlight) await heartbeatInFlight;
+    }
+
+    if (claimLost) throw new OutboxClaimLostError("Outbox claim lost during delivery");
+    if (handlerError !== undefined) throw handlerError;
+  }
+
   async dispatchOnce(limit = 25): Promise<{ claimed: number; delivered: number; failed: number; reclaimed: number; deadLettered: number }> {
     const recovered = await reclaimStaleOutbox(this.staleClaimSeconds, this.retryAfterSeconds, this.maxAttempts);
     incrementMetric("outbox_reclaimed_total", recovered.reclaimed);
@@ -62,7 +114,7 @@ export class OutboxDispatcher {
       try {
         // Handlers must treat message.dedupeKey as the external idempotency key.
         // The outbox provides durable at-least-once delivery, not exactly-once I/O.
-        await this.handler(message);
+        await this.runHandlerWithClaimHeartbeat(message);
         await markOutboxDelivered({
           id: message.id,
           organizationId: message.organizationId,
@@ -83,6 +135,22 @@ export class OutboxDispatcher {
           },
         });
       } catch (error) {
+        if (error instanceof OutboxClaimLostError) {
+          incrementMetric("outbox_claim_lost_total");
+          log("error", {
+            event: "outbox.claim.lost",
+            organizationId: message.organizationId,
+            metadata: {
+              messageId: message.id,
+              executionRunId: message.executionRunId,
+              eventType: message.eventType,
+              workerId: this.workerId,
+              attempts: message.attempts,
+            },
+          });
+          throw error;
+        }
+
         const reason = error instanceof Error ? error.message : "Outbox delivery failed";
         const outcome = await markOutboxFailed({
           id: message.id,

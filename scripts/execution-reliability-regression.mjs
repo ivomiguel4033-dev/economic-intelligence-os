@@ -35,5 +35,13 @@ assert.match(outboxSource, /boundedInteger\(maxAttempts, 5, 1, 100\)/);
 assert.match(outboxSource, /boundedInteger\(limit, 25, 1, 100\)/);
 assert.match(outboxSource, /boundedInteger\(input\.retryAfterSeconds, 30, 1, 3600\)/);
 assert.match(outboxSource, /boundedInteger\(input\.maxAttempts, 5, 1, 100\)/);
+assert.match(outboxSource, /export async function renewOutboxClaim\([\s\S]*claimed_at=NOW\(\)[\s\S]*organization_id=\$2[\s\S]*claimed_by=\$3[\s\S]*claim_token=\$4::bigint/);
+
+const dispatcherSource = readFileSync(new URL("../src/execution/outbox-dispatcher.ts", import.meta.url), "utf8");
+assert.match(dispatcherSource, /renewOutboxClaim/);
+assert.match(dispatcherSource, /claimHeartbeatMs\(\)[\s\S]*staleClaimSeconds[\s\S]*\/ 3/);
+assert.match(dispatcherSource, /setInterval\([\s\S]*renewOutboxClaim/);
+assert.match(dispatcherSource, /OutboxClaimLostError/);
+assert.match(dispatcherSource, /outbox_claim_lost_total/);
 
 console.log("Execution reliability regression checks passed.");

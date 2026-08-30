@@ -143,6 +143,17 @@ export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxM
   }));
 }
 
+/** Renews only the exact fenced claim that is still owned by the worker. */
+export async function renewOutboxClaim(input: { id: string; organizationId: string; workerId: string; claimToken: string }): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE execution_outbox
+     SET claimed_at=NOW(), updated_at=NOW()
+     WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint`,
+    [input.id, input.organizationId, input.workerId, input.claimToken],
+  );
+  return result.rowCount === 1;
+}
+
 export async function markOutboxDelivered(input: { id: string; organizationId: string; workerId: string; claimToken: string }): Promise<void> {
   const result = await db.query(
     `UPDATE execution_outbox
