@@ -19,6 +19,13 @@ export type OutboxOperationalSnapshot = {
   oldestReadyAgeSeconds: number;
 };
 
+export class OutboxClaimOwnershipError extends Error {
+  constructor(operation: "delivery" | "failure") {
+    super(`Outbox ${operation} acknowledgement rejected`);
+    this.name = "OutboxClaimOwnershipError";
+  }
+}
+
 function boundedInteger(value: number | undefined, fallback: number, min: number, max: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(Math.trunc(value), max));
@@ -161,7 +168,7 @@ export async function markOutboxDelivered(input: { id: string; organizationId: s
      WHERE id=$1 AND organization_id=$2 AND status='processing' AND claimed_by=$3 AND claim_token=$4::bigint`,
     [input.id, input.organizationId, input.workerId, input.claimToken],
   );
-  if (result.rowCount !== 1) throw new Error("Outbox delivery acknowledgement rejected");
+  if (result.rowCount !== 1) throw new OutboxClaimOwnershipError("delivery");
 }
 
 export async function markOutboxFailed(input: {
@@ -188,6 +195,6 @@ export async function markOutboxFailed(input: {
      RETURNING status`,
     [input.id, input.organizationId, input.workerId, input.claimToken, input.error.slice(0, 1000), delay, attemptLimit],
   );
-  if (result.rowCount !== 1) throw new Error("Outbox failure acknowledgement rejected");
+  if (result.rowCount !== 1) throw new OutboxClaimOwnershipError("failure");
   return result.rows[0].status === "dead_lettered" ? "dead_lettered" : "failed";
 }
