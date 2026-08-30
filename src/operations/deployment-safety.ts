@@ -72,13 +72,21 @@ export function evaluateLocalDrainSafety(claimedOutboxMessages: number): DrainDe
   });
 }
 
+function requireDrainWorkerId(workerId: string): string {
+  const normalizedWorkerId = workerId.trim();
+  if (!normalizedWorkerId) throw new Error("Drain workerId is required");
+  return normalizedWorkerId;
+}
+
 /**
  * Reads durable outbox ownership for this worker and combines it with the
  * process-local admission counter. Claims owned by other workers do not block
- * this instance from terminating.
+ * this instance from terminating. Worker identity is normalized before the
+ * durable ownership lookup so shutdown cannot observe a different claim scope.
  */
 export async function evaluateWorkerDrainSafety(workerId: string): Promise<DrainDecision> {
-  const claimedOutboxMessages = await getClaimedOutboxCount(workerId);
+  const normalizedWorkerId = requireDrainWorkerId(workerId);
+  const claimedOutboxMessages = await getClaimedOutboxCount(normalizedWorkerId);
   return evaluateLocalDrainSafety(claimedOutboxMessages);
 }
 
@@ -103,7 +111,7 @@ export async function waitForWorkerDrainSafety(
   workerId: string,
   options: { timeoutMs?: number; pollIntervalMs?: number } = {},
 ): Promise<DrainWaitResult> {
-  if (!workerId) throw new Error("Drain workerId is required");
+  const normalizedWorkerId = requireDrainWorkerId(workerId);
 
   const timeoutMs = boundedDrainOption(options.timeoutMs, 25_000, 0, 25_000);
   const pollIntervalMs = boundedDrainOption(options.pollIntervalMs, 250, 25, 1_000);
@@ -115,7 +123,7 @@ export async function waitForWorkerDrainSafety(
 
   while (true) {
     try {
-      lastDecision = await evaluateWorkerDrainSafety(workerId);
+      lastDecision = await evaluateWorkerDrainSafety(normalizedWorkerId);
       if (lastDecision.safeToTerminate) {
         return { ...lastDecision, timedOut: false, elapsedMs: performance.now() - startedAt };
       }
