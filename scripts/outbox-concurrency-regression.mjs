@@ -44,6 +44,20 @@ async function claim(workerId, limit = 10) {
   return result.rows;
 }
 
+async function enqueueIdempotent({ organizationId, executionRunId = null, eventType, dedupeKey, payload }) {
+  return pool.query(
+    `INSERT INTO execution_outbox (organization_id, execution_run_id, event_type, dedupe_key, payload)
+     VALUES ($1,$2,$3,$4,$5::jsonb)
+     ON CONFLICT (organization_id, dedupe_key) DO UPDATE
+       SET dedupe_key=EXCLUDED.dedupe_key
+       WHERE execution_outbox.execution_run_id IS NOT DISTINCT FROM EXCLUDED.execution_run_id
+         AND execution_outbox.event_type=EXCLUDED.event_type
+         AND execution_outbox.payload=EXCLUDED.payload
+     RETURNING id`,
+    [organizationId, executionRunId, eventType, dedupeKey, JSON.stringify(payload)],
+  );
+}
+
 async function transitionWithOutbox({ organizationId, runId, expectedState, state, eventType, dedupeKey, payload }) {
   return pool.query(
     `WITH transitioned AS (
@@ -65,6 +79,84 @@ try {
   const orgB = await pool.query(`INSERT INTO organizations (name, slug) VALUES ('outbox-b', 'outbox-b') RETURNING id`);
   const organizationA = orgA.rows[0].id;
   const organizationB = orgB.rows[0].id;
+
+  const idempotencyRunA = await pool.query(
+    `INSERT INTO execution_runs (organization_id, action_id, action_type, idempotency_key)
+     VALUES ($1, 'idempotency-contract-a', 'test.idempotency', 'idempotency-contract-run-a') RETURNING id`,
+    [organizationA],
+  );
+  const idempotencyRunB = await pool.query(
+    `INSERT INTO execution_runs (organization_id, action_id, action_type, idempotency_key)
+     VALUES ($1, 'idempotency-contract-b', 'test.idempotency', 'idempotency-contract-run-b') RETURNING id`,
+    [organizationA],
+  );
+  const idempotencyKey = 'idempotency-contract';
+  const canonicalPayload = { version: 1, value: 'canonical' };
+  const canonical = await enqueueIdempotent({
+    organizationId: organizationA,
+    executionRunId: idempotencyRunA.rows[0].id,
+    eventType: 'test.idempotency',
+    dedupeKey: idempotencyKey,
+    payload: canonicalPayload,
+  });
+  assert.equal(canonical.rowCount, 1);
+
+  const replay = await enqueueIdempotent({
+    organizationId: organizationA,
+    executionRunId: idempotencyRunA.rows[0].id,
+    eventType: 'test.idempotency',
+    dedupeKey: idempotencyKey,
+    payload: canonicalPayload,
+  });
+  assert.equal(replay.rowCount, 1, 'an exact idempotent replay must succeed');
+  assert.equal(replay.rows[0].id, canonical.rows[0].id, 'an exact replay must resolve to the original outbox row');
+
+  const conflictingPayload = await enqueueIdempotent({
+    organizationId: organizationA,
+    executionRunId: idempotencyRunA.rows[0].id,
+    eventType: 'test.idempotency',
+    dedupeKey: idempotencyKey,
+    payload: { version: 2, value: 'conflict' },
+  });
+  assert.equal(conflictingPayload.rowCount, 0, 'same-tenant dedupe keys must reject different payloads');
+
+  const conflictingEvent = await enqueueIdempotent({
+    organizationId: organizationA,
+    executionRunId: idempotencyRunA.rows[0].id,
+    eventType: 'test.idempotency.changed',
+    dedupeKey: idempotencyKey,
+    payload: canonicalPayload,
+  });
+  assert.equal(conflictingEvent.rowCount, 0, 'same-tenant dedupe keys must reject different event types');
+
+  const conflictingRun = await enqueueIdempotent({
+    organizationId: organizationA,
+    executionRunId: idempotencyRunB.rows[0].id,
+    eventType: 'test.idempotency',
+    dedupeKey: idempotencyKey,
+    payload: canonicalPayload,
+  });
+  assert.equal(conflictingRun.rowCount, 0, 'same-tenant dedupe keys must reject different execution runs');
+
+  const secondTenantSameKey = await enqueueIdempotent({
+    organizationId: organizationB,
+    eventType: 'test.idempotency',
+    dedupeKey: idempotencyKey,
+    payload: canonicalPayload,
+  });
+  assert.equal(secondTenantSameKey.rowCount, 1, 'dedupe keys must remain isolated by tenant');
+
+  const idempotencyRows = await pool.query(
+    `SELECT organization_id, event_type, payload
+     FROM execution_outbox
+     WHERE dedupe_key=$1
+     ORDER BY organization_id`,
+    [idempotencyKey],
+  );
+  assert.equal(idempotencyRows.rowCount, 2, 'the same dedupe key may exist once per tenant');
+  const tenantACanonical = idempotencyRows.rows.find((row) => row.organization_id === organizationA);
+  assert.deepEqual(tenantACanonical.payload, canonicalPayload, 'conflicting replays must not mutate the canonical event');
+  assert.equal(tenantACanonical.event_type, 'test.idempotency');
 
   await pool.query(
     `INSERT INTO execution_outbox (organization_id, event_type, dedupe_key, payload)
