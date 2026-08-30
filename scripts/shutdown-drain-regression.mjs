@@ -16,12 +16,12 @@ const [instrumentation, drainState, readiness, decisionsRoute, orchestrateRoute,
 ]);
 
 assert(
-  /process\.on\(["']SIGTERM["'],\s*enterDrain\)/.test(instrumentation),
-  "SIGTERM must enter drain state before shutdown",
+  /process\.on\(["']SIGTERM["'],\s*\(\)\s*=>\s*enterDrain\(["']SIGTERM["']\)\)/.test(instrumentation),
+  "SIGTERM must enter drain state with an explicit signal identity",
 );
 assert(
-  /process\.on\(["']SIGINT["'],\s*enterDrain\)/.test(instrumentation),
-  "SIGINT must enter drain state before shutdown",
+  /process\.on\(["']SIGINT["'],\s*\(\)\s*=>\s*enterDrain\(["']SIGINT["']\)\)/.test(instrumentation),
+  "SIGINT must enter drain state with an explicit signal identity",
 );
 assert(
   /const enterDrain\s*=\s*\(signal:\s*NodeJS\.Signals\)\s*:\s*void\s*=>\s*\{[\s\S]*?beginDrain\(\);[\s\S]*?\}/.test(instrumentation),

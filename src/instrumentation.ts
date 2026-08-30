@@ -82,6 +82,6 @@ export async function register(): Promise<void> {
       });
   };
 
-  process.on("SIGTERM", enterDrain);
-  process.on("SIGINT", enterDrain);
+  process.on("SIGTERM", () => enterDrain("SIGTERM"));
+  process.on("SIGINT", () => enterDrain("SIGINT"));
 }
