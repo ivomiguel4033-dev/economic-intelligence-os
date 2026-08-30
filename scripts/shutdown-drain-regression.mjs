@@ -126,6 +126,14 @@ assert(
   "Worker identity resolver must trim configured IDs and reject empty configuration",
 );
 assert(
+  /export function requireOutboxWorkerId\(env: NodeJS\.ProcessEnv = process\.env\): string\s*\{[\s\S]*?resolveOutboxWorkerId\(env\)[\s\S]*?if \(!workerId\) throw new Error\(["']OUTBOX_WORKER_ID is required["']\)/.test(outboxDispatcher),
+  "Production worker identity requirement must fail closed when OUTBOX_WORKER_ID is absent",
+);
+assert(
+  /if \(process\.env\.NODE_ENV === ["']production["']\) requireOutboxWorkerId\(\)/.test(outboxDispatcher),
+  "Dispatcher must enforce configured worker identity in production",
+);
+assert(
   /const normalizedWorkerId = workerId\.trim\(\);\s*if \(!normalizedWorkerId\) throw new Error\(["']OutboxDispatcher requires workerId["']\)/.test(outboxDispatcher),
   "Dispatcher must reject empty or whitespace-only worker IDs",
 );
