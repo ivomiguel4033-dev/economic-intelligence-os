@@ -109,6 +109,12 @@ assert(
   "Drain coordinator must bound polling to a safe interval",
 );
 assert(
+  /import \{ performance \} from ["']node:perf_hooks["']/.test(deploymentSafety) &&
+    /const startedAt = performance\.now\(\)/.test(deploymentSafety) &&
+    /const elapsedMs = performance\.now\(\) - startedAt/.test(deploymentSafety),
+  "Drain deadline must use a monotonic clock so wall-clock adjustments cannot corrupt shutdown timing",
+);
+assert(
   /catch\s*\{[\s\S]*?safeToTerminate:\s*false,[\s\S]*?Drain safety evaluation failed/.test(deploymentSafety),
   "Drain coordinator evaluation errors must fail closed",
 );

@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { getClaimedOutboxCount } from "@/execution/transactional-outbox";
 import { getInFlightWorkCount, isDraining } from "./drain-state";
 
@@ -95,7 +96,8 @@ function boundedDrainOption(value: number | undefined, fallback: number, min: nu
  * Keep timeoutMs below the platform's hard termination window so the caller
  * retains time for final logging/cleanup before SIGKILL. Invalid numeric
  * options fall back to safe defaults so NaN/Infinity cannot create an
- * unbounded or zero-delay shutdown loop.
+ * unbounded or zero-delay shutdown loop. A monotonic clock prevents wall-clock
+ * corrections from extending or prematurely ending the drain deadline.
  */
 export async function waitForWorkerDrainSafety(
   workerId: string,
@@ -105,7 +107,7 @@ export async function waitForWorkerDrainSafety(
 
   const timeoutMs = boundedDrainOption(options.timeoutMs, 25_000, 0, 25_000);
   const pollIntervalMs = boundedDrainOption(options.pollIntervalMs, 250, 25, 1_000);
-  const startedAt = Date.now();
+  const startedAt = performance.now();
   let lastDecision: DrainDecision = {
     safeToTerminate: false,
     blockers: ["Drain safety has not been evaluated"],
@@ -115,7 +117,7 @@ export async function waitForWorkerDrainSafety(
     try {
       lastDecision = await evaluateWorkerDrainSafety(workerId);
       if (lastDecision.safeToTerminate) {
-        return { ...lastDecision, timedOut: false, elapsedMs: Date.now() - startedAt };
+        return { ...lastDecision, timedOut: false, elapsedMs: performance.now() - startedAt };
       }
     } catch {
       lastDecision = {
@@ -124,7 +126,7 @@ export async function waitForWorkerDrainSafety(
       };
     }
 
-    const elapsedMs = Date.now() - startedAt;
+    const elapsedMs = performance.now() - startedAt;
     if (elapsedMs >= timeoutMs) {
       return { ...lastDecision, safeToTerminate: false, timedOut: true, elapsedMs };
     }
