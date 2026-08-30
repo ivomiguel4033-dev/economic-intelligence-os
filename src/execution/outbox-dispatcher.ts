@@ -1,4 +1,4 @@
-import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, renewOutboxClaim, type OutboxMessage } from "@/execution/transactional-outbox";
+import { claimOutbox, markOutboxDelivered, markOutboxFailed, reclaimStaleOutbox, renewOutboxClaim, OutboxClaimOwnershipError, type OutboxMessage } from "@/execution/transactional-outbox";
 import { incrementMetric } from "@/observability/service-metrics";
 import { log } from "@/observability/structured-log";
 
@@ -44,6 +44,21 @@ export class OutboxDispatcher {
       ? Math.max(30, Math.min(Math.trunc(this.staleClaimSeconds), 86400))
       : 300;
     return Math.floor((staleSeconds * 1000) / 3);
+  }
+
+  private recordClaimLost(message: OutboxMessage): void {
+    incrementMetric("outbox_claim_lost_total");
+    log("error", {
+      event: "outbox.claim.lost",
+      organizationId: message.organizationId,
+      metadata: {
+        messageId: message.id,
+        executionRunId: message.executionRunId,
+        eventType: message.eventType,
+        workerId: this.workerId,
+        attempts: message.attempts,
+      },
+    });
   }
 
   private async runHandlerWithClaimHeartbeat(message: OutboxMessage): Promise<void> {
@@ -135,32 +150,29 @@ export class OutboxDispatcher {
           },
         });
       } catch (error) {
-        if (error instanceof OutboxClaimLostError) {
-          incrementMetric("outbox_claim_lost_total");
-          log("error", {
-            event: "outbox.claim.lost",
-            organizationId: message.organizationId,
-            metadata: {
-              messageId: message.id,
-              executionRunId: message.executionRunId,
-              eventType: message.eventType,
-              workerId: this.workerId,
-              attempts: message.attempts,
-            },
-          });
+        if (error instanceof OutboxClaimLostError || error instanceof OutboxClaimOwnershipError) {
+          this.recordClaimLost(message);
           throw error;
         }
 
         const reason = error instanceof Error ? error.message : "Outbox delivery failed";
-        const outcome = await markOutboxFailed({
-          id: message.id,
-          organizationId: message.organizationId,
-          workerId: this.workerId,
-          claimToken: message.claimToken,
-          error: reason,
-          retryAfterSeconds: this.retryAfterSeconds,
-          maxAttempts: this.maxAttempts,
-        });
+        let outcome: "failed" | "dead_lettered";
+        try {
+          outcome = await markOutboxFailed({
+            id: message.id,
+            organizationId: message.organizationId,
+            workerId: this.workerId,
+            claimToken: message.claimToken,
+            error: reason,
+            retryAfterSeconds: this.retryAfterSeconds,
+            maxAttempts: this.maxAttempts,
+          });
+        } catch (ackError) {
+          if (ackError instanceof OutboxClaimOwnershipError) {
+            this.recordClaimLost(message);
+          }
+          throw ackError;
+        }
         if (outcome === "dead_lettered") {
           deadLettered += 1;
           incrementMetric("outbox_dead_lettered_total");
