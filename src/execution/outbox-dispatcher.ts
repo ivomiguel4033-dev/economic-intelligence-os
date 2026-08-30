@@ -9,6 +9,12 @@ export function resolveOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): str
   return configured || undefined;
 }
 
+export function requireOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): string {
+  const workerId = resolveOutboxWorkerId(env);
+  if (!workerId) throw new Error("OUTBOX_WORKER_ID is required");
+  return workerId;
+}
+
 export class OutboxDispatcher {
   private readonly workerId: string;
 
@@ -22,6 +28,7 @@ export class OutboxDispatcher {
     const normalizedWorkerId = workerId.trim();
     if (!normalizedWorkerId) throw new Error("OutboxDispatcher requires workerId");
 
+    if (process.env.NODE_ENV === "production") requireOutboxWorkerId();
     const configuredWorkerId = resolveOutboxWorkerId();
     if (configuredWorkerId && configuredWorkerId !== normalizedWorkerId) {
       throw new Error("OutboxDispatcher workerId does not match OUTBOX_WORKER_ID");
