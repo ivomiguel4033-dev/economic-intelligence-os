@@ -81,13 +81,21 @@ export async function evaluateWorkerDrainSafety(workerId: string): Promise<Drain
   return evaluateLocalDrainSafety(claimedOutboxMessages);
 }
 
+function boundedDrainOption(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(value, max));
+}
+
 /**
  * Waits for an already-draining worker to become safe to terminate. The wait is
  * deliberately bounded so a broken dependency cannot hold shutdown forever.
  * Evaluation errors fail closed and are retried until the deadline.
  *
  * Keep timeoutMs below the platform's hard termination window so the caller
- * retains time for final logging/cleanup before SIGKILL.
+ * retains time for final logging/cleanup before SIGKILL. Invalid numeric
+ * options fall back to safe defaults so NaN/Infinity cannot create an
+ * unbounded or zero-delay shutdown loop.
  */
 export async function waitForWorkerDrainSafety(
   workerId: string,
@@ -95,8 +103,8 @@ export async function waitForWorkerDrainSafety(
 ): Promise<DrainWaitResult> {
   if (!workerId) throw new Error("Drain workerId is required");
 
-  const timeoutMs = Math.max(0, Math.min(options.timeoutMs ?? 25_000, 25_000));
-  const pollIntervalMs = Math.max(25, Math.min(options.pollIntervalMs ?? 250, 1_000));
+  const timeoutMs = boundedDrainOption(options.timeoutMs, 25_000, 0, 25_000);
+  const pollIntervalMs = boundedDrainOption(options.pollIntervalMs, 250, 25, 1_000);
   const startedAt = Date.now();
   let lastDecision: DrainDecision = {
     safeToTerminate: false,
