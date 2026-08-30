@@ -19,6 +19,11 @@ export type OutboxOperationalSnapshot = {
   oldestReadyAgeSeconds: number;
 };
 
+function boundedInteger(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(Math.trunc(value), max));
+}
+
 export async function getOutboxOperationalSnapshot(): Promise<OutboxOperationalSnapshot> {
   const result = await db.query(
     `SELECT
@@ -82,9 +87,9 @@ export async function reclaimStaleOutbox(
   retryAfterSeconds = 5,
   maxAttempts = 5,
 ): Promise<{ reclaimed: number; deadLettered: number }> {
-  const staleAfter = Math.max(30, Math.min(maxProcessingSeconds, 86400));
-  const retryDelay = Math.max(1, Math.min(retryAfterSeconds, 3600));
-  const attemptLimit = Math.max(1, Math.min(maxAttempts, 100));
+  const staleAfter = boundedInteger(maxProcessingSeconds, 300, 30, 86400);
+  const retryDelay = boundedInteger(retryAfterSeconds, 5, 1, 3600);
+  const attemptLimit = boundedInteger(maxAttempts, 5, 1, 100);
   const result = await db.query(
     `UPDATE execution_outbox
      SET status=CASE WHEN attempts >= $3 THEN 'dead_lettered' ELSE 'failed' END,
@@ -106,7 +111,7 @@ export async function reclaimStaleOutbox(
 
 export async function claimOutbox(workerId: string, limit = 25): Promise<OutboxMessage[]> {
   if (!workerId) throw new Error("Outbox workerId is required");
-  const batch = Math.max(1, Math.min(limit, 100));
+  const batch = boundedInteger(limit, 25, 1, 100);
   const result = await db.query(
     `WITH candidates AS (
        SELECT id
@@ -157,8 +162,8 @@ export async function markOutboxFailed(input: {
   retryAfterSeconds?: number;
   maxAttempts?: number;
 }): Promise<"failed" | "dead_lettered"> {
-  const delay = Math.max(1, Math.min(input.retryAfterSeconds ?? 30, 3600));
-  const attemptLimit = Math.max(1, Math.min(input.maxAttempts ?? 5, 100));
+  const delay = boundedInteger(input.retryAfterSeconds, 30, 1, 3600);
+  const attemptLimit = boundedInteger(input.maxAttempts, 5, 1, 100);
   const result = await db.query(
     `UPDATE execution_outbox
      SET status=CASE WHEN attempts >= $7 THEN 'dead_lettered' ELSE 'failed' END,
