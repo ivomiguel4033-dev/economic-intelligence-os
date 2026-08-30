@@ -30,6 +30,23 @@ if (/^\s*for:/m.test(deadLetterBlock)) {
   throw new Error("Dead-letter alert must fire without a persistence delay.");
 }
 
+const claimLostBlock = rules.split("- alert: OutboxClaimLost", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!claimLostBlock) {
+  throw new Error("Missing alert rule: OutboxClaimLost");
+}
+if (!/^\s*expr: increase\(outbox_claim_lost_total\[5m\]\) > 0$/m.test(claimLostBlock)) {
+  throw new Error("OutboxClaimLost must alert on any fenced claim loss within 5m.");
+}
+if (!/^\s*severity: critical$/m.test(claimLostBlock)) {
+  throw new Error("OutboxClaimLost must remain a critical alert.");
+}
+if (/^\s*for:/m.test(claimLostBlock)) {
+  throw new Error("OutboxClaimLost must fire without a persistence delay.");
+}
+if (!metrics.includes('"outbox_claim_lost_total"')) {
+  throw new Error("OutboxClaimLost references an unexported metric: outbox_claim_lost_total");
+}
+
 for (const alertName of [
   "OutboxBacklogSloBreached",
   "OutboxFailedMessagesSloBreached",
@@ -47,4 +64,4 @@ for (const forbidden of ["organizationId", "messageId", "payload", "tenantId"]) 
   }
 }
 
-console.log("Prometheus outbox alert rules are consistent with exported SLO metrics.");
+console.log("Prometheus outbox alert rules are consistent with exported SLO and claim-loss metrics.");
