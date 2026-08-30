@@ -97,8 +97,16 @@ assert(
 );
 
 assert(
-  /export async function waitForWorkerDrainSafety\([\s\S]*?Math\.min\(options\.timeoutMs \?\? 25_000, 25_000\)/.test(deploymentSafety),
+  /function boundedDrainOption\([\s\S]*?Number\.isFinite\(value\)[\s\S]*?Math\.max\(min, Math\.min\(value, max\)\)/.test(deploymentSafety),
+  "Drain coordinator must reject non-finite timing options and enforce explicit bounds",
+);
+assert(
+  /const timeoutMs = boundedDrainOption\(options\.timeoutMs, 25_000, 0, 25_000\)/.test(deploymentSafety),
   "Drain coordinator must cap its wait below the platform hard termination window",
+);
+assert(
+  /const pollIntervalMs = boundedDrainOption\(options\.pollIntervalMs, 250, 25, 1_000\)/.test(deploymentSafety),
+  "Drain coordinator must bound polling to a safe interval",
 );
 assert(
   /catch\s*\{[\s\S]*?safeToTerminate:\s*false,[\s\S]*?Drain safety evaluation failed/.test(deploymentSafety),
