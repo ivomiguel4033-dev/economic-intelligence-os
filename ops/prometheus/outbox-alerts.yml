@@ -10,6 +10,15 @@ groups:
           summary: Transactional outbox contains dead-lettered messages
           runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
 
+      - alert: OutboxClaimLost
+        expr: increase(outbox_claim_lost_total[5m]) > 0
+        labels:
+          severity: critical
+          component: transactional-outbox
+        annotations:
+          summary: Transactional outbox lost a fenced worker claim during delivery
+          runbook: docs/PRODUCTION_RUNBOOK.md#transactional-outbox-slos--incident-response
+
       - alert: OutboxBacklogSloBreached
         expr: outbox_slo_backlog_breached == 1
         for: 5m
