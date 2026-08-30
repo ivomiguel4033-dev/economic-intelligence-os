@@ -75,6 +75,11 @@ export class OutboxDispatcher {
       }).then((renewed) => {
         if (!renewed) claimLost = true;
       }).catch((error) => {
+        // If the heartbeat cannot prove ownership, fail closed. The handler may
+        // already be in-flight, but we must not acknowledge the message after
+        // an indeterminate renewal because another worker may legitimately
+        // reclaim it once the durable claim expires.
+        claimLost = true;
         log("warn", {
           event: "outbox.claim.heartbeat_failed",
           organizationId: message.organizationId,
