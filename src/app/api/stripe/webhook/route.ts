@@ -53,14 +53,16 @@ export async function POST(request: NextRequest) {
   }
 
   const registration = await registerStripeEvent({ id: event.id, type: event.type, livemode: event.livemode, rawPayload: payload });
-  if (registration === "duplicate") return NextResponse.json({ received: true, duplicate: true });
+  if (registration.status === "duplicate") return NextResponse.json({ received: true, duplicate: true });
 
   try {
     await processStripeEvent(event);
-    await markStripeEventProcessed(event.id);
+    const finalized = await markStripeEventProcessed(event.id, registration.generation);
+    if (!finalized) return NextResponse.json({ received: true, superseded: true });
     return NextResponse.json({ received: true });
   } catch (error) {
-    await markStripeEventFailed(event.id, error);
+    const recorded = await markStripeEventFailed(event.id, registration.generation, error);
+    if (!recorded) return NextResponse.json({ received: true, superseded: true });
     return NextResponse.json({ error: "Stripe event processing failed" }, { status: 500 });
   }
 }
