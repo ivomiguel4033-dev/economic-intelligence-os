@@ -57,7 +57,7 @@ async function markFailed(eventId, generation, message) {
   const result = await pool.query(
     `UPDATE billing_webhook_events
      SET processing_error=$3, retry_started_at=NULL
-     WHERE stripe_event_id=$1 AND processing_generation=$2`,
+     WHERE stripe_event_id=$1 AND processing_generation=$2 AND processed_at IS NULL`,
     [eventId, generation, message],
   );
   return Boolean(result.rowCount);
@@ -67,7 +67,7 @@ async function markProcessed(eventId, generation) {
   const result = await pool.query(
     `UPDATE billing_webhook_events
      SET processed_at=now(), processing_error=NULL, retry_started_at=NULL
-     WHERE stripe_event_id=$1 AND processing_generation=$2`,
+     WHERE stripe_event_id=$1 AND processing_generation=$2 AND processed_at IS NULL`,
     [eventId, generation],
   );
   return Boolean(result.rowCount);
@@ -142,6 +142,10 @@ try {
   assert.equal(Number(beforeCurrentFinalization.rows[0].processing_generation), secondRetry.generation);
 
   assert.equal(await markProcessed(failed.id, secondRetry.generation), true);
+  // Completion is terminal for a generation: late success/failure callbacks
+  // from the same worker must not mutate an already processed event.
+  assert.equal(await markProcessed(failed.id, secondRetry.generation), false);
+  assert.equal(await markFailed(failed.id, secondRetry.generation, "late same-generation failure"), false);
   assert.deepEqual(await register(failed), { status: "duplicate" });
 
   const failedPersisted = await pool.query(
@@ -199,7 +203,7 @@ try {
   assert.equal(persisted.rows[0].livemode, base.livemode);
   assert.equal(persisted.rows[0].payload_hash, hash(base.rawPayload));
 
-  console.log("Stripe event idempotency, retry recovery and processing-generation fencing regression checks passed");
+  console.log("Stripe event idempotency, retry recovery, terminal completion and processing-generation fencing regression checks passed");
 } finally {
   await pool.end();
 }

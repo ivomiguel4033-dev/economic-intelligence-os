@@ -74,7 +74,7 @@ export async function markStripeEventProcessed(eventId: string, generation: numb
   const result = await db.query(
     `UPDATE billing_webhook_events
      SET processed_at=now(), processing_error=NULL, retry_started_at=NULL
-     WHERE stripe_event_id=$1 AND processing_generation=$2`,
+     WHERE stripe_event_id=$1 AND processing_generation=$2 AND processed_at IS NULL`,
     [eventId, generation],
   );
   return Boolean(result.rowCount);
@@ -85,7 +85,7 @@ export async function markStripeEventFailed(eventId: string, generation: number,
   const result = await db.query(
     `UPDATE billing_webhook_events
      SET processing_error=$3, retry_started_at=NULL
-     WHERE stripe_event_id=$1 AND processing_generation=$2`,
+     WHERE stripe_event_id=$1 AND processing_generation=$2 AND processed_at IS NULL`,
     [eventId, generation, message],
   );
   return Boolean(result.rowCount);
