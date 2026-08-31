@@ -27,6 +27,16 @@ assert.equal(breaker.canExecute(), true);
 breaker.failure();
 assert.equal(breaker.canExecute(), false);
 
+const leaseSource = readFileSync(new URL("../src/execution/execution-lease.ts", import.meta.url), "utf8");
+assert.match(leaseSource, /async renew\(leaseKey: string, ttlSeconds = 60, fencingToken\?: string\)/);
+assert.match(leaseSource, /UPDATE execution_leases SET expires_at=[\s\S]*organization_id=\$1[\s\S]*owner_id=\$3[\s\S]*expires_at > NOW\(\)[\s\S]*fencing_token=\$5::bigint/);
+assert.match(leaseSource, /async release\(leaseKey: string, fencingToken\?: string\)/);
+assert.match(leaseSource, /DELETE FROM execution_leases[\s\S]*organization_id=\$1[\s\S]*owner_id=\$3[\s\S]*fencing_token=\$4::bigint/);
+
+const resilientSource = readFileSync(new URL("../src/execution/resilient-execution.ts", import.meta.url), "utf8");
+assert.match(resilientSource, /lease\.renew\(leaseKey, leaseTtlSeconds, fence\.fencingToken\)/);
+assert.match(resilientSource, /lease\.release\(leaseKey, fence\.fencingToken\)/);
+
 const outboxSource = readFileSync(new URL("../src/execution/transactional-outbox.ts", import.meta.url), "utf8");
 assert.match(outboxSource, /function boundedInteger\([\s\S]*Number\.isFinite\(value\)[\s\S]*Math\.trunc\(value\)/);
 assert.match(outboxSource, /boundedInteger\(maxProcessingSeconds, 300, 30, 86400\)/);
