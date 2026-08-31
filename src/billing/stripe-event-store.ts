@@ -8,7 +8,7 @@ export interface StripeEventEnvelope {
   rawPayload: string;
 }
 
-export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"new" | "duplicate"> {
+export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"new" | "duplicate" | "retry"> {
   const payloadHash = createHash("sha256").update(event.rawPayload).digest("hex");
   const result = await db.query(
     `INSERT INTO billing_webhook_events (stripe_event_id, event_type, livemode, payload_hash)
@@ -24,8 +24,10 @@ export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"
     event_type: string;
     livemode: boolean;
     payload_hash: string;
+    processed_at: Date | null;
+    processing_error: string | null;
   }>(
-    `SELECT event_type, livemode, payload_hash
+    `SELECT event_type, livemode, payload_hash, processed_at, processing_error
      FROM billing_webhook_events
      WHERE stripe_event_id=$1`,
     [event.id],
@@ -43,6 +45,10 @@ export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"
   ) {
     throw new Error(`Stripe event ${event.id} replay does not match the persisted event`);
   }
+
+  // Stripe retries failed deliveries. A matching event that previously failed must be
+  // processed again; treating it as a completed duplicate would permanently lose it.
+  if (!persisted.processed_at && persisted.processing_error) return "retry";
 
   return "duplicate";
 }
