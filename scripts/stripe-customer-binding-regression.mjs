@@ -26,7 +26,7 @@ async function syncSubscription(snapshot) {
     WHERE (billing_customers.stripe_customer_id IS NULL
        OR billing_customers.stripe_customer_id=EXCLUDED.stripe_customer_id)
       AND (billing_customers.last_stripe_event_created_at IS NULL
-       OR billing_customers.last_stripe_event_created_at <= EXCLUDED.last_stripe_event_created_at)
+       OR billing_customers.last_stripe_event_created_at < EXCLUDED.last_stripe_event_created_at)
     RETURNING organization_id`,
     [
       snapshot.organizationId,
@@ -51,7 +51,7 @@ async function syncSubscription(snapshot) {
   const row = existing.rows[0];
   if (row && row.stripe_customer_id === snapshot.stripeCustomerId) {
     const lastCreatedAt = row.last_stripe_event_created_at === null ? null : Number(row.last_stripe_event_created_at);
-    if (lastCreatedAt !== null && lastCreatedAt > snapshot.stripeEventCreatedAt) return "stale";
+    if (lastCreatedAt !== null && lastCreatedAt >= snapshot.stripeEventCreatedAt) return "stale";
   }
 
   throw new Error(`Stripe customer mismatch for organization ${snapshot.organizationId}`);
@@ -159,12 +159,46 @@ try {
   assert.equal(afterConcurrent.rows[0].subscription_state, "active");
   assert.equal(Number(afterConcurrent.rows[0].last_stripe_event_created_at), 400);
 
+  const equalTimestampSnapshots = [
+    {
+      ...initial,
+      stripeSubscriptionId: `sub_regression_equal_a_${suffix}`,
+      planCode: "growth",
+      state: "past_due",
+      stripeEventCreatedAt: 600,
+    },
+    {
+      ...initial,
+      stripeSubscriptionId: `sub_regression_equal_b_${suffix}`,
+      planCode: "enterprise",
+      state: "active",
+      stripeEventCreatedAt: 600,
+    },
+  ];
+  const equalTimestampResults = await Promise.all(equalTimestampSnapshots.map(syncSubscription));
+  assert.deepEqual(equalTimestampResults.toSorted(), ["applied", "stale"]);
+
+  const afterEqualTimestamp = await pool.query(
+    `SELECT stripe_subscription_id, plan_code, subscription_state, last_stripe_event_created_at
+     FROM billing_customers
+     WHERE organization_id=$1`,
+    [organizationA],
+  );
+  assert.equal(afterEqualTimestamp.rowCount, 1);
+  assert.equal(Number(afterEqualTimestamp.rows[0].last_stripe_event_created_at), 600);
+  const persistedEqualIndex = equalTimestampSnapshots.findIndex(
+    (snapshot) => snapshot.stripeSubscriptionId === afterEqualTimestamp.rows[0].stripe_subscription_id,
+  );
+  assert.notEqual(persistedEqualIndex, -1);
+  assert.equal(afterEqualTimestamp.rows[0].plan_code, equalTimestampSnapshots[persistedEqualIndex].planCode);
+  assert.equal(afterEqualTimestamp.rows[0].subscription_state, equalTimestampSnapshots[persistedEqualIndex].state);
+
   await assert.rejects(
     () => syncSubscription({
       ...initial,
       organizationId: organizationB,
       stripeSubscriptionId: `sub_regression_b_${suffix}`,
-      stripeEventCreatedAt: 500,
+      stripeEventCreatedAt: 700,
     }),
     (error) => error?.code === "23505",
   );
