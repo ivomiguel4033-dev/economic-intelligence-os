@@ -54,6 +54,8 @@ jobs:
         run: node scripts/outbox-concurrency-regression.mjs
       - name: Stripe event idempotency regression checks
         run: node scripts/stripe-event-idempotency-regression.mjs
+      - name: Stripe customer tenant-binding regression checks
+        run: node scripts/stripe-customer-binding-regression.mjs
       - name: Tenant isolation regression checks
         run: node scripts/security-regression.mjs
       - name: Execution reliability regression checks
