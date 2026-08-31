@@ -6,11 +6,16 @@ export class PostgresIdempotencyStore<T> implements IdempotencyStore<T> {
 
   async get(key: string): Promise<T | undefined> {
     const result = await db.query(
-      `SELECT result FROM execution_idempotency
+      `SELECT action_id, result FROM execution_idempotency
        WHERE idempotency_key=$1 AND organization_id=$2 LIMIT 1`,
       [key, this.organizationId],
     );
-    return result.rows[0]?.result as T | undefined;
+    const row = result.rows[0] as { action_id?: string; result?: T } | undefined;
+    if (!row) return undefined;
+    if (row.action_id !== this.actionId) {
+      throw new Error("Idempotency key collision detected for a different action");
+    }
+    return row.result;
   }
 
   async putIfAbsent(key: string, value: T): Promise<boolean> {
