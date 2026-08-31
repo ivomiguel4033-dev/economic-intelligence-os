@@ -128,12 +128,43 @@ try {
   assert.equal(persisted.rows[0].subscription_state, "active");
   assert.equal(Number(persisted.rows[0].last_stripe_event_created_at), 200);
 
+  const [olderConcurrentResult, newerConcurrentResult] = await Promise.all([
+    syncSubscription({
+      ...initial,
+      stripeSubscriptionId: `sub_regression_concurrent_old_${suffix}`,
+      planCode: "growth",
+      state: "past_due",
+      stripeEventCreatedAt: 250,
+    }),
+    syncSubscription({
+      ...initial,
+      stripeSubscriptionId: `sub_regression_concurrent_new_${suffix}`,
+      planCode: "enterprise",
+      state: "active",
+      stripeEventCreatedAt: 400,
+    }),
+  ]);
+  assert.ok(["applied", "stale"].includes(olderConcurrentResult));
+  assert.equal(newerConcurrentResult, "applied");
+
+  const afterConcurrent = await pool.query(
+    `SELECT stripe_subscription_id, plan_code, subscription_state, last_stripe_event_created_at
+     FROM billing_customers
+     WHERE organization_id=$1`,
+    [organizationA],
+  );
+  assert.equal(afterConcurrent.rowCount, 1);
+  assert.equal(afterConcurrent.rows[0].stripe_subscription_id, `sub_regression_concurrent_new_${suffix}`);
+  assert.equal(afterConcurrent.rows[0].plan_code, "enterprise");
+  assert.equal(afterConcurrent.rows[0].subscription_state, "active");
+  assert.equal(Number(afterConcurrent.rows[0].last_stripe_event_created_at), 400);
+
   await assert.rejects(
     () => syncSubscription({
       ...initial,
       organizationId: organizationB,
       stripeSubscriptionId: `sub_regression_b_${suffix}`,
-      stripeEventCreatedAt: 300,
+      stripeEventCreatedAt: 500,
     }),
     (error) => error?.code === "23505",
   );
