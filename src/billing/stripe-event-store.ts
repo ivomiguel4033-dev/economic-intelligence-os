@@ -46,16 +46,28 @@ export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"
     throw new Error(`Stripe event ${event.id} replay does not match the persisted event`);
   }
 
-  // Stripe retries failed deliveries. A matching event that previously failed must be
-  // processed again; treating it as a completed duplicate would permanently lose it.
-  if (!persisted.processed_at && persisted.processing_error) return "retry";
+  if (!persisted.processed_at && persisted.processing_error) {
+    const claimed = await db.query(
+      `UPDATE billing_webhook_events
+       SET retry_started_at=now()
+       WHERE stripe_event_id=$1
+         AND processed_at IS NULL
+         AND processing_error IS NOT NULL
+         AND (retry_started_at IS NULL OR retry_started_at < now() - interval '5 minutes')
+       RETURNING stripe_event_id`,
+      [event.id],
+    );
+    if (claimed.rowCount) return "retry";
+  }
 
   return "duplicate";
 }
 
 export async function markStripeEventProcessed(eventId: string): Promise<void> {
   await db.query(
-    `UPDATE billing_webhook_events SET processed_at=now(), processing_error=NULL WHERE stripe_event_id=$1`,
+    `UPDATE billing_webhook_events
+     SET processed_at=now(), processing_error=NULL, retry_started_at=NULL
+     WHERE stripe_event_id=$1`,
     [eventId],
   );
 }
@@ -63,7 +75,9 @@ export async function markStripeEventProcessed(eventId: string): Promise<void> {
 export async function markStripeEventFailed(eventId: string, error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message.slice(0, 2000) : "Unknown billing event error";
   await db.query(
-    `UPDATE billing_webhook_events SET processing_error=$2 WHERE stripe_event_id=$1`,
+    `UPDATE billing_webhook_events
+     SET processing_error=$2, retry_started_at=NULL
+     WHERE stripe_event_id=$1`,
     [eventId, message],
   );
 }
