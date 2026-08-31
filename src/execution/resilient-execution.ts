@@ -36,14 +36,14 @@ export class ResilientExternalExecutor<T> {
     let leaseLost = false;
     const startHeartbeat = () => {
       heartbeat = setInterval(() => {
-        void lease.renew(leaseKey, leaseTtlSeconds).then((renewed) => {
+        void lease.renew(leaseKey, leaseTtlSeconds, fence.fencingToken).then((renewed) => {
           if (!renewed) leaseLost = true;
         }).catch(() => { leaseLost = true; });
       }, Math.floor((leaseTtlSeconds * 1000) / 3));
       heartbeat.unref?.();
     };
     const assertLease = async (message: string) => {
-      if (leaseLost || !(await lease.renew(leaseKey, leaseTtlSeconds))) {
+      if (leaseLost || !(await lease.renew(leaseKey, leaseTtlSeconds, fence.fencingToken))) {
         leaseLost = true;
         throw new Error(message);
       }
@@ -141,7 +141,7 @@ export class ResilientExternalExecutor<T> {
       throw lastError ?? new Error(message);
     } finally {
       if (heartbeat) clearInterval(heartbeat);
-      await lease.release(leaseKey);
+      await lease.release(leaseKey, fence.fencingToken);
     }
   }
 
