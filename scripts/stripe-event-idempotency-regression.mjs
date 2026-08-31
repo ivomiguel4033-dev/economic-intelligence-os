@@ -32,20 +32,38 @@ async function register(event) {
     persisted.livemode !== event.livemode ||
     persisted.payload_hash !== payloadHash
   ) throw new Error("replay does not match persisted event");
-  if (!persisted.processed_at && persisted.processing_error) return "retry";
+
+  if (!persisted.processed_at && persisted.processing_error) {
+    const claimed = await pool.query(
+      `UPDATE billing_webhook_events
+       SET retry_started_at=now()
+       WHERE stripe_event_id=$1
+         AND processed_at IS NULL
+         AND processing_error IS NOT NULL
+         AND (retry_started_at IS NULL OR retry_started_at < now() - interval '5 minutes')
+       RETURNING stripe_event_id`,
+      [event.id],
+    );
+    if (claimed.rowCount) return "retry";
+  }
+
   return "duplicate";
 }
 
 async function markFailed(eventId, message) {
   await pool.query(
-    `UPDATE billing_webhook_events SET processing_error=$2 WHERE stripe_event_id=$1`,
+    `UPDATE billing_webhook_events
+     SET processing_error=$2, retry_started_at=NULL
+     WHERE stripe_event_id=$1`,
     [eventId, message],
   );
 }
 
 async function markProcessed(eventId) {
   await pool.query(
-    `UPDATE billing_webhook_events SET processed_at=now(), processing_error=NULL WHERE stripe_event_id=$1`,
+    `UPDATE billing_webhook_events
+     SET processed_at=now(), processing_error=NULL, retry_started_at=NULL
+     WHERE stripe_event_id=$1`,
     [eventId],
   );
 }
@@ -77,17 +95,37 @@ try {
   };
   assert.equal(await register(failed), "new");
   await markFailed(failed.id, "transient processor failure");
+
+  const concurrentRetries = await Promise.all([register(failed), register(failed)]);
+  assert.deepEqual(concurrentRetries.sort(), ["duplicate", "retry"]);
+
+  const activeClaim = await pool.query(
+    `SELECT retry_started_at FROM billing_webhook_events WHERE stripe_event_id=$1`,
+    [failed.id],
+  );
+  assert.ok(activeClaim.rows[0].retry_started_at);
+
+  assert.equal(await register(failed), "duplicate");
+
+  await pool.query(
+    `UPDATE billing_webhook_events
+     SET retry_started_at=now() - interval '6 minutes'
+     WHERE stripe_event_id=$1`,
+    [failed.id],
+  );
   assert.equal(await register(failed), "retry");
 
   await markProcessed(failed.id);
   assert.equal(await register(failed), "duplicate");
 
   const failedPersisted = await pool.query(
-    `SELECT processed_at, processing_error FROM billing_webhook_events WHERE stripe_event_id=$1`,
+    `SELECT processed_at, processing_error, retry_started_at
+     FROM billing_webhook_events WHERE stripe_event_id=$1`,
     [failed.id],
   );
   assert.ok(failedPersisted.rows[0].processed_at);
   assert.equal(failedPersisted.rows[0].processing_error, null);
+  assert.equal(failedPersisted.rows[0].retry_started_at, null);
 
   const persisted = await pool.query(
     `SELECT event_type, livemode, payload_hash FROM billing_webhook_events WHERE stripe_event_id=$1`,
@@ -98,7 +136,7 @@ try {
   assert.equal(persisted.rows[0].livemode, base.livemode);
   assert.equal(persisted.rows[0].payload_hash, hash(base.rawPayload));
 
-  console.log("Stripe event idempotency regression checks passed");
+  console.log("Stripe event idempotency and retry-claim regression checks passed");
 } finally {
   await pool.end();
 }
