@@ -17,7 +17,34 @@ export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"
      RETURNING stripe_event_id`,
     [event.id, event.type, event.livemode, payloadHash],
   );
-  return result.rowCount ? "new" : "duplicate";
+
+  if (result.rowCount) return "new";
+
+  const existing = await db.query<{
+    event_type: string;
+    livemode: boolean;
+    payload_hash: string;
+  }>(
+    `SELECT event_type, livemode, payload_hash
+     FROM billing_webhook_events
+     WHERE stripe_event_id=$1`,
+    [event.id],
+  );
+  const persisted = existing.rows[0];
+
+  if (!persisted) {
+    throw new Error(`Stripe event ${event.id} conflicted but could not be reloaded`);
+  }
+
+  if (
+    persisted.event_type !== event.type ||
+    persisted.livemode !== event.livemode ||
+    persisted.payload_hash !== payloadHash
+  ) {
+    throw new Error(`Stripe event ${event.id} replay does not match the persisted event`);
+  }
+
+  return "duplicate";
 }
 
 export async function markStripeEventProcessed(eventId: string): Promise<void> {
