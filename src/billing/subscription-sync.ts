@@ -13,7 +13,7 @@ export interface SubscriptionSnapshot {
 }
 
 export async function syncSubscription(snapshot: SubscriptionSnapshot): Promise<void> {
-  await db.query(
+  const result = await db.query(
     `INSERT INTO billing_customers (
       organization_id, stripe_customer_id, stripe_subscription_id, plan_code,
       subscription_state, current_period_end, cancel_at_period_end, updated_at
@@ -25,7 +25,10 @@ export async function syncSubscription(snapshot: SubscriptionSnapshot): Promise<
       subscription_state=EXCLUDED.subscription_state,
       current_period_end=EXCLUDED.current_period_end,
       cancel_at_period_end=EXCLUDED.cancel_at_period_end,
-      updated_at=now()`,
+      updated_at=now()
+    WHERE billing_customers.stripe_customer_id IS NULL
+       OR billing_customers.stripe_customer_id=EXCLUDED.stripe_customer_id
+    RETURNING organization_id`,
     [
       snapshot.organizationId,
       snapshot.stripeCustomerId,
@@ -36,4 +39,8 @@ export async function syncSubscription(snapshot: SubscriptionSnapshot): Promise<
       snapshot.cancelAtPeriodEnd,
     ],
   );
+
+  if (!result.rowCount) {
+    throw new Error(`Stripe customer mismatch for organization ${snapshot.organizationId}`);
+  }
 }
