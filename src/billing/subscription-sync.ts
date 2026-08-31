@@ -32,7 +32,7 @@ export async function syncSubscription(snapshot: SubscriptionSnapshot): Promise<
     WHERE (billing_customers.stripe_customer_id IS NULL
        OR billing_customers.stripe_customer_id=EXCLUDED.stripe_customer_id)
       AND (billing_customers.last_stripe_event_created_at IS NULL
-       OR billing_customers.last_stripe_event_created_at <= EXCLUDED.last_stripe_event_created_at)
+       OR billing_customers.last_stripe_event_created_at < EXCLUDED.last_stripe_event_created_at)
     RETURNING organization_id`,
     [
       snapshot.organizationId,
@@ -57,7 +57,7 @@ export async function syncSubscription(snapshot: SubscriptionSnapshot): Promise<
   const row = existing.rows[0];
   if (row && row.stripe_customer_id === snapshot.stripeCustomerId) {
     const lastCreatedAt = row.last_stripe_event_created_at === null ? null : Number(row.last_stripe_event_created_at);
-    if (lastCreatedAt !== null && lastCreatedAt > snapshot.stripeEventCreatedAt) return "stale";
+    if (lastCreatedAt !== null && lastCreatedAt >= snapshot.stripeEventCreatedAt) return "stale";
   }
 
   throw new Error(`Stripe customer mismatch for organization ${snapshot.organizationId}`);
