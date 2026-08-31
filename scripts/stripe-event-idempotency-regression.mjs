@@ -33,13 +33,16 @@ async function register(event) {
     persisted.payload_hash !== payloadHash
   ) throw new Error("replay does not match persisted event");
 
-  if (!persisted.processed_at && persisted.processing_error) {
+  if (!persisted.processed_at) {
     const claimed = await pool.query(
       `UPDATE billing_webhook_events
        SET retry_started_at=now()
        WHERE stripe_event_id=$1
          AND processed_at IS NULL
-         AND processing_error IS NOT NULL
+         AND (
+           processing_error IS NOT NULL
+           OR created_at < now() - interval '5 minutes'
+         )
          AND (retry_started_at IS NULL OR retry_started_at < now() - interval '5 minutes')
        RETURNING stripe_event_id`,
       [event.id],
@@ -127,6 +130,39 @@ try {
   assert.equal(failedPersisted.rows[0].processing_error, null);
   assert.equal(failedPersisted.rows[0].retry_started_at, null);
 
+  // Simulate a worker crash after initial registration but before it can mark
+  // the event processed or failed. A fresh duplicate must not race the active
+  // worker, but the abandoned event must become reclaimable after the lease.
+  const abandoned = {
+    ...base,
+    id: `evt_abandoned_${suffix}`,
+    rawPayload: JSON.stringify({ id: `abandoned-${suffix}`, amount: 4000 }),
+  };
+  assert.equal(await register(abandoned), "new");
+  assert.equal(await register(abandoned), "duplicate");
+
+  await pool.query(
+    `UPDATE billing_webhook_events
+     SET created_at=now() - interval '6 minutes'
+     WHERE stripe_event_id=$1`,
+    [abandoned.id],
+  );
+
+  const abandonedRetries = await Promise.all([register(abandoned), register(abandoned)]);
+  assert.deepEqual(abandonedRetries.sort(), ["duplicate", "retry"]);
+
+  const abandonedClaim = await pool.query(
+    `SELECT processed_at, processing_error, retry_started_at
+     FROM billing_webhook_events WHERE stripe_event_id=$1`,
+    [abandoned.id],
+  );
+  assert.equal(abandonedClaim.rows[0].processed_at, null);
+  assert.equal(abandonedClaim.rows[0].processing_error, null);
+  assert.ok(abandonedClaim.rows[0].retry_started_at);
+
+  await markProcessed(abandoned.id);
+  assert.equal(await register(abandoned), "duplicate");
+
   const persisted = await pool.query(
     `SELECT event_type, livemode, payload_hash FROM billing_webhook_events WHERE stripe_event_id=$1`,
     [base.id],
@@ -136,7 +172,7 @@ try {
   assert.equal(persisted.rows[0].livemode, base.livemode);
   assert.equal(persisted.rows[0].payload_hash, hash(base.rawPayload));
 
-  console.log("Stripe event idempotency and retry-claim regression checks passed");
+  console.log("Stripe event idempotency, retry-claim and abandoned-worker recovery regression checks passed");
 } finally {
   await pool.end();
 }
