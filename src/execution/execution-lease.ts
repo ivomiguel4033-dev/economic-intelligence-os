@@ -33,21 +33,24 @@ export class ExecutionLease {
     return (await this.acquireWithFence(leaseKey, ttlSeconds)) !== null;
   }
 
-  async renew(leaseKey: string, ttlSeconds = 60): Promise<boolean> {
+  async renew(leaseKey: string, ttlSeconds = 60, fencingToken?: string): Promise<boolean> {
     const ttl = Math.max(5, Math.min(ttlSeconds, 3600));
     const result = await db.query(
       `UPDATE execution_leases SET expires_at=NOW() + ($4 * INTERVAL '1 second')
        WHERE organization_id=$1 AND lease_key=$2 AND owner_id=$3 AND expires_at > NOW()
+         AND ($5::bigint IS NULL OR fencing_token=$5::bigint)
        RETURNING lease_key`,
-      [this.organizationId, leaseKey, this.ownerId, ttl],
+      [this.organizationId, leaseKey, this.ownerId, ttl, fencingToken ?? null],
     );
     return result.rowCount === 1;
   }
 
-  async release(leaseKey: string): Promise<void> {
+  async release(leaseKey: string, fencingToken?: string): Promise<void> {
     await db.query(
-      `DELETE FROM execution_leases WHERE organization_id=$1 AND lease_key=$2 AND owner_id=$3`,
-      [this.organizationId, leaseKey, this.ownerId],
+      `DELETE FROM execution_leases
+       WHERE organization_id=$1 AND lease_key=$2 AND owner_id=$3
+         AND ($4::bigint IS NULL OR fencing_token=$4::bigint)`,
+      [this.organizationId, leaseKey, this.ownerId, fencingToken ?? null],
     );
   }
 }
