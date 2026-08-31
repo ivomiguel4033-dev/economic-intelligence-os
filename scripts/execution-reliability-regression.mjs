@@ -37,6 +37,14 @@ const resilientSource = readFileSync(new URL("../src/execution/resilient-executi
 assert.match(resilientSource, /lease\.renew\(leaseKey, leaseTtlSeconds, fence\.fencingToken\)/);
 assert.match(resilientSource, /lease\.release\(leaseKey, fence\.fencingToken\)/);
 
+const idempotencySource = readFileSync(new URL("../src/execution/postgres-idempotency-store.ts", import.meta.url), "utf8");
+assert.match(idempotencySource, /ON CONFLICT \(organization_id, idempotency_key\) DO NOTHING/);
+assert.match(idempotencySource, /SELECT action_id, result = \$4::jsonb AS same_result[\s\S]*idempotency_key=\$1 AND organization_id=\$2/);
+assert.match(idempotencySource, /if \(!row\) throw new Error\("Idempotency conflict detected without an existing record"\)/);
+assert.match(idempotencySource, /row\.action_id !== this\.actionId \|\| row\.same_result !== true/);
+assert.match(idempotencySource, /throw new Error\("Idempotency key collision detected for a different action or result"\)/);
+assert.match(idempotencySource, /return false;/);
+
 const outboxSource = readFileSync(new URL("../src/execution/transactional-outbox.ts", import.meta.url), "utf8");
 assert.match(outboxSource, /function boundedInteger\([\s\S]*Number\.isFinite\(value\)[\s\S]*Math\.trunc\(value\)/);
 assert.match(outboxSource, /boundedInteger\(maxProcessingSeconds, 300, 30, 86400\)/);
