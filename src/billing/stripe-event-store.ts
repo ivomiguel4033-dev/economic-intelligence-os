@@ -46,13 +46,16 @@ export async function registerStripeEvent(event: StripeEventEnvelope): Promise<"
     throw new Error(`Stripe event ${event.id} replay does not match the persisted event`);
   }
 
-  if (!persisted.processed_at && persisted.processing_error) {
+  if (!persisted.processed_at) {
     const claimed = await db.query(
       `UPDATE billing_webhook_events
        SET retry_started_at=now()
        WHERE stripe_event_id=$1
          AND processed_at IS NULL
-         AND processing_error IS NOT NULL
+         AND (
+           processing_error IS NOT NULL
+           OR created_at < now() - interval '5 minutes'
+         )
          AND (retry_started_at IS NULL OR retry_started_at < now() - interval '5 minutes')
        RETURNING stripe_event_id`,
       [event.id],
