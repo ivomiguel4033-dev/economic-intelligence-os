@@ -66,34 +66,36 @@ function sendStalledRequest() {
     });
     request.on("error", reject);
     request.write("{");
-    // Deliberately leave the request body incomplete. The server must terminate
-    // its body read and return 408 without relying on the client to finish.
   });
 }
 
-const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
-  env: {
-    ...process.env,
-    STRIPE_WEBHOOK_SECRET: "whsec_regression_only",
-    STRIPE_LIVEMODE: "false",
-  },
-  stdio: ["ignore", "pipe", "pipe"],
-  detached: true,
-});
+async function runServer(extraEnv, assertions) {
+  const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
+    env: {
+      ...process.env,
+      STRIPE_WEBHOOK_SECRET: "whsec_regression_only",
+      ...extraEnv,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
+  });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr += String(chunk); });
+  try {
+    await waitForServer();
+    await assertions();
+  } finally {
+    await stopServer(child);
+  }
+  assert(!/UnhandledPromiseRejection/i.test(stderr), "Stripe payload regression server emitted an unhandled rejection");
+}
 
-let stderr = "";
-child.stderr.on("data", (chunk) => { stderr += String(chunk); });
-
-try {
-  await waitForServer();
-
+await runServer({ STRIPE_LIVEMODE: "false" }, async () => {
   const declared = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
     headers: { "content-length": String(maxBytes + 1), "stripe-signature": "invalid" },
     body: "x",
   }).catch(() => null);
-  // Some HTTP clients reject a deliberately inconsistent Content-Length locally;
-  // the streaming case below is the production-critical assertion.
   if (declared) assert(declared.status === 413, `Expected declared oversized payload 413, got ${declared.status}`);
 
   const chunkSize = 64 * 1024;
@@ -110,7 +112,6 @@ try {
       sent += size;
     },
   });
-
   const streamed = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
     headers: { "stripe-signature": "invalid" },
@@ -131,9 +132,20 @@ try {
   const slowResponse = JSON.parse(slow.body);
   assert(slowResponse.error === "Stripe event payload read timed out", "Slow-stream response must use the timeout error");
   assert(slowElapsedMs >= 14_000 && slowElapsedMs < 25_000, `Slow-stream timeout fired outside expected bounds: ${slowElapsedMs}ms`);
-} finally {
-  await stopServer(child);
+});
+
+for (const invalidMode of [undefined, "", "TRUE", "0", "test"]) {
+  const modeEnv = invalidMode === undefined ? { STRIPE_LIVEMODE: undefined } : { STRIPE_LIVEMODE: invalidMode };
+  await runServer(modeEnv, async () => {
+    const response = await fetch(`${baseUrl}/api/stripe/webhook`, {
+      method: "POST",
+      headers: { "stripe-signature": "invalid" },
+      body: "{}",
+    });
+    assert(response.status === 503, `Expected invalid STRIPE_LIVEMODE=${String(invalidMode)} to fail closed with 503, got ${response.status}`);
+    const body = await response.json();
+    assert(body.error === "Stripe webhook mode not configured", "Invalid Stripe mode must use the configuration error envelope");
+  });
 }
 
-assert(!/UnhandledPromiseRejection/i.test(stderr), "Stripe payload regression server emitted an unhandled rejection");
-console.log("Stripe webhook payload bound regression checks passed");
+console.log("Stripe webhook payload bounds, timeout and mode fail-closed regression checks passed");
