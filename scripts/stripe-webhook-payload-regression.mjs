@@ -91,6 +91,32 @@ try {
   assert(streamed.status === 413, `Expected chunked oversized payload without Content-Length to return 413, got ${streamed.status}`);
   const response = await streamed.json();
   assert(response.error === "Stripe event payload too large", "Oversized streaming response must use the bounded-payload error");
+
+  let slowCancelled = false;
+  const slowStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("{"));
+    },
+    pull() {
+      return new Promise(() => {});
+    },
+    cancel() {
+      slowCancelled = true;
+    },
+  });
+  const slowStartedAt = Date.now();
+  const slow = await fetch(`${baseUrl}/api/stripe/webhook`, {
+    method: "POST",
+    headers: { "stripe-signature": "invalid" },
+    body: slowStream,
+    duplex: "half",
+  });
+  const slowElapsedMs = Date.now() - slowStartedAt;
+  assert(slow.status === 408, `Expected stalled Stripe payload to return 408, got ${slow.status}`);
+  const slowResponse = await slow.json();
+  assert(slowResponse.error === "Stripe event payload read timed out", "Slow-stream response must use the timeout error");
+  assert(slowElapsedMs >= 14_000 && slowElapsedMs < 25_000, `Slow-stream timeout fired outside expected bounds: ${slowElapsedMs}ms`);
+  assert(slowCancelled, "Timed-out Stripe payload stream must be cancelled");
 } finally {
   await stopServer(child);
 }
