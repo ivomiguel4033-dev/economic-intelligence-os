@@ -48,6 +48,12 @@ function declaredPayloadTooLarge(request: NextRequest): boolean {
   return !Number.isSafeInteger(bytes) || bytes > MAX_STRIPE_WEBHOOK_BYTES;
 }
 
+function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: string): void {
+  // Cancellation is best-effort. Some HTTP stream implementations do not settle
+  // cancel() until the peer closes, so awaiting it would defeat our response timeout.
+  void reader.cancel(reason).catch(() => undefined);
+}
+
 async function readBoundedPayload(request: NextRequest): Promise<PayloadReadResult> {
   if (!request.body) return { status: "ok", payload: "" };
 
@@ -60,7 +66,7 @@ async function readBoundedPayload(request: NextRequest): Promise<PayloadReadResu
     while (true) {
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) {
-        await reader.cancel("Stripe webhook payload read timed out");
+        cancelReader(reader, "Stripe webhook payload read timed out");
         return { status: "timeout" };
       }
 
@@ -75,7 +81,7 @@ async function readBoundedPayload(request: NextRequest): Promise<PayloadReadResu
       });
 
       if (result.kind === "timeout") {
-        await reader.cancel("Stripe webhook payload read timed out");
+        cancelReader(reader, "Stripe webhook payload read timed out");
         return { status: "timeout" };
       }
 
@@ -85,7 +91,7 @@ async function readBoundedPayload(request: NextRequest): Promise<PayloadReadResu
 
       totalBytes += value.byteLength;
       if (totalBytes > MAX_STRIPE_WEBHOOK_BYTES) {
-        await reader.cancel("Stripe webhook payload exceeds limit");
+        cancelReader(reader, "Stripe webhook payload exceeds limit");
         return { status: "too_large" };
       }
       chunks.push(value);
