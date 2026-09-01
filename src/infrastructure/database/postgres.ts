@@ -18,6 +18,21 @@ function database(): Pool {
   return pool;
 }
 
+export type DatabasePoolSnapshot = {
+  total: number;
+  idle: number;
+  waiting: number;
+};
+
+export function getDatabasePoolSnapshot(): DatabasePoolSnapshot {
+  const current = database();
+  return {
+    total: current.totalCount,
+    idle: current.idleCount,
+    waiting: current.waitingCount,
+  };
+}
+
 export const db: Pick<Pool, "query"> = {
   query: ((...args: unknown[]) => {
     const query = database().query.bind(database()) as (...queryArgs: unknown[]) => unknown;

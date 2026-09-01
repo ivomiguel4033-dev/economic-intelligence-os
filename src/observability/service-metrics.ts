@@ -15,6 +15,9 @@ type MetricKey =
   | "outbox_claim_lost_total";
 
 export type OperationalGaugeKey =
+  | "database_pool_total"
+  | "database_pool_idle"
+  | "database_pool_waiting"
   | "outbox_ready"
   | "outbox_processing"
   | "outbox_failed"

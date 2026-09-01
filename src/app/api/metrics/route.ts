@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { getOutboxOperationalSnapshot } from "@/execution/transactional-outbox";
+import { getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import {
   renderPrometheusMetrics,
   type OperationalGaugeKey,
@@ -37,11 +38,15 @@ export async function GET(request: Request) {
 
   let gauges: Partial<Record<OperationalGaugeKey, number>> = {};
   try {
+    const pool = getDatabasePoolSnapshot();
     const outbox = await getOutboxOperationalSnapshot();
     const thresholds = getOutboxSloThresholds();
     const slo = evaluateOutboxSlo(outbox, thresholds);
 
     gauges = {
+      database_pool_total: pool.total,
+      database_pool_idle: pool.idle,
+      database_pool_waiting: pool.waiting,
       outbox_ready: outbox.ready,
       outbox_processing: outbox.processing,
       outbox_failed: outbox.failed,
