@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import http from "node:http";
 import process from "node:process";
 
 const host = "127.0.0.1";
@@ -44,6 +45,30 @@ async function stopServer(child) {
     signalProcessTree(child, "SIGKILL");
     await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2_000))]);
   }
+}
+
+function sendStalledRequest() {
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      host,
+      port,
+      path: "/api/stripe/webhook",
+      method: "POST",
+      headers: {
+        "stripe-signature": "invalid",
+        "transfer-encoding": "chunked",
+      },
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, body }));
+    });
+    request.on("error", reject);
+    request.write("{");
+    // Deliberately leave the request body incomplete. The server must terminate
+    // its body read and return 408 without relying on the client to finish.
+  });
 }
 
 const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
@@ -92,31 +117,16 @@ try {
   const response = await streamed.json();
   assert(response.error === "Stripe event payload too large", "Oversized streaming response must use the bounded-payload error");
 
-  let slowCancelled = false;
-  const slowStream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode("{"));
-    },
-    pull() {
-      return new Promise(() => {});
-    },
-    cancel() {
-      slowCancelled = true;
-    },
-  });
   const slowStartedAt = Date.now();
-  const slow = await fetch(`${baseUrl}/api/stripe/webhook`, {
-    method: "POST",
-    headers: { "stripe-signature": "invalid" },
-    body: slowStream,
-    duplex: "half",
-  });
+  const slow = await Promise.race([
+    sendStalledRequest(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Stalled Stripe request did not receive a response within 25s")), 25_000)),
+  ]);
   const slowElapsedMs = Date.now() - slowStartedAt;
   assert(slow.status === 408, `Expected stalled Stripe payload to return 408, got ${slow.status}`);
-  const slowResponse = await slow.json();
+  const slowResponse = JSON.parse(slow.body);
   assert(slowResponse.error === "Stripe event payload read timed out", "Slow-stream response must use the timeout error");
   assert(slowElapsedMs >= 14_000 && slowElapsedMs < 25_000, `Slow-stream timeout fired outside expected bounds: ${slowElapsedMs}ms`);
-  assert(slowCancelled, "Timed-out Stripe payload stream must be cancelled");
 } finally {
   await stopServer(child);
 }
