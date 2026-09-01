@@ -72,7 +72,11 @@ function sendStalledRequest() {
 }
 
 const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
-  env: { ...process.env, STRIPE_WEBHOOK_SECRET: "whsec_regression_only" },
+  env: {
+    ...process.env,
+    STRIPE_WEBHOOK_SECRET: "whsec_regression_only",
+    STRIPE_LIVEMODE: "false",
+  },
   stdio: ["ignore", "pipe", "pipe"],
   detached: true,
 });
