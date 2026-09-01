@@ -42,6 +42,44 @@ function declaredPayloadTooLarge(request: NextRequest): boolean {
   return !Number.isSafeInteger(bytes) || bytes > MAX_STRIPE_WEBHOOK_BYTES;
 }
 
+async function readBoundedPayload(request: NextRequest): Promise<string | null> {
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_STRIPE_WEBHOOK_BYTES) {
+        await reader.cancel("Stripe webhook payload exceeds limit");
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return "";
+  }
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ error: "Stripe webhook not configured" }, { status: 503 });
@@ -50,8 +88,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
   }
 
-  const payload = await request.text();
-  if (Buffer.byteLength(payload, "utf8") > MAX_STRIPE_WEBHOOK_BYTES) {
+  const payload = await readBoundedPayload(request);
+  if (payload === null) {
     return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
   }
 
