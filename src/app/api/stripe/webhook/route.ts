@@ -48,6 +48,13 @@ function declaredPayloadTooLarge(request: NextRequest): boolean {
   return !Number.isSafeInteger(bytes) || bytes > MAX_STRIPE_WEBHOOK_BYTES;
 }
 
+function configuredStripeMode(): boolean | null {
+  const value = process.env.STRIPE_LIVEMODE;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return null;
+}
+
 function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: string): void {
   // Cancellation is best-effort. Some HTTP stream implementations do not settle
   // cancel() until the peer closes, so awaiting it would defeat our response timeout.
@@ -118,6 +125,11 @@ export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ error: "Stripe webhook not configured" }, { status: 503 });
 
+  const expectedLive = configuredStripeMode();
+  if (expectedLive === null) {
+    return NextResponse.json({ error: "Stripe webhook mode not configured" }, { status: 503 });
+  }
+
   if (declaredPayloadTooLarge(request)) {
     return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
   }
@@ -141,7 +153,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid Stripe event payload" }, { status: 400 });
   }
 
-  const expectedLive = process.env.STRIPE_LIVEMODE === "true";
   if (event.livemode !== expectedLive) {
     return NextResponse.json({ error: "Stripe event mode mismatch" }, { status: 400 });
   }
