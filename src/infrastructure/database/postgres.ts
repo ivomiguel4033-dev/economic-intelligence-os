@@ -21,15 +21,21 @@ function database(): Pool {
 export type DatabasePoolSnapshot = {
   total: number;
   idle: number;
+  active: number;
   waiting: number;
+  max: number;
 };
 
 export function getDatabasePoolSnapshot(): DatabasePoolSnapshot {
   const current = database();
+  const total = current.totalCount;
+  const idle = current.idleCount;
   return {
-    total: current.totalCount,
-    idle: current.idleCount,
+    total,
+    idle,
+    active: Math.max(total - idle, 0),
     waiting: current.waitingCount,
+    max: current.options.max ?? 10,
   };
 }
 
