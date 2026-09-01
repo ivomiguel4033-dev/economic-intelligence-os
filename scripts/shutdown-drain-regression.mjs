@@ -66,10 +66,11 @@ assert(
 );
 
 const drainingBranch = readiness.slice(drainCheckIndex, databaseProbeIndex);
-assert(/status:\s*["']not_ready["']/.test(drainingBranch), "Draining readiness must report not_ready");
-assert(/reason:\s*["']draining["']/.test(drainingBranch), "Draining readiness must expose the draining reason");
-assert(/status:\s*503/.test(drainingBranch), "Draining readiness must return HTTP 503");
-assert(/Retry-After["']?:\s*["']1["']/.test(drainingBranch), "Draining readiness must advertise retry timing");
+assert(/if \(isDraining\(\)\) return notReady\(["']draining["']\)/.test(drainingBranch), "Draining readiness must use the fail-closed not-ready response");
+assert(
+  /function notReady\(reason: string\)[\s\S]*?status:\s*["']not_ready["'][\s\S]*?reason,[\s\S]*?status:\s*503[\s\S]*?Retry-After["']?:\s*["']1["']/.test(readiness),
+  "Shared readiness failure response must report not_ready, preserve the reason, return HTTP 503 and advertise retry timing",
+);
 
 assert(
   /WHERE status='processing' AND claimed_by=\$1/.test(transactionalOutbox),
