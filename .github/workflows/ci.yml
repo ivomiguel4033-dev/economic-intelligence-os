@@ -66,6 +66,8 @@ jobs:
         run: node scripts/shutdown-drain-regression.mjs
       - run: npm run typecheck
       - run: npm run build
+      - name: Stripe webhook payload bound regression checks
+        run: node scripts/stripe-webhook-payload-regression.mjs
       - name: Metrics endpoint production regression checks
         run: node scripts/metrics-route-regression.mjs
       - name: Health and readiness production regression checks
