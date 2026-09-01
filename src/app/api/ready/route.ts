@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/infrastructure/database/postgres";
+import { db, getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import { isDraining } from "@/operations/drain-state";
 
 export const dynamic = "force-dynamic";
@@ -7,17 +7,27 @@ export const dynamic = "force-dynamic";
 const responseHeaders = { "Cache-Control": "no-store" };
 const readinessStatementTimeoutMs = 2_000;
 
+function notReady(reason: string) {
+  return NextResponse.json(
+    {
+      status: "not_ready",
+      service: "economic-intelligence-os",
+      reason,
+      timestamp: new Date().toISOString(),
+    },
+    { status: 503, headers: { ...responseHeaders, "Retry-After": "1" } },
+  );
+}
+
 export async function GET() {
-  if (isDraining()) {
-    return NextResponse.json(
-      {
-        status: "not_ready",
-        service: "economic-intelligence-os",
-        reason: "draining",
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503, headers: { ...responseHeaders, "Retry-After": "1" } },
-    );
+  if (isDraining()) return notReady("draining");
+
+  // Do not enqueue a health probe behind application traffic when every pool
+  // slot is already occupied. Readiness should shed new traffic, not add more
+  // pressure to a saturated dependency. Metrics remain aggregate-only.
+  const pool = getDatabasePoolSnapshot();
+  if (pool.total >= pool.max && pool.idle === 0) {
+    return notReady("database_pool_saturated");
   }
 
   const started = Date.now();
