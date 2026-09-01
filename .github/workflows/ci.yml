@@ -50,6 +50,8 @@ jobs:
         run: npm run migrate
       - name: Database concurrency regression checks
         run: node scripts/database-concurrency-regression.mjs
+      - name: PostgreSQL timeout and recovery regression checks
+        run: node scripts/postgres-timeout-regression.mjs
       - name: Transactional outbox concurrency regression checks
         run: node scripts/outbox-concurrency-regression.mjs
       - name: Stripe event idempotency regression checks
