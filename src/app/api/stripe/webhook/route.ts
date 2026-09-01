@@ -3,6 +3,8 @@ import { verifyStripeSignature } from "@/billing/webhook-signature";
 import { registerStripeEvent, markStripeEventFailed, markStripeEventProcessed } from "@/billing/stripe-event-store";
 import { processStripeEvent } from "@/billing/stripe-event-processor";
 
+const MAX_STRIPE_WEBHOOK_BYTES = 1_000_000;
+
 type StripeWebhookEvent = {
   id: string;
   type: string;
@@ -32,11 +34,27 @@ function parseStripeEvent(payload: string): StripeWebhookEvent | null {
   }
 }
 
+function declaredPayloadTooLarge(request: NextRequest): boolean {
+  const contentLength = request.headers.get("content-length");
+  if (!contentLength) return false;
+  if (!/^\d+$/.test(contentLength)) return true;
+  const bytes = Number(contentLength);
+  return !Number.isSafeInteger(bytes) || bytes > MAX_STRIPE_WEBHOOK_BYTES;
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ error: "Stripe webhook not configured" }, { status: 503 });
 
+  if (declaredPayloadTooLarge(request)) {
+    return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
+  }
+
   const payload = await request.text();
+  if (Buffer.byteLength(payload, "utf8") > MAX_STRIPE_WEBHOOK_BYTES) {
+    return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
+  }
+
   const signature = request.headers.get("stripe-signature") ?? "";
   if (!verifyStripeSignature(payload, signature, secret)) {
     return NextResponse.json({ error: "Invalid Stripe signature" }, { status: 400 });
