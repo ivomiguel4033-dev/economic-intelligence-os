@@ -56,6 +56,8 @@ jobs:
         run: node scripts/stripe-event-idempotency-regression.mjs
       - name: Stripe customer tenant-binding regression checks
         run: node scripts/stripe-customer-binding-regression.mjs
+      - name: Stripe signature rotation regression checks
+        run: node scripts/stripe-signature-regression.mjs
       - name: Tenant isolation regression checks
         run: node scripts/security-regression.mjs
       - name: Execution reliability regression checks
