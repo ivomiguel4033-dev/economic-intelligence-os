@@ -1,10 +1,14 @@
 import fs from "node:fs";
 
-const rulesPath = "ops/prometheus/outbox-alerts.yml";
+const outboxRulesPath = "ops/prometheus/outbox-alerts.yml";
+const databaseRulesPath = "ops/prometheus/database-alerts.yml";
 const metricsPath = "src/observability/service-metrics.ts";
+const runbookPath = "docs/PRODUCTION_RUNBOOK.md";
 
-const rules = fs.readFileSync(rulesPath, "utf8");
+const outboxRules = fs.readFileSync(outboxRulesPath, "utf8");
+const databaseRules = fs.readFileSync(databaseRulesPath, "utf8");
 const metrics = fs.readFileSync(metricsPath, "utf8");
+const runbook = fs.readFileSync(runbookPath, "utf8");
 
 const requiredAlerts = [
   ["OutboxDeadLetterPresent", "outbox_slo_dead_letter_breached"],
@@ -14,10 +18,10 @@ const requiredAlerts = [
 ];
 
 for (const [alertName, metricName] of requiredAlerts) {
-  if (!rules.includes(`alert: ${alertName}`)) {
+  if (!outboxRules.includes(`alert: ${alertName}`)) {
     throw new Error(`Missing alert rule: ${alertName}`);
   }
-  if (!rules.includes(`expr: ${metricName} == 1`)) {
+  if (!outboxRules.includes(`expr: ${metricName} == 1`)) {
     throw new Error(`Alert ${alertName} is not wired to ${metricName}`);
   }
   if (!metrics.includes(`"${metricName}"`)) {
@@ -25,12 +29,12 @@ for (const [alertName, metricName] of requiredAlerts) {
   }
 }
 
-const deadLetterBlock = rules.split("- alert: OutboxDeadLetterPresent", 2)[1]?.split("- alert:", 1)[0] ?? "";
+const deadLetterBlock = outboxRules.split("- alert: OutboxDeadLetterPresent", 2)[1]?.split("- alert:", 1)[0] ?? "";
 if (/^\s*for:/m.test(deadLetterBlock)) {
   throw new Error("Dead-letter alert must fire without a persistence delay.");
 }
 
-const claimLostBlock = rules.split("- alert: OutboxClaimLost", 2)[1]?.split("- alert:", 1)[0] ?? "";
+const claimLostBlock = outboxRules.split("- alert: OutboxClaimLost", 2)[1]?.split("- alert:", 1)[0] ?? "";
 if (!claimLostBlock) {
   throw new Error("Missing alert rule: OutboxClaimLost");
 }
@@ -52,16 +56,41 @@ for (const alertName of [
   "OutboxFailedMessagesSloBreached",
   "OutboxOldestReadyAgeSloBreached",
 ]) {
-  const block = rules.split(`- alert: ${alertName}`, 2)[1]?.split("- alert:", 1)[0] ?? "";
+  const block = outboxRules.split(`- alert: ${alertName}`, 2)[1]?.split("- alert:", 1)[0] ?? "";
   if (!/^\s*for: 5m$/m.test(block)) {
     throw new Error(`${alertName} must require a 5m sustained breach.`);
   }
 }
 
-for (const forbidden of ["organizationId", "messageId", "payload", "tenantId"]) {
-  if (rules.includes(forbidden)) {
-    throw new Error(`Alert rules must remain aggregate-only; found ${forbidden}.`);
+const poolWaitersBlock = databaseRules.split("- alert: DatabasePoolWaitersPersistent", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!poolWaitersBlock) {
+  throw new Error("Missing alert rule: DatabasePoolWaitersPersistent");
+}
+if (!/^\s*expr: database_pool_waiting > 0$/m.test(poolWaitersBlock)) {
+  throw new Error("DatabasePoolWaitersPersistent must alert on sustained pool waiters.");
+}
+if (!/^\s*for: 2m$/m.test(poolWaitersBlock)) {
+  throw new Error("DatabasePoolWaitersPersistent must require a 2m sustained breach.");
+}
+if (!/^\s*severity: warning$/m.test(poolWaitersBlock)) {
+  throw new Error("DatabasePoolWaitersPersistent must remain a warning alert.");
+}
+if (!metrics.includes('"database_pool_waiting"')) {
+  throw new Error("DatabasePoolWaitersPersistent references an unexported metric: database_pool_waiting");
+}
+if (!poolWaitersBlock.includes("docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation")) {
+  throw new Error("DatabasePoolWaitersPersistent must link to the pool saturation runbook.");
+}
+if (!runbook.includes("## PostgreSQL pool saturation")) {
+  throw new Error("Missing PostgreSQL pool saturation runbook section.");
+}
+
+for (const rules of [outboxRules, databaseRules]) {
+  for (const forbidden of ["organizationId", "messageId", "payload", "tenantId"]) {
+    if (rules.includes(forbidden)) {
+      throw new Error(`Alert rules must remain aggregate-only; found ${forbidden}.`);
+    }
   }
 }
 
-console.log("Prometheus outbox alert rules are consistent with exported SLO and claim-loss metrics.");
+console.log("Prometheus alert rules are consistent with exported aggregate operational metrics and runbooks.");

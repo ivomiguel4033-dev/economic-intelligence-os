@@ -8,7 +8,7 @@
 ## Operational metrics
 - `/api/metrics` exposes Prometheus-format service metrics and must remain protected by `METRICS_TOKEN`.
 - Never expose the metrics endpoint publicly without authentication or place `METRICS_TOKEN` in logs, dashboards, incident notes, or client-side configuration.
-- Outbox metrics are aggregate operational signals. They must not include event payloads, customer content, or per-tenant labels that could leak tenant identity or create unbounded metric cardinality.
+- Outbox and database-pool metrics are aggregate operational signals. They must not include event payloads, customer content, or per-tenant labels that could leak tenant identity or create unbounded metric cardinality.
 
 ### Transactional outbox SLO thresholds
 The runtime publishes the configured thresholds together with binary breach gauges. Production defaults are deliberately conservative starting points and should be tuned from measured traffic rather than relaxed during an incident.
@@ -31,6 +31,17 @@ Alert on `outbox_slo_backlog_breached`, `outbox_slo_failed_breached`, `outbox_sl
 6. If dead-letter is non-zero, treat each message as requiring explicit diagnosis. Preserve the original record and audit trail; never delete or mutate it merely to clear the alert.
 7. Before replaying or manually redriving work, verify the destination operation is idempotent and tenant-scoped. Use the existing execution/message identity; do not manufacture a second logical event.
 8. After recovery, require backlog and oldest-ready age to return below threshold, failed/dead-letter counts to be understood, and delivery logs to show normal progression before closing the incident.
+
+## PostgreSQL pool saturation
+`database_pool_waiting` greater than zero means callers are queued waiting for a database connection. A brief spike can occur during traffic bursts or deploy transitions; sustained waiters indicate capacity pressure, leaked/slow connections, lock contention, or downstream queries holding the pool too long.
+
+1. Confirm the alert is sustained and compare `database_pool_waiting`, `database_pool_total`, and `database_pool_idle`. Do not increase pool size as the first response.
+2. Check database CPU, memory, connection limits, active sessions, lock waits, and slow queries. Correlate with `database_failures_total` and application latency.
+3. If idle is zero and waiters remain positive, identify long-running queries and transactions before adding application capacity. The configured query and transaction timeouts are safety bounds, not substitutes for diagnosis.
+4. Avoid restarting multiple instances simultaneously; that can create a connection storm and worsen saturation.
+5. If a single deployment introduced the pressure, prefer application rollback over destructive database changes.
+6. Increase pool capacity only after confirming PostgreSQL has safe connection headroom and the root cause is genuine concurrency demand rather than leaked or blocked work.
+7. Close the incident only after waiters return to zero under normal traffic and readiness remains healthy.
 
 ## Database recovery
 1. Stop write traffic or place the service in maintenance mode.
