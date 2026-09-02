@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const pool = getDatabasePoolSnapshot();
-    if (pool.total >= pool.max && pool.idle === 0) {
+    if (pool.waiting > 0 || (pool.total >= pool.max && pool.idle === 0)) {
       return NextResponse.json(
         { error: "Service temporarily overloaded", reason: "database_pool_saturated" },
         { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
