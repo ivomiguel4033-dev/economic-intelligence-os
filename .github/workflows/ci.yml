@@ -72,6 +72,8 @@ jobs:
         run: node scripts/orchestrate-load-shedding-regression.mjs
       - name: Tenant concurrency regression checks
         run: node scripts/tenant-concurrency-regression.mjs
+      - name: Distributed tenant concurrency regression checks
+        run: node scripts/distributed-tenant-concurrency-regression.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Stripe webhook payload bound regression checks
