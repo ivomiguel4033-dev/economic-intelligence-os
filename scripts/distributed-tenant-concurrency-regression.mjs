@@ -17,6 +17,8 @@ assert.match(source, /pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at <= NOW\(\)/, "expired leases must be reclaimed tenant-locally");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
 assert.match(source, /if \(\(capacity\.rows\[0\]\?\.active \?\? limit\) >= limit\)/, "acquisition must fail closed at the configured limit");
+assert.match(source, /await client\.query\("ROLLBACK"\)/, "failed acquisition must attempt transaction rollback");
+assert.match(source, /finally \{\s*client\.release\(\);\s*\}/s, "acquisition must always return the PostgreSQL connection to the pool");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
 assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
@@ -70,6 +72,28 @@ async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30) {
   }
 }
 
+async function acquireThenFail(organizationId, leaseToken) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+      [organizationId],
+    );
+    await client.query(
+      `INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
+       VALUES ($1::uuid, $2::uuid, NOW() + INTERVAL '30 seconds')`,
+      [organizationId, leaseToken],
+    );
+    throw new Error("injected acquisition failure");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 try {
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const firstTenant = await createOrganization(`distributed-concurrency-a-${suffix}`);
@@ -101,6 +125,24 @@ try {
   const reclaimedToken = crypto.randomUUID();
   const reclaimed = await acquire(firstTenant, reclaimedToken);
   assert.equal(reclaimed, reclaimedToken, "expired leases must be reclaimed before capacity is evaluated");
+
+  const failedToken = crypto.randomUUID();
+  await assert.rejects(
+    acquireThenFail(firstTenant, failedToken),
+    /injected acquisition failure/,
+    "injected acquisition failure must propagate",
+  );
+  const leakedAfterRollback = await pool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM tenant_concurrency_leases
+     WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
+    [firstTenant, failedToken],
+  );
+  assert.equal(leakedAfterRollback.rows[0]?.count, 0, "failed acquisition must not leak a lease after rollback");
+
+  const postFailureToken = crypto.randomUUID();
+  const postFailureAcquire = await acquire(firstTenant, postFailureToken);
+  assert.equal(postFailureAcquire, postFailureToken, "tenant must remain acquirable after a rolled-back acquisition failure");
 
   const wrongTenantRelease = await pool.query(
     `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
