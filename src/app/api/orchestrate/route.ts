@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import { PostgresOrchestrationRepository } from "@/infrastructure/orchestration/postgres-orchestration-repository";
+import { getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import { createOrchestrationRuntime } from "@/orchestration/runtime-factory";
 import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
@@ -20,6 +21,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const pool = getDatabasePoolSnapshot();
+    if (pool.total >= pool.max && pool.idle === 0) {
+      return NextResponse.json(
+        { error: "Service temporarily overloaded", reason: "database_pool_saturated" },
+        { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+      );
+    }
+
     const body = await request.json();
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
