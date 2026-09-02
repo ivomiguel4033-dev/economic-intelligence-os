@@ -32,16 +32,16 @@ export async function tryAcquireDistributedTenantConcurrency(
      expired AS (
        DELETE FROM tenant_concurrency_leases
        USING tenant_lock
-       WHERE organization_id=$1 AND expires_at <= NOW()
+       WHERE organization_id=$1::uuid AND expires_at <= NOW()
      ),
      capacity AS (
        SELECT COUNT(*)::int AS active
        FROM tenant_concurrency_leases, tenant_lock
-       WHERE organization_id=$1 AND expires_at > NOW()
+       WHERE organization_id=$1::uuid AND expires_at > NOW()
      ),
      acquired AS (
        INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
-       SELECT $1, $2, NOW() + ($3 * INTERVAL '1 second')
+       SELECT $1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second')
        FROM capacity
        WHERE active < $4
        RETURNING lease_token
@@ -60,7 +60,7 @@ export async function tryAcquireDistributedTenantConcurrency(
       released = true;
       await db.query(
         `DELETE FROM tenant_concurrency_leases
-         WHERE organization_id=$1 AND lease_token=$2`,
+         WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
         [organizationId, leaseToken],
       );
     },
