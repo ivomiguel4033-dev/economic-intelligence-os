@@ -8,6 +8,7 @@ import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { requireAuthorization } from "@/security/authorization-policy";
 import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
 import { tryBeginTrackedWork } from "@/operations/drain-state";
+import { tryAcquireTenantConcurrency } from "@/operations/tenant-concurrency";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
       { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
     );
   }
+
+  let releaseTenantConcurrency: (() => void) | null = null;
 
   try {
     const pool = getDatabasePoolSnapshot();
@@ -36,6 +39,14 @@ export async function POST(request: NextRequest) {
     );
     const organizationId = access.organizationId;
     requireAuthorization(access, { organizationId, resourceType: "decision" }, "execute");
+
+    releaseTenantConcurrency = tryAcquireTenantConcurrency(organizationId);
+    if (!releaseTenantConcurrency) {
+      return NextResponse.json(
+        { error: "Tenant orchestration concurrency limit reached", reason: "tenant_concurrency_limited" },
+        { status: 429, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+      );
+    }
 
     const decisionId = String(body.decisionId ?? "");
     if (!decisionId) throw new Error("decisionId is required");
@@ -83,6 +94,7 @@ export async function POST(request: NextRequest) {
       : 400;
     return NextResponse.json({ error: message }, { status });
   } finally {
+    releaseTenantConcurrency?.();
     releaseWork();
   }
 }
