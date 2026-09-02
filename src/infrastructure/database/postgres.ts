@@ -39,9 +39,10 @@ export function getDatabasePoolSnapshot(): DatabasePoolSnapshot {
   };
 }
 
-export const db: Pick<Pool, "query"> = {
+export const db: Pick<Pool, "query" | "connect"> = {
   query: ((...args: unknown[]) => {
     const query = database().query.bind(database()) as (...queryArgs: unknown[]) => unknown;
     return query(...args);
   }) as Pool["query"],
+  connect: (() => database().connect()) as Pool["connect"],
 };

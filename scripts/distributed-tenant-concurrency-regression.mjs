@@ -11,12 +11,15 @@ const source = await readFile(
   "utf8",
 );
 
+assert.match(source, /await db\.connect\(\)/, "acquisition must hold one PostgreSQL session for the transaction");
+assert.match(source, /await client\.query\("BEGIN"\)/, "acquisition must use an explicit transaction");
 assert.match(source, /pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/, "acquisition must serialize per tenant");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at <= NOW\(\)/, "expired leases must be reclaimed tenant-locally");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
-assert.match(source, /WHERE active < \$4/, "acquisition must fail closed at the configured limit");
+assert.match(source, /if \(\(capacity\.rows\[0\]\?\.active \?\? limit\) >= limit\)/, "acquisition must fail closed at the configured limit");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
-assert.match(source, /if \(released\) return;/, "release must be idempotent");
+assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
+assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
 
 const pool = new Pool({ connectionString, max: 12 });
 
@@ -29,30 +32,42 @@ async function createOrganization(slug) {
 }
 
 async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30) {
-  return pool.query(
-    `WITH tenant_lock AS (
-       SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
-     ),
-     expired AS (
-       DELETE FROM tenant_concurrency_leases
-       USING tenant_lock
-       WHERE organization_id=$1::uuid AND expires_at <= NOW()
-     ),
-     capacity AS (
-       SELECT COUNT(*)::int AS active
-       FROM tenant_concurrency_leases, tenant_lock
-       WHERE organization_id=$1::uuid AND expires_at > NOW()
-     ),
-     acquired AS (
-       INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
-       SELECT $1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second')
-       FROM capacity
-       WHERE active < $4
-       RETURNING lease_token
-     )
-     SELECT lease_token::text AS lease_token FROM acquired`,
-    [organizationId, leaseToken, ttlSeconds, limit],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+      [organizationId],
+    );
+    await client.query(
+      `DELETE FROM tenant_concurrency_leases
+       WHERE organization_id=$1::uuid AND expires_at <= NOW()`,
+      [organizationId],
+    );
+    const capacity = await client.query(
+      `SELECT COUNT(*)::int AS active
+       FROM tenant_concurrency_leases
+       WHERE organization_id=$1::uuid AND expires_at > NOW()`,
+      [organizationId],
+    );
+    if ((capacity.rows[0]?.active ?? limit) >= limit) {
+      await client.query("COMMIT");
+      return null;
+    }
+    const result = await client.query(
+      `INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
+       VALUES ($1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second'))
+       RETURNING lease_token::text AS lease_token`,
+      [organizationId, leaseToken, ttlSeconds],
+    );
+    await client.query("COMMIT");
+    return result.rows[0]?.lease_token ?? null;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 try {
@@ -62,11 +77,11 @@ try {
 
   const contenders = Array.from({ length: 8 }, () => crypto.randomUUID());
   const results = await Promise.all(contenders.map((token) => acquire(firstTenant, token)));
-  assert.equal(results.filter((result) => result.rowCount === 1).length, 2, "exactly the configured number of concurrent leases may win");
+  assert.equal(results.filter(Boolean).length, 2, "exactly the configured number of concurrent leases may win");
 
   const secondTenantToken = crypto.randomUUID();
   const secondTenantAcquire = await acquire(secondTenant, secondTenantToken);
-  assert.equal(secondTenantAcquire.rowCount, 1, "one saturated tenant must not block another tenant");
+  assert.equal(secondTenantAcquire, secondTenantToken, "one saturated tenant must not block another tenant");
 
   const active = await pool.query(
     `SELECT organization_id, COUNT(*)::int AS count
@@ -85,7 +100,7 @@ try {
   );
   const reclaimedToken = crypto.randomUUID();
   const reclaimed = await acquire(firstTenant, reclaimedToken);
-  assert.equal(reclaimed.rowCount, 1, "expired leases must be reclaimed before capacity is evaluated");
+  assert.equal(reclaimed, reclaimedToken, "expired leases must be reclaimed before capacity is evaluated");
 
   const wrongTenantRelease = await pool.query(
     `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,

@@ -24,45 +24,65 @@ export async function tryAcquireDistributedTenantConcurrency(
   const leaseToken = randomUUID();
   const ttl = boundedTtlSeconds(ttlSeconds);
   const limit = configuredLimit();
+  const client = await db.connect();
 
-  const result = await db.query(
-    `WITH tenant_lock AS (
-       SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
-     ),
-     expired AS (
-       DELETE FROM tenant_concurrency_leases
-       USING tenant_lock
-       WHERE organization_id=$1::uuid AND expires_at <= NOW()
-     ),
-     capacity AS (
-       SELECT COUNT(*)::int AS active
-       FROM tenant_concurrency_leases, tenant_lock
-       WHERE organization_id=$1::uuid AND expires_at > NOW()
-     ),
-     acquired AS (
-       INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
-       SELECT $1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second')
-       FROM capacity
-       WHERE active < $4
-       RETURNING lease_token
-     )
-     SELECT lease_token::text AS lease_token FROM acquired`,
-    [organizationId, leaseToken, ttl, limit],
-  );
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+      [organizationId],
+    );
+    await client.query(
+      `DELETE FROM tenant_concurrency_leases
+       WHERE organization_id=$1::uuid AND expires_at <= NOW()`,
+      [organizationId],
+    );
+    const capacity = await client.query<{ active: number }>(
+      `SELECT COUNT(*)::int AS active
+       FROM tenant_concurrency_leases
+       WHERE organization_id=$1::uuid AND expires_at > NOW()`,
+      [organizationId],
+    );
 
-  if (result.rows[0]?.lease_token !== leaseToken) return null;
+    if ((capacity.rows[0]?.active ?? limit) >= limit) {
+      await client.query("COMMIT");
+      return null;
+    }
 
-  let released = false;
+    const acquired = await client.query<{ lease_token: string }>(
+      `INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
+       VALUES ($1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second'))
+       RETURNING lease_token::text AS lease_token`,
+      [organizationId, leaseToken, ttl],
+    );
+    await client.query("COMMIT");
+
+    if (acquired.rows[0]?.lease_token !== leaseToken) return null;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Preserve the original acquisition failure.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  let releasePromise: Promise<void> | undefined;
   return {
     leaseToken,
     release: async () => {
-      if (released) return;
-      released = true;
-      await db.query(
+      if (releasePromise) return releasePromise;
+      releasePromise = db.query(
         `DELETE FROM tenant_concurrency_leases
          WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
         [organizationId, leaseToken],
-      );
+      ).then(() => undefined).catch((error) => {
+        releasePromise = undefined;
+        throw error;
+      });
+      return releasePromise;
     },
   };
 }
