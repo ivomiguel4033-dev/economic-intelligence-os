@@ -70,6 +70,8 @@ jobs:
         run: node scripts/shutdown-drain-regression.mjs
       - name: Orchestration load-shedding regression checks
         run: node scripts/orchestrate-load-shedding-regression.mjs
+      - name: Tenant concurrency regression checks
+        run: node scripts/tenant-concurrency-regression.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Stripe webhook payload bound regression checks
