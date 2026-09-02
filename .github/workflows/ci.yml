@@ -68,6 +68,8 @@ jobs:
         run: node scripts/execution-reliability-regression.mjs
       - name: Shutdown drain/readiness regression checks
         run: node scripts/shutdown-drain-regression.mjs
+      - name: Orchestration load-shedding regression checks
+        run: node scripts/orchestrate-load-shedding-regression.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Stripe webhook payload bound regression checks
