@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import process from "node:process";
 
 const host = "127.0.0.1";
@@ -7,6 +8,16 @@ let nextPort = 3230;
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const readinessSource = await readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8");
+assert(
+  /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.total >= pool\.max && pool\.idle === 0\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
+  "Readiness must fail fast without querying PostgreSQL when the connection pool is saturated",
+);
+assert(
+  readinessSource.indexOf("database_pool_saturated") < readinessSource.indexOf("await db.query"),
+  "Pool saturation guard must execute before the database readiness probe",
+);
 
 async function waitForServer(baseUrl) {
   const deadline = Date.now() + 20_000;
