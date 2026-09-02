@@ -12,10 +12,10 @@ const source = await readFile(
 );
 
 assert.match(source, /pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/, "acquisition must serialize per tenant");
-assert.match(source, /WHERE organization_id=\$1 AND expires_at <= NOW\(\)/, "expired leases must be reclaimed tenant-locally");
-assert.match(source, /WHERE organization_id=\$1 AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
+assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at <= NOW\(\)/, "expired leases must be reclaimed tenant-locally");
+assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
 assert.match(source, /WHERE active < \$4/, "acquisition must fail closed at the configured limit");
-assert.match(source, /WHERE organization_id=\$1 AND lease_token=\$2/, "release must be tenant and token scoped");
+assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(released\) return;/, "release must be idempotent");
 
 const pool = new Pool({ connectionString, max: 12 });
@@ -36,16 +36,16 @@ async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30) {
      expired AS (
        DELETE FROM tenant_concurrency_leases
        USING tenant_lock
-       WHERE organization_id=$1 AND expires_at <= NOW()
+       WHERE organization_id=$1::uuid AND expires_at <= NOW()
      ),
      capacity AS (
        SELECT COUNT(*)::int AS active
        FROM tenant_concurrency_leases, tenant_lock
-       WHERE organization_id=$1 AND expires_at > NOW()
+       WHERE organization_id=$1::uuid AND expires_at > NOW()
      ),
      acquired AS (
        INSERT INTO tenant_concurrency_leases (organization_id, lease_token, expires_at)
-       SELECT $1, $2, NOW() + ($3 * INTERVAL '1 second')
+       SELECT $1::uuid, $2::uuid, NOW() + ($3 * INTERVAL '1 second')
        FROM capacity
        WHERE active < $4
        RETURNING lease_token
@@ -60,11 +60,12 @@ try {
   const firstTenant = await createOrganization(`distributed-concurrency-a-${suffix}`);
   const secondTenant = await createOrganization(`distributed-concurrency-b-${suffix}`);
 
-  const contenders = Array.from({ length: 8 }, (_, index) => `lease-${index}`);
+  const contenders = Array.from({ length: 8 }, () => crypto.randomUUID());
   const results = await Promise.all(contenders.map((token) => acquire(firstTenant, token)));
   assert.equal(results.filter((result) => result.rowCount === 1).length, 2, "exactly the configured number of concurrent leases may win");
 
-  const secondTenantAcquire = await acquire(secondTenant, "tenant-b-lease");
+  const secondTenantToken = crypto.randomUUID();
+  const secondTenantAcquire = await acquire(secondTenant, secondTenantToken);
   assert.equal(secondTenantAcquire.rowCount, 1, "one saturated tenant must not block another tenant");
 
   const active = await pool.query(
@@ -79,26 +80,27 @@ try {
   assert.equal(counts.get(secondTenant), 1);
 
   await pool.query(
-    `UPDATE tenant_concurrency_leases SET expires_at=NOW() - INTERVAL '1 second' WHERE organization_id=$1`,
+    `UPDATE tenant_concurrency_leases SET expires_at=NOW() - INTERVAL '1 second' WHERE organization_id=$1::uuid`,
     [firstTenant],
   );
-  const reclaimed = await acquire(firstTenant, "reclaimed-lease");
+  const reclaimedToken = crypto.randomUUID();
+  const reclaimed = await acquire(firstTenant, reclaimedToken);
   assert.equal(reclaimed.rowCount, 1, "expired leases must be reclaimed before capacity is evaluated");
 
   const wrongTenantRelease = await pool.query(
-    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1 AND lease_token=$2`,
-    [secondTenant, "reclaimed-lease"],
+    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
+    [secondTenant, reclaimedToken],
   );
   assert.equal(wrongTenantRelease.rowCount, 0, "release must not cross tenant boundaries");
 
   const released = await pool.query(
-    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1 AND lease_token=$2`,
-    [firstTenant, "reclaimed-lease"],
+    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
+    [firstTenant, reclaimedToken],
   );
   assert.equal(released.rowCount, 1);
   const duplicateRelease = await pool.query(
-    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1 AND lease_token=$2`,
-    [firstTenant, "reclaimed-lease"],
+    `DELETE FROM tenant_concurrency_leases WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
+    [firstTenant, reclaimedToken],
   );
   assert.equal(duplicateRelease.rowCount, 0, "duplicate release must be harmless");
 
