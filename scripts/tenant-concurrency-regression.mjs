@@ -1,23 +1,41 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const guard = await readFile(new URL("../src/operations/tenant-concurrency.ts", import.meta.url), "utf8");
+const guard = await readFile(
+  new URL("../src/operations/distributed-tenant-concurrency.ts", import.meta.url),
+  "utf8",
+);
 const route = await readFile(new URL("../src/app/api/orchestrate/route.ts", import.meta.url), "utf8");
 
-assert.match(guard, /new Map<string, TenantConcurrencyState>\(\)/, "tenant concurrency state must be keyed by tenant");
-assert.match(guard, /tenantConcurrency\.get\(organizationId\)/, "acquisition must read only the current tenant state");
-assert.match(guard, /tenantConcurrency\.set\(organizationId, \{ active: current \+ 1 \}\)/, "acquisition must increment only the current tenant");
-assert.match(guard, /if \(current >= configuredLimit\(\)\) return null;/, "tenant limit must fail closed before incrementing");
+assert.match(
+  guard,
+  /pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/,
+  "tenant concurrency acquisition must serialize per tenant across replicas",
+);
+assert.match(
+  guard,
+  /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/,
+  "tenant concurrency capacity must count only active leases for the current tenant",
+);
+assert.match(
+  guard,
+  /WHERE active < \$4/,
+  "tenant concurrency must fail closed at the configured limit",
+);
 assert.match(guard, /let released = false;/, "release must track idempotency");
 assert.match(guard, /if \(released\) return;/, "duplicate release must be a no-op");
-assert.match(guard, /tenantConcurrency\.delete\(organizationId\)/, "last release must remove tenant state");
+assert.match(
+  guard,
+  /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/,
+  "release must remain tenant and lease-token scoped",
+);
 
 const authIndex = route.indexOf("await resolveAuthenticatedContext(");
 const authorizationIndex = route.indexOf("requireAuthorization(");
-const acquireIndex = route.indexOf("tryAcquireTenantConcurrency(organizationId)");
+const acquireIndex = route.indexOf("await tryAcquireDistributedTenantConcurrency(organizationId)");
 const decisionLookupIndex = route.indexOf("await decisions.findById(decisionId)");
 const billingIndex = route.indexOf("await enforceRuntimeBilling(");
-const releaseIndex = route.indexOf("releaseTenantConcurrency?.()");
+const releaseIndex = route.indexOf("await tenantConcurrencyLease?.release()");
 
 assert.ok(authIndex >= 0 && authorizationIndex > authIndex, "tenant identity must be authenticated and authorized first");
 assert.ok(acquireIndex > authorizationIndex, "tenant concurrency must use an authorized tenant identity");
@@ -30,6 +48,10 @@ assert.match(limitedBlock, /reason:\s*"tenant_concurrency_limited"/, "limit resp
 assert.match(limitedBlock, /status:\s*429/, "tenant concurrency exhaustion must return HTTP 429");
 assert.match(limitedBlock, /"Retry-After":\s*"1"/, "limited tenants must receive retry guidance");
 assert.match(limitedBlock, /"Cache-Control":\s*"no-store"/, "tenant limit responses must not be cached");
-assert.match(route, /finally\s*\{[\s\S]*?releaseTenantConcurrency\?\.\(\);[\s\S]*?releaseWork\(\);\s*\}/, "tenant slot and tracked work must be released in finally");
+assert.match(
+  route,
+  /finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?releaseWork\(\);\s*\}/,
+  "distributed tenant lease and tracked work must be released in finally",
+);
 
 console.log("tenant concurrency regression checks passed");
