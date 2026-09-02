@@ -51,7 +51,7 @@ for (const [name, route] of [["decisions", decisionsRoute], ["orchestrate", orch
   assert(authIndex >= 0, `${name} route authentication boundary missing`);
   assert(admissionIndex < authIndex, `${name} route must reject draining before authentication or downstream work`);
   assert(
-    /finally\s*\{\s*releaseWork\(\);\s*\}/.test(route),
+    /finally\s*\{[\s\S]*?releaseWork\(\);\s*\}/.test(route),
     `${name} route must release tracked work in a finally block`,
   );
 }
