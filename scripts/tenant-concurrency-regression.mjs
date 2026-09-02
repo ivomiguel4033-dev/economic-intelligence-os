@@ -19,11 +19,12 @@ assert.match(
 );
 assert.match(
   guard,
-  /WHERE active < \$4/,
+  /if \(\(capacity\.rows\[0\]\?\.active \?\? limit\) >= limit\)/,
   "tenant concurrency must fail closed at the configured limit",
 );
-assert.match(guard, /let released = false;/, "release must track idempotency");
-assert.match(guard, /if \(released\) return;/, "duplicate release must be a no-op");
+assert.match(guard, /let releasePromise: Promise<void> \| undefined;/, "release must track in-flight idempotency");
+assert.match(guard, /if \(releasePromise\) return releasePromise;/, "concurrent duplicate release must share the same operation");
+assert.match(guard, /releasePromise = undefined;/, "failed release must remain retryable");
 assert.match(
   guard,
   /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/,
