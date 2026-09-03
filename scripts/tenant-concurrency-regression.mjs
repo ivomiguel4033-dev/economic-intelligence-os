@@ -51,8 +51,13 @@ assert.match(limitedBlock, /"Retry-After":\s*"1"/, "limited tenants must receive
 assert.match(limitedBlock, /"Cache-Control":\s*"no-store"/, "tenant limit responses must not be cached");
 assert.match(
   route,
-  /finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?releaseWork\(\);\s*\}/,
-  "distributed tenant lease and tracked work must be released in finally",
+  /finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?catch \(error\)[\s\S]*?Failed to release distributed tenant concurrency lease[\s\S]*?finally\s*\{[\s\S]*?releaseWork\(\);\s*\}/,
+  "lease release failures must be contained without skipping tracked-work cleanup",
+);
+assert.doesNotMatch(
+  route,
+  /catch \(error\)[\s\S]*?return NextResponse[\s\S]*?finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?\}\s*$/,
+  "lease cleanup must not replace the already-selected orchestration response",
 );
 
 console.log("tenant concurrency regression checks passed");
