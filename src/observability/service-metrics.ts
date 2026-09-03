@@ -12,7 +12,11 @@ type MetricKey =
   | "outbox_failed_total"
   | "outbox_reclaimed_total"
   | "outbox_dead_lettered_total"
-  | "outbox_claim_lost_total";
+  | "outbox_claim_lost_total"
+  | "tenant_concurrency_acquired_total"
+  | "tenant_concurrency_limited_total"
+  | "tenant_concurrency_acquire_failures_total"
+  | "tenant_concurrency_release_failures_total";
 
 export type OperationalGaugeKey =
   | "database_pool_total"
@@ -54,6 +58,10 @@ export function snapshotMetrics(): Record<MetricKey, number> {
     outbox_reclaimed_total: counters.get("outbox_reclaimed_total") ?? 0,
     outbox_dead_lettered_total: counters.get("outbox_dead_lettered_total") ?? 0,
     outbox_claim_lost_total: counters.get("outbox_claim_lost_total") ?? 0,
+    tenant_concurrency_acquired_total: counters.get("tenant_concurrency_acquired_total") ?? 0,
+    tenant_concurrency_limited_total: counters.get("tenant_concurrency_limited_total") ?? 0,
+    tenant_concurrency_acquire_failures_total: counters.get("tenant_concurrency_acquire_failures_total") ?? 0,
+    tenant_concurrency_release_failures_total: counters.get("tenant_concurrency_release_failures_total") ?? 0,
   };
 }
 
