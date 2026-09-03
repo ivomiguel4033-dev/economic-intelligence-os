@@ -94,7 +94,12 @@ export async function POST(request: NextRequest) {
       : 400;
     return NextResponse.json({ error: message }, { status });
   } finally {
-    await tenantConcurrencyLease?.release();
-    releaseWork();
+    try {
+      await tenantConcurrencyLease?.release();
+    } catch (error) {
+      console.error("Failed to release distributed tenant concurrency lease", error);
+    } finally {
+      releaseWork();
+    }
   }
 }
