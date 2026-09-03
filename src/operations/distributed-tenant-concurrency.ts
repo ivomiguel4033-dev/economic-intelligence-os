@@ -16,6 +16,17 @@ function boundedTtlSeconds(ttlSeconds: number): number {
   return Math.max(5, Math.min(ttlSeconds, 3600));
 }
 
+function configuredLockTimeoutMillis(): number {
+  const parsed = Number.parseInt(process.env.ORCHESTRATION_TENANT_LOCK_TIMEOUT_MS ?? "1000", 10);
+  return Number.isFinite(parsed) ? Math.max(100, Math.min(parsed, 5000)) : 1000;
+}
+
+function postgresErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
 export async function tryAcquireDistributedTenantConcurrency(
   organizationId: string,
   ttlSeconds = 120,
@@ -25,10 +36,12 @@ export async function tryAcquireDistributedTenantConcurrency(
   const leaseToken = randomUUID();
   const ttl = boundedTtlSeconds(ttlSeconds);
   const limit = configuredLimit();
+  const lockTimeoutMillis = configuredLockTimeoutMillis();
   const client = await db.connect();
 
   try {
     await client.query("BEGIN");
+    await client.query("SELECT set_config('lock_timeout', $1, true)", [`${lockTimeoutMillis}ms`]);
     await client.query(
       `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
       [organizationId],
@@ -65,12 +78,16 @@ export async function tryAcquireDistributedTenantConcurrency(
     }
     incrementMetric("tenant_concurrency_acquired_total");
   } catch (error) {
-    incrementMetric("tenant_concurrency_acquire_failures_total");
     try {
       await client.query("ROLLBACK");
     } catch {
       // Preserve the original acquisition failure.
     }
+    if (postgresErrorCode(error) === "55P03") {
+      incrementMetric("tenant_concurrency_limited_total");
+      return null;
+    }
+    incrementMetric("tenant_concurrency_acquire_failures_total");
     throw error;
   } finally {
     client.release();

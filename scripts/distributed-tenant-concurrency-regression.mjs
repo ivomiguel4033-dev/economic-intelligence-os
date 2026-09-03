@@ -13,6 +13,9 @@ const source = await readFile(
 
 assert.match(source, /await db\.connect\(\)/, "acquisition must hold one PostgreSQL session for the transaction");
 assert.match(source, /await client\.query\("BEGIN"\)/, "acquisition must use an explicit transaction");
+assert.match(source, /set_config\('lock_timeout', \$1, true\)/, "tenant serialization must use a bounded PostgreSQL lock timeout");
+assert.match(source, /ORCHESTRATION_TENANT_LOCK_TIMEOUT_MS/, "tenant lock timeout must be independently configurable");
+assert.match(source, /postgresErrorCode\(error\) === "55P03"/, "lock contention must fail closed as temporary saturation");
 assert.match(source, /pg_advisory_xact_lock\(hashtextextended\(\$1::text, 0\)\)/, "acquisition must serialize per tenant");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at <= NOW\(\)/, "expired leases must be reclaimed tenant-locally");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
@@ -33,10 +36,11 @@ async function createOrganization(slug) {
   return result.rows[0].id;
 }
 
-async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30) {
+async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30, lockTimeoutMs = 1000) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query("SELECT set_config('lock_timeout', $1, true)", [`${lockTimeoutMs}ms`]);
     await client.query(
       `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
       [organizationId],
@@ -66,6 +70,7 @@ async function acquire(organizationId, leaseToken, limit = 2, ttlSeconds = 30) {
     return result.rows[0]?.lease_token ?? null;
   } catch (error) {
     await client.query("ROLLBACK");
+    if (error?.code === "55P03") return null;
     throw error;
   } finally {
     client.release();
@@ -98,6 +103,7 @@ try {
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const firstTenant = await createOrganization(`distributed-concurrency-a-${suffix}`);
   const secondTenant = await createOrganization(`distributed-concurrency-b-${suffix}`);
+  const contendedTenant = await createOrganization(`distributed-concurrency-c-${suffix}`);
 
   const contenders = Array.from({ length: 8 }, () => crypto.randomUUID());
   const results = await Promise.all(contenders.map((token) => acquire(firstTenant, token)));
@@ -106,6 +112,24 @@ try {
   const secondTenantToken = crypto.randomUUID();
   const secondTenantAcquire = await acquire(secondTenant, secondTenantToken);
   assert.equal(secondTenantAcquire, secondTenantToken, "one saturated tenant must not block another tenant");
+
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(`SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [contendedTenant]);
+    const startedAt = Date.now();
+    const blockedAcquire = await acquire(contendedTenant, crypto.randomUUID(), 2, 30, 250);
+    const elapsedMs = Date.now() - startedAt;
+    assert.equal(blockedAcquire, null, "prolonged tenant lock contention must fail closed instead of hanging");
+    assert.ok(elapsedMs < 2000, `lock contention should be bounded, took ${elapsedMs}ms`);
+    await blocker.query("ROLLBACK");
+  } finally {
+    blocker.release();
+  }
+
+  const recoveredToken = crypto.randomUUID();
+  const recoveredAcquire = await acquire(contendedTenant, recoveredToken);
+  assert.equal(recoveredAcquire, recoveredToken, "tenant must recover immediately after advisory lock contention clears");
 
   const active = await pool.query(
     `SELECT organization_id, COUNT(*)::int AS count
@@ -161,7 +185,7 @@ try {
   );
   assert.equal(duplicateRelease.rowCount, 0, "duplicate release must be harmless");
 
-  await pool.query(`DELETE FROM organizations WHERE id = ANY($1::uuid[])`, [[firstTenant, secondTenant]]);
+  await pool.query(`DELETE FROM organizations WHERE id = ANY($1::uuid[])`, [[firstTenant, secondTenant, contendedTenant]]);
   console.log("Distributed tenant concurrency regression checks passed.");
 } finally {
   await pool.end();
