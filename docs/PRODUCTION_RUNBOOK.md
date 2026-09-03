@@ -32,6 +32,17 @@ Alert on `outbox_slo_backlog_breached`, `outbox_slo_failed_breached`, `outbox_sl
 7. Before replaying or manually redriving work, verify the destination operation is idempotent and tenant-scoped. Use the existing execution/message identity; do not manufacture a second logical event.
 8. After recovery, require backlog and oldest-ready age to return below threshold, failed/dead-letter counts to be understood, and delivery logs to show normal progression before closing the incident.
 
+## Distributed tenant concurrency
+These counters are deliberately aggregate-only: `tenant_concurrency_acquired_total`, `tenant_concurrency_limited_total`, `tenant_concurrency_acquire_failures_total`, and `tenant_concurrency_release_failures_total`. Never add organization or tenant identifiers as Prometheus labels; use structured logs for scoped diagnosis.
+
+1. Persistent `tenant_concurrency_limited_total` growth means the global per-tenant limit is actively shedding orchestration load. Confirm whether this is legitimate demand, a stuck execution, or leases surviving because cleanup failed before raising concurrency limits.
+2. Acquisition failures are fail-closed and directly affect availability. Confirm PostgreSQL readiness, pool saturation, advisory-lock waits, transaction errors, and the `tenant_concurrency_leases` table before changing application capacity.
+3. A release failure can temporarily consume capacity until the lease expires. The default lease TTL is 120 seconds and is bounded to 5-3600 seconds; do not manually delete active leases unless their ownership and expiry are understood.
+4. Correlate the aggregate alert with structured application logs and request IDs. Tenant identity belongs in protected logs, not metric labels or alert annotations.
+5. Do not bypass the distributed guard with a local in-memory limiter during an incident; that breaks cross-replica enforcement and can violate tenant isolation guarantees.
+6. If database recovery is required, preserve the fail-closed behavior. Prefer restoring PostgreSQL availability over weakening the concurrency boundary.
+7. Close the incident only after acquisition/release failures stop increasing, saturation returns to the expected traffic baseline, and readiness remains healthy.
+
 ## PostgreSQL pool saturation
 `database_pool_waiting` greater than zero means callers are queued waiting for a database connection. A brief spike can occur during traffic bursts or deploy transitions; sustained waiters indicate capacity pressure, leaked/slow connections, lock contention, or downstream queries holding the pool too long.
 
