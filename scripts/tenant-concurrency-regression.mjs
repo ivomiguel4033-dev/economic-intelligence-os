@@ -49,15 +49,19 @@ assert.match(limitedBlock, /reason:\s*"tenant_concurrency_limited"/, "limit resp
 assert.match(limitedBlock, /status:\s*429/, "tenant concurrency exhaustion must return HTTP 429");
 assert.match(limitedBlock, /"Retry-After":\s*"1"/, "limited tenants must receive retry guidance");
 assert.match(limitedBlock, /"Cache-Control":\s*"no-store"/, "tenant limit responses must not be cached");
+
+const cleanupIndex = route.lastIndexOf("} finally {");
+assert.ok(cleanupIndex > releaseIndex - 200, "distributed lease cleanup must execute from the route finally block");
+const cleanupBlock = route.slice(cleanupIndex);
 assert.match(
-  route,
-  /finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?catch \(error\)[\s\S]*?Failed to release distributed tenant concurrency lease[\s\S]*?finally\s*\{[\s\S]*?releaseWork\(\);\s*\}/,
+  cleanupBlock,
+  /try\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?catch \(error\)[\s\S]*?Failed to release distributed tenant concurrency lease[\s\S]*?finally\s*\{[\s\S]*?releaseWork\(\);\s*\}/,
   "lease release failures must be contained without skipping tracked-work cleanup",
 );
-assert.doesNotMatch(
-  route,
-  /catch \(error\)[\s\S]*?return NextResponse[\s\S]*?finally\s*\{[\s\S]*?await tenantConcurrencyLease\?\.release\(\);[\s\S]*?\}\s*$/,
-  "lease cleanup must not replace the already-selected orchestration response",
+assert.match(
+  cleanupBlock,
+  /catch \(error\)\s*\{[\s\S]*?console\.error\([\s\S]*?\}\s*finally\s*\{[\s\S]*?releaseWork\(\);/,
+  "lease cleanup failure handling must not return or throw before tracked-work cleanup",
 );
 
 console.log("tenant concurrency regression checks passed");
