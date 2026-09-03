@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/infrastructure/database/postgres";
+import { incrementMetric } from "@/observability/service-metrics";
 
 export type DistributedTenantConcurrencyLease = {
   leaseToken: string;
@@ -46,6 +47,7 @@ export async function tryAcquireDistributedTenantConcurrency(
 
     if ((capacity.rows[0]?.active ?? limit) >= limit) {
       await client.query("COMMIT");
+      incrementMetric("tenant_concurrency_limited_total");
       return null;
     }
 
@@ -57,8 +59,13 @@ export async function tryAcquireDistributedTenantConcurrency(
     );
     await client.query("COMMIT");
 
-    if (acquired.rows[0]?.lease_token !== leaseToken) return null;
+    if (acquired.rows[0]?.lease_token !== leaseToken) {
+      incrementMetric("tenant_concurrency_acquire_failures_total");
+      return null;
+    }
+    incrementMetric("tenant_concurrency_acquired_total");
   } catch (error) {
+    incrementMetric("tenant_concurrency_acquire_failures_total");
     try {
       await client.query("ROLLBACK");
     } catch {
@@ -79,6 +86,7 @@ export async function tryAcquireDistributedTenantConcurrency(
          WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
         [organizationId, leaseToken],
       ).then(() => undefined).catch((error) => {
+        incrementMetric("tenant_concurrency_release_failures_total");
         releasePromise = undefined;
         throw error;
       });
