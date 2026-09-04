@@ -16,7 +16,10 @@ type MetricKey =
   | "tenant_concurrency_acquired_total"
   | "tenant_concurrency_limited_total"
   | "tenant_concurrency_acquire_failures_total"
-  | "tenant_concurrency_release_failures_total";
+  | "tenant_concurrency_release_failures_total"
+  | "tenant_concurrency_renewed_total"
+  | "tenant_concurrency_lease_lost_total"
+  | "tenant_concurrency_renew_failures_total";
 
 export type OperationalGaugeKey =
   | "database_pool_total"
@@ -62,6 +65,9 @@ export function snapshotMetrics(): Record<MetricKey, number> {
     tenant_concurrency_limited_total: counters.get("tenant_concurrency_limited_total") ?? 0,
     tenant_concurrency_acquire_failures_total: counters.get("tenant_concurrency_acquire_failures_total") ?? 0,
     tenant_concurrency_release_failures_total: counters.get("tenant_concurrency_release_failures_total") ?? 0,
+    tenant_concurrency_renewed_total: counters.get("tenant_concurrency_renewed_total") ?? 0,
+    tenant_concurrency_lease_lost_total: counters.get("tenant_concurrency_lease_lost_total") ?? 0,
+    tenant_concurrency_renew_failures_total: counters.get("tenant_concurrency_renew_failures_total") ?? 0,
   };
 }
 
