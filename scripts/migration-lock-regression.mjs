@@ -11,11 +11,15 @@ const holder = new Client({ connectionString });
 await holder.connect();
 let originalChecksum = null;
 
-function runMigration({ allowChecksumBaseline = false } = {}) {
+function runMigration({ allowChecksumBaseline = false, checksumBaselineFiles = [] } = {}) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, DATABASE_URL: connectionString };
     delete env.ALLOW_MIGRATION_CHECKSUM_BASELINE;
+    delete env.MIGRATION_CHECKSUM_BASELINE_FILES;
     if (allowChecksumBaseline) env.ALLOW_MIGRATION_CHECKSUM_BASELINE = "true";
+    if (checksumBaselineFiles.length > 0) {
+      env.MIGRATION_CHECKSUM_BASELINE_FILES = checksumBaselineFiles.join(",");
+    }
 
     const child = spawn(process.execPath, ["scripts/migrate.mjs"], {
       env,
@@ -86,6 +90,28 @@ try {
     "runner must explain that controlled checksum baseline adoption is required",
   );
 
+  const broadBaseline = await runMigration({ allowChecksumBaseline: true });
+  assert.notEqual(
+    broadBaseline.code,
+    0,
+    "baseline authorization without an explicit migration allowlist must fail closed",
+  );
+  assert.match(
+    `${broadBaseline.stdout}\n${broadBaseline.stderr}`,
+    /MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations/,
+    "runner must reject broad checksum baseline authorization",
+  );
+
+  const wrongBaseline = await runMigration({
+    allowChecksumBaseline: true,
+    checksumBaselineFiles: ["999_not_the_target.sql"],
+  });
+  assert.notEqual(
+    wrongBaseline.code,
+    0,
+    "baseline authorization for another migration must not authorize the target migration",
+  );
+
   const stillMissing = await holder.query(
     "SELECT checksum FROM schema_migrations WHERE filename = $1",
     ["001_core.sql"],
@@ -93,10 +119,13 @@ try {
   assert.equal(
     stillMissing.rows[0]?.checksum ?? null,
     null,
-    "failed implicit adoption must not mutate the migration checksum",
+    "failed baseline attempts must not mutate the migration checksum",
   );
 
-  const explicitBaseline = await runMigration({ allowChecksumBaseline: true });
+  const explicitBaseline = await runMigration({
+    allowChecksumBaseline: true,
+    checksumBaselineFiles: ["001_core.sql"],
+  });
   assert.equal(
     explicitBaseline.code,
     0,
@@ -143,7 +172,7 @@ try {
     `migration runner must recover after checksum restoration: ${afterRestore.stderr}`,
   );
 
-  console.log("Migration advisory lock and checksum baseline regression checks passed");
+  console.log("Migration advisory lock and scoped checksum baseline regression checks passed");
 } finally {
   if (originalChecksum) {
     try {
