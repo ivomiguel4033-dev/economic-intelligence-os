@@ -9,6 +9,7 @@ if (!connectionString) throw new Error("DATABASE_URL is required");
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
 const holder = new Client({ connectionString });
 await holder.connect();
+let originalChecksum = null;
 
 function runMigration() {
   return new Promise((resolve, reject) => {
@@ -53,8 +54,54 @@ try {
     `migration runner must recover after lock release: ${afterRelease.stderr}`,
   );
 
-  console.log("Migration advisory lock regression checks passed");
+  const applied = await holder.query(
+    "SELECT checksum FROM schema_migrations WHERE filename = $1",
+    ["001_core.sql"],
+  );
+  originalChecksum = applied.rows[0]?.checksum ?? null;
+  assert.match(
+    originalChecksum ?? "",
+    /^[a-f0-9]{64}$/,
+    "applied migrations must record a SHA-256 checksum",
+  );
+
+  await holder.query(
+    "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
+    ["001_core.sql", "checksum-drift-regression"],
+  );
+
+  const drifted = await runMigration();
+  assert.notEqual(drifted.code, 0, "migration checksum drift must fail closed");
+  assert.match(
+    `${drifted.stdout}\n${drifted.stderr}`,
+    /Migration checksum mismatch for 001_core\.sql/,
+    "migration runner must identify the drifted migration",
+  );
+
+  await holder.query(
+    "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
+    ["001_core.sql", originalChecksum],
+  );
+
+  const afterRestore = await runMigration();
+  assert.equal(
+    afterRestore.code,
+    0,
+    `migration runner must recover after checksum restoration: ${afterRestore.stderr}`,
+  );
+
+  console.log("Migration advisory lock and checksum regression checks passed");
 } finally {
+  if (originalChecksum) {
+    try {
+      await holder.query(
+        "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
+        ["001_core.sql", originalChecksum],
+      );
+    } catch {
+      // Best-effort cleanup only; the regression result remains authoritative.
+    }
+  }
   try {
     await holder.query(
       "SELECT pg_advisory_unlock(hashtextextended($1::text, 0))",
