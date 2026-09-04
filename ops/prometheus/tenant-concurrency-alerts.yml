@@ -24,3 +24,18 @@ groups:
         annotations:
           summary: Distributed tenant concurrency lease release failed
           runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyLeaseLost
+        expr: increase(tenant_concurrency_lease_lost_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A distributed tenant concurrency lease lost ownership or expired during active work
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyRenewFailures
+        expr: increase(tenant_concurrency_renew_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Distributed tenant concurrency lease heartbeat renewal is failing
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
