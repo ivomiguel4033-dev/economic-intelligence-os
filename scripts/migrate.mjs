@@ -44,6 +44,18 @@ try {
 
   const directory = join(process.cwd(), "db", "migrations");
   const files = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
+  if (allowChecksumBaseline) {
+    const knownMigrations = new Set(files);
+    const unknownBaselineFiles = [...checksumBaselineFiles].filter(
+      (filename) => !knownMigrations.has(filename),
+    );
+    if (unknownBaselineFiles.length > 0) {
+      throw new Error(
+        `MIGRATION_CHECKSUM_BASELINE_FILES contains unknown migrations: ${unknownBaselineFiles.join(", ")}`,
+      );
+    }
+  }
+  const adoptedChecksumBaselines = new Set();
 
   for (const filename of files) {
     const sql = await readFile(join(directory, filename), "utf8");
@@ -68,6 +80,7 @@ try {
         if (baseline.rowCount !== 1) {
           throw new Error(`Failed to record checksum baseline for migration ${filename}`);
         }
+        adoptedChecksumBaselines.add(filename);
         console.log(`Recorded checksum baseline for migration ${filename}`);
         continue;
       }
@@ -89,6 +102,17 @@ try {
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
+    }
+  }
+
+  if (allowChecksumBaseline) {
+    const unusedBaselineFiles = [...checksumBaselineFiles].filter(
+      (filename) => !adoptedChecksumBaselines.has(filename),
+    );
+    if (unusedBaselineFiles.length > 0) {
+      throw new Error(
+        `Checksum baseline authorization was not consumed for migrations: ${unusedBaselineFiles.join(", ")}`,
+      );
     }
   }
 } finally {
