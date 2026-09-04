@@ -12,6 +12,17 @@ await client.connect();
 
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
 const allowChecksumBaseline = process.env.ALLOW_MIGRATION_CHECKSUM_BASELINE === "true";
+const checksumBaselineFiles = new Set(
+  (process.env.MIGRATION_CHECKSUM_BASELINE_FILES ?? "")
+    .split(",")
+    .map((filename) => filename.trim())
+    .filter(Boolean),
+);
+if (allowChecksumBaseline && checksumBaselineFiles.size === 0) {
+  throw new Error(
+    "MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations when checksum baseline adoption is enabled",
+  );
+}
 let migrationLockHeld = false;
 
 try {
@@ -45,9 +56,9 @@ try {
     if (existing.rowCount) {
       const appliedChecksum = existing.rows[0]?.checksum ?? null;
       if (appliedChecksum === null) {
-        if (!allowChecksumBaseline) {
+        if (!allowChecksumBaseline || !checksumBaselineFiles.has(filename)) {
           throw new Error(
-            `Migration ${filename} has no checksum baseline; set ALLOW_MIGRATION_CHECKSUM_BASELINE=true for one controlled adoption run`,
+            `Migration ${filename} has no checksum baseline; controlled adoption requires ALLOW_MIGRATION_CHECKSUM_BASELINE=true and MIGRATION_CHECKSUM_BASELINE_FILES to explicitly include it`,
           );
         }
         const baseline = await client.query(
