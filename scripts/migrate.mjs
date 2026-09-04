@@ -11,6 +11,7 @@ const client = new Client({ connectionString });
 await client.connect();
 
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
+const allowChecksumBaseline = process.env.ALLOW_MIGRATION_CHECKSUM_BASELINE === "true";
 let migrationLockHeld = false;
 
 try {
@@ -44,10 +45,18 @@ try {
     if (existing.rowCount) {
       const appliedChecksum = existing.rows[0]?.checksum ?? null;
       if (appliedChecksum === null) {
-        await client.query(
-          "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1 AND checksum IS NULL",
+        if (!allowChecksumBaseline) {
+          throw new Error(
+            `Migration ${filename} has no checksum baseline; set ALLOW_MIGRATION_CHECKSUM_BASELINE=true for one controlled adoption run`,
+          );
+        }
+        const baseline = await client.query(
+          "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1 AND checksum IS NULL RETURNING filename",
           [filename, checksum],
         );
+        if (baseline.rowCount !== 1) {
+          throw new Error(`Failed to record checksum baseline for migration ${filename}`);
+        }
         console.log(`Recorded checksum baseline for migration ${filename}`);
         continue;
       }
