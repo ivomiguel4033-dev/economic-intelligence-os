@@ -4,6 +4,7 @@ import { incrementMetric } from "@/observability/service-metrics";
 
 export type DistributedTenantConcurrencyLease = {
   leaseToken: string;
+  renew: () => Promise<boolean>;
   release: () => Promise<void>;
 };
 
@@ -94,15 +95,32 @@ export async function tryAcquireDistributedTenantConcurrency(
   }
 
   let releasePromise: Promise<void> | undefined;
+  let released = false;
   return {
     leaseToken,
+    renew: async () => {
+      if (released) return false;
+      const renewed = await db.query(
+        `UPDATE tenant_concurrency_leases
+         SET expires_at=NOW() + ($3 * INTERVAL '1 second')
+         WHERE organization_id=$1::uuid
+           AND lease_token=$2::uuid
+           AND expires_at > NOW()
+         RETURNING lease_token`,
+        [organizationId, leaseToken, ttl],
+      );
+      return (renewed.rowCount ?? 0) === 1;
+    },
     release: async () => {
+      if (released) return;
       if (releasePromise) return releasePromise;
       releasePromise = db.query(
         `DELETE FROM tenant_concurrency_leases
          WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
         [organizationId, leaseToken],
-      ).then(() => undefined).catch((error) => {
+      ).then(() => {
+        released = true;
+      }).catch((error) => {
         incrementMetric("tenant_concurrency_release_failures_total");
         releasePromise = undefined;
         throw error;
