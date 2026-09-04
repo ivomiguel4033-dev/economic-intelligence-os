@@ -11,10 +11,14 @@ const holder = new Client({ connectionString });
 await holder.connect();
 let originalChecksum = null;
 
-function runMigration() {
+function runMigration({ allowChecksumBaseline = false } = {}) {
   return new Promise((resolve, reject) => {
+    const env = { ...process.env, DATABASE_URL: connectionString };
+    delete env.ALLOW_MIGRATION_CHECKSUM_BASELINE;
+    if (allowChecksumBaseline) env.ALLOW_MIGRATION_CHECKSUM_BASELINE = "true";
+
     const child = spawn(process.execPath, ["scripts/migrate.mjs"], {
-      env: { ...process.env, DATABASE_URL: connectionString },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -66,6 +70,55 @@ try {
   );
 
   await holder.query(
+    "UPDATE schema_migrations SET checksum = NULL WHERE filename = $1",
+    ["001_core.sql"],
+  );
+
+  const implicitBaseline = await runMigration();
+  assert.notEqual(
+    implicitBaseline.code,
+    0,
+    "historical migration without checksum must fail without explicit baseline authorization",
+  );
+  assert.match(
+    `${implicitBaseline.stdout}\n${implicitBaseline.stderr}`,
+    /Migration 001_core\.sql has no checksum baseline/,
+    "runner must explain that controlled checksum baseline adoption is required",
+  );
+
+  const stillMissing = await holder.query(
+    "SELECT checksum FROM schema_migrations WHERE filename = $1",
+    ["001_core.sql"],
+  );
+  assert.equal(
+    stillMissing.rows[0]?.checksum ?? null,
+    null,
+    "failed implicit adoption must not mutate the migration checksum",
+  );
+
+  const explicitBaseline = await runMigration({ allowChecksumBaseline: true });
+  assert.equal(
+    explicitBaseline.code,
+    0,
+    `explicit checksum baseline adoption must succeed: ${explicitBaseline.stderr}`,
+  );
+  assert.match(
+    explicitBaseline.stdout,
+    /Recorded checksum baseline for migration 001_core\.sql/,
+    "explicit adoption must report the baselined migration",
+  );
+
+  const baselined = await holder.query(
+    "SELECT checksum FROM schema_migrations WHERE filename = $1",
+    ["001_core.sql"],
+  );
+  assert.equal(
+    baselined.rows[0]?.checksum,
+    originalChecksum,
+    "explicit adoption must persist the current migration SHA-256 checksum",
+  );
+
+  await holder.query(
     "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
     ["001_core.sql", "checksum-drift-regression"],
   );
@@ -90,7 +143,7 @@ try {
     `migration runner must recover after checksum restoration: ${afterRestore.stderr}`,
   );
 
-  console.log("Migration advisory lock and checksum regression checks passed");
+  console.log("Migration advisory lock and checksum baseline regression checks passed");
 } finally {
   if (originalChecksum) {
     try {
