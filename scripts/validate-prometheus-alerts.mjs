@@ -91,6 +91,8 @@ const tenantAlerts = [
   ["TenantConcurrencySaturationPersistent", "tenant_concurrency_limited_total"],
   ["TenantConcurrencyAcquireFailures", "tenant_concurrency_acquire_failures_total"],
   ["TenantConcurrencyReleaseFailures", "tenant_concurrency_release_failures_total"],
+  ["TenantConcurrencyLeaseLost", "tenant_concurrency_lease_lost_total"],
+  ["TenantConcurrencyRenewFailures", "tenant_concurrency_renew_failures_total"],
 ];
 for (const [alertName, metricName] of tenantAlerts) {
   const block = tenantConcurrencyRules.split(`- alert: ${alertName}`, 2)[1]?.split("- alert:", 1)[0] ?? "";
@@ -112,6 +114,20 @@ if (!/^\s*for: 2m$/m.test(tenantAcquireFailureBlock) || !/^\s*severity: critical
 const tenantReleaseFailureBlock = tenantConcurrencyRules.split("- alert: TenantConcurrencyReleaseFailures", 2)[1]?.split("- alert:", 1)[0] ?? "";
 if (/^\s*for:/m.test(tenantReleaseFailureBlock) || !/^\s*severity: warning$/m.test(tenantReleaseFailureBlock)) {
   throw new Error("TenantConcurrencyReleaseFailures must warn immediately.");
+}
+const tenantLeaseLostBlock = tenantConcurrencyRules.split("- alert: TenantConcurrencyLeaseLost", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!/^\s*expr: increase\(tenant_concurrency_lease_lost_total\[5m\]\) > 0$/m.test(tenantLeaseLostBlock)) {
+  throw new Error("TenantConcurrencyLeaseLost must alert on any lost lease within 5m.");
+}
+if (/^\s*for:/m.test(tenantLeaseLostBlock) || !/^\s*severity: critical$/m.test(tenantLeaseLostBlock)) {
+  throw new Error("TenantConcurrencyLeaseLost must remain an immediate critical alert.");
+}
+const tenantRenewFailureBlock = tenantConcurrencyRules.split("- alert: TenantConcurrencyRenewFailures", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!/^\s*expr: increase\(tenant_concurrency_renew_failures_total\[5m\]\) > 0$/m.test(tenantRenewFailureBlock)) {
+  throw new Error("TenantConcurrencyRenewFailures must alert on heartbeat renewal failures within 5m.");
+}
+if (!/^\s*for: 2m$/m.test(tenantRenewFailureBlock) || !/^\s*severity: critical$/m.test(tenantRenewFailureBlock)) {
+  throw new Error("TenantConcurrencyRenewFailures must remain critical after a 2m sustained breach.");
 }
 if (!runbook.includes("## Distributed tenant concurrency")) {
   throw new Error("Missing distributed tenant concurrency runbook section.");
