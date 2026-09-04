@@ -99,17 +99,30 @@ export async function tryAcquireDistributedTenantConcurrency(
   return {
     leaseToken,
     renew: async () => {
-      if (released) return false;
-      const renewed = await db.query(
-        `UPDATE tenant_concurrency_leases
-         SET expires_at=NOW() + ($3 * INTERVAL '1 second')
-         WHERE organization_id=$1::uuid
-           AND lease_token=$2::uuid
-           AND expires_at > NOW()
-         RETURNING lease_token`,
-        [organizationId, leaseToken, ttl],
-      );
-      return (renewed.rowCount ?? 0) === 1;
+      if (released) {
+        incrementMetric("tenant_concurrency_lease_lost_total");
+        return false;
+      }
+      try {
+        const renewed = await db.query(
+          `UPDATE tenant_concurrency_leases
+           SET expires_at=NOW() + ($3 * INTERVAL '1 second')
+           WHERE organization_id=$1::uuid
+             AND lease_token=$2::uuid
+             AND expires_at > NOW()
+           RETURNING lease_token`,
+          [organizationId, leaseToken, ttl],
+        );
+        if ((renewed.rowCount ?? 0) !== 1) {
+          incrementMetric("tenant_concurrency_lease_lost_total");
+          return false;
+        }
+        incrementMetric("tenant_concurrency_renewed_total");
+        return true;
+      } catch (error) {
+        incrementMetric("tenant_concurrency_renew_failures_total");
+        throw error;
+      }
     },
     release: async () => {
       if (released) return;
