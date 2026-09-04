@@ -62,6 +62,21 @@ try {
     `migration runner must recover after lock release: ${afterRelease.stderr}`,
   );
 
+  const staleKnownBaseline = await runMigration({
+    allowChecksumBaseline: true,
+    checksumBaselineFiles: ["002_ai_board.sql"],
+  });
+  assert.notEqual(
+    staleKnownBaseline.code,
+    0,
+    "baseline authorization for an already-checksummed migration must fail closed",
+  );
+  assert.match(
+    `${staleKnownBaseline.stdout}\n${staleKnownBaseline.stderr}`,
+    /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/,
+    "runner must reject stale baseline grants that are no longer needed",
+  );
+
   const applied = await holder.query(
     "SELECT checksum FROM schema_migrations WHERE filename = $1",
     ["001_core.sql"],
@@ -109,7 +124,12 @@ try {
   assert.notEqual(
     wrongBaseline.code,
     0,
-    "baseline authorization for another migration must not authorize the target migration",
+    "baseline authorization for an unknown migration must fail closed",
+  );
+  assert.match(
+    `${wrongBaseline.stdout}\n${wrongBaseline.stderr}`,
+    /MIGRATION_CHECKSUM_BASELINE_FILES contains unknown migrations: 999_not_the_target\.sql/,
+    "runner must reject unknown migration names before baseline processing",
   );
 
   const stillMissing = await holder.query(
