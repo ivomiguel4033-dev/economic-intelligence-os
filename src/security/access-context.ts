@@ -1,4 +1,4 @@
-import { db } from "@/infrastructure/database/postgres";
+import { db } from "../infrastructure/database/postgres.ts";
 
 export interface AccessContext {
   actorId: string;
