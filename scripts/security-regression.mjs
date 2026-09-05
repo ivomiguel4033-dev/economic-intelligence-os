@@ -11,6 +11,18 @@ assert.throws(() => assertTenantBoundary({ ...tenantA, organizationId: "org-a " 
 assert.throws(() => assertTenantBoundary(tenantA, " org-a"), /Cross-tenant access denied/);
 assert.throws(() => assertTenantBoundary(tenantA, "org-a "), /Cross-tenant access denied/);
 
+for (const malformedActorId of ["", " ", " actor-a", "actor-a "]) {
+  const malformedPrincipal = { ...tenantA, actorId: malformedActorId };
+  assert.throws(
+    () => assertTenantBoundary(malformedPrincipal, "org-a"),
+    /Cross-tenant access denied/,
+  );
+  assert.throws(
+    () => assertPermission(malformedPrincipal, "decision:read"),
+    /Permission denied/,
+  );
+}
+
 assert.doesNotThrow(() => assertPermission(tenantA, "decision:read"));
 assert.throws(() => assertPermission(tenantA, "decision:execute"), /Permission denied/);
 assert.throws(() => assertPermission(tenantA, ""), /Permission denied/);
