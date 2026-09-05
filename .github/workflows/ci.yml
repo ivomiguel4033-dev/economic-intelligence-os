@@ -68,6 +68,8 @@ jobs:
         run: node scripts/stripe-signature-regression.mjs
       - name: Tenant isolation regression checks
         run: node scripts/security-regression.mjs
+      - name: Access context configuration regression checks
+        run: node scripts/access-context-regression.mjs
       - name: Execution reliability regression checks
         run: node scripts/execution-reliability-regression.mjs
       - name: Shutdown drain/readiness regression checks
