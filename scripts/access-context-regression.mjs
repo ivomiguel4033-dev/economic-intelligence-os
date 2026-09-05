@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { db } from "../src/infrastructure/database/postgres.ts";
 import { resolveAccessContext } from "../src/security/access-context.ts";
+import { resolveOrganizationForActor } from "../src/security/organization-selection.ts";
 
 const originalQuery = db.query;
 
@@ -46,4 +47,35 @@ await withRows([
   });
 });
 
-console.log("Access-context membership and role configuration regression checks passed.");
+await assert.rejects(() => resolveOrganizationForActor(""), /Invalid actor identity/);
+await assert.rejects(() => resolveOrganizationForActor(" actor-a"), /Invalid actor identity/);
+await assert.rejects(() => resolveOrganizationForActor("actor-a", ""), /Invalid organization selection/);
+await assert.rejects(() => resolveOrganizationForActor("actor-a", "org-a "), /Invalid organization selection/);
+
+await withRows([], async () => {
+  await assert.rejects(() => resolveOrganizationForActor("actor-a", "org-b"), /Organization access denied/);
+});
+
+await withRows([{ allowed: 1 }], async () => {
+  assert.equal(await resolveOrganizationForActor("actor-a", "org-a"), "org-a");
+});
+
+await withRows([], async () => {
+  await assert.rejects(() => resolveOrganizationForActor("actor-a"), /No organization membership found/);
+});
+
+await withRows([{ organization_id: "org-a" }, { organization_id: "org-b" }], async () => {
+  await assert.rejects(() => resolveOrganizationForActor("actor-a"), /Organization selection required/);
+});
+
+for (const organization_id of [null, 42, "", " org-a", "org-a "]) {
+  await withRows([{ organization_id }], async () => {
+    await assert.rejects(() => resolveOrganizationForActor("actor-a"), /Invalid organization membership/);
+  });
+}
+
+await withRows([{ organization_id: "org-a" }], async () => {
+  assert.equal(await resolveOrganizationForActor("actor-a"), "org-a");
+});
+
+console.log("Access-context and organization-selection security regression checks passed.");

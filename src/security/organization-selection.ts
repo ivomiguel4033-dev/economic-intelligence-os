@@ -1,4 +1,4 @@
-import { db } from "@/infrastructure/database/postgres";
+import { db } from "../infrastructure/database/postgres.ts";
 
 function isCanonicalIdentifier(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value === value.trim();
