@@ -117,6 +117,30 @@ try {
     "runner must reject broad checksum baseline authorization",
   );
 
+  const mixedBaseline = await runMigration({
+    allowChecksumBaseline: true,
+    checksumBaselineFiles: ["001_core.sql", "002_ai_board.sql"],
+  });
+  assert.notEqual(
+    mixedBaseline.code,
+    0,
+    "mixed required and stale baseline grants must fail before any adoption",
+  );
+  assert.match(
+    `${mixedBaseline.stdout}\n${mixedBaseline.stderr}`,
+    /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/,
+    "runner must reject the stale grant during preflight",
+  );
+  const afterMixedBaseline = await holder.query(
+    "SELECT checksum FROM schema_migrations WHERE filename = $1",
+    ["001_core.sql"],
+  );
+  assert.equal(
+    afterMixedBaseline.rows[0]?.checksum ?? null,
+    null,
+    "preflight rejection must not partially baseline an otherwise authorized migration",
+  );
+
   const wrongBaseline = await runMigration({
     allowChecksumBaseline: true,
     checksumBaselineFiles: ["999_not_the_target.sql"],
