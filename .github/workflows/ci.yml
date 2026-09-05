@@ -44,6 +44,8 @@ jobs:
           fi
       - name: Validate migrations
         run: node scripts/validate-migrations.mjs
+      - name: Migration validation regression checks
+        run: node scripts/migration-validation-regression.mjs
       - name: Validate Prometheus alert rules
         run: node scripts/validate-prometheus-alerts.mjs
       - name: Apply migrations to PostgreSQL
