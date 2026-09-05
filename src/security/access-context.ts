@@ -7,7 +7,19 @@ export interface AccessContext {
   permissions: string[];
 }
 
+function isCanonicalIdentifier(value: string): boolean {
+  return value.length > 0 && value.trim() === value;
+}
+
+function isCanonicalStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && isCanonicalIdentifier(entry));
+}
+
 export async function resolveAccessContext(actorId: string, organizationId: string): Promise<AccessContext> {
+  if (!isCanonicalIdentifier(actorId) || !isCanonicalIdentifier(organizationId)) {
+    throw new Error("Invalid access context identity");
+  }
+
   const membership = await db.query(
     `SELECT m.role, r.permissions
      FROM organization_memberships m
@@ -17,7 +29,24 @@ export async function resolveAccessContext(actorId: string, organizationId: stri
     [actorId, organizationId],
   );
   if (!membership.rowCount) throw new Error("Organization membership required");
-  const roles = membership.rows.map((row) => String(row.role));
-  const permissions = [...new Set(membership.rows.flatMap((row) => Array.isArray(row.permissions) ? row.permissions.map(String) : []))];
-  return { actorId, organizationId, roles, permissions };
+
+  const roles: string[] = [];
+  const permissions: string[] = [];
+  for (const row of membership.rows) {
+    if (typeof row.role !== "string" || !isCanonicalIdentifier(row.role)) {
+      throw new Error("Invalid organization role configuration");
+    }
+    if (row.permissions !== null && row.permissions !== undefined && !isCanonicalStringArray(row.permissions)) {
+      throw new Error("Invalid organization permission configuration");
+    }
+    roles.push(row.role);
+    if (row.permissions) permissions.push(...row.permissions);
+  }
+
+  return {
+    actorId,
+    organizationId,
+    roles: [...new Set(roles)],
+    permissions: [...new Set(permissions)],
+  };
 }
