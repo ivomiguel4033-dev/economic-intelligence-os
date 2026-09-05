@@ -1,0 +1,12 @@
+groups:
+  - name: economic-intelligence-database
+    rules:
+      - alert: DatabasePoolWaitersPersistent
+        expr: database_pool_waiting > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: postgresql-pool
+        annotations:
+          summary: PostgreSQL pool has sustained connection waiters
+          runbook: docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation

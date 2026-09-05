@@ -1,16 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-decision-repository";
 import { PostgresOrchestrationRepository } from "@/infrastructure/orchestration/postgres-orchestration-repository";
+import { getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import { createOrchestrationRuntime } from "@/orchestration/runtime-factory";
 import { enforceRuntimeBilling } from "@/billing/runtime-enforcement";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { requireAuthorization } from "@/security/authorization-policy";
 import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
+import { tryBeginTrackedWork } from "@/operations/drain-state";
+import { tryAcquireDistributedTenantConcurrency, type DistributedTenantConcurrencyLease } from "@/operations/distributed-tenant-concurrency";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
+const TENANT_CONCURRENCY_HEARTBEAT_MS = 30_000;
+
 export async function POST(request: NextRequest) {
+  const releaseWork = tryBeginTrackedWork();
+  if (!releaseWork) {
+    return NextResponse.json(
+      { error: "Service is draining" },
+      { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+    );
+  }
+
+  let tenantConcurrencyLease: DistributedTenantConcurrencyLease | null = null;
+  let tenantConcurrencyHeartbeat: ReturnType<typeof setInterval> | null = null;
+  let tenantConcurrencyRenewal: Promise<void> | null = null;
+  let tenantConcurrencyLeaseLost = false;
+
   try {
+    const pool = getDatabasePoolSnapshot();
+    if (pool.waiting > 0 || (pool.total >= pool.max && pool.idle === 0)) {
+      return NextResponse.json(
+        { error: "Service temporarily overloaded", reason: "database_pool_saturated" },
+        { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+      );
+    }
+
     const body = await request.json();
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
@@ -18,6 +44,32 @@ export async function POST(request: NextRequest) {
     );
     const organizationId = access.organizationId;
     requireAuthorization(access, { organizationId, resourceType: "decision" }, "execute");
+
+    tenantConcurrencyLease = await tryAcquireDistributedTenantConcurrency(organizationId);
+    if (!tenantConcurrencyLease) {
+      return NextResponse.json(
+        { error: "Tenant orchestration concurrency limit reached", reason: "tenant_concurrency_limited" },
+        { status: 429, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+      );
+    }
+
+    const renewTenantConcurrencyLease = () => {
+      if (!tenantConcurrencyLease || tenantConcurrencyRenewal || tenantConcurrencyLeaseLost) return;
+      tenantConcurrencyRenewal = tenantConcurrencyLease.renew()
+        .then((renewed) => {
+          if (!renewed) tenantConcurrencyLeaseLost = true;
+        })
+        .catch((error) => {
+          tenantConcurrencyLeaseLost = true;
+          console.error("Failed to renew distributed tenant concurrency lease", error);
+        })
+        .finally(() => {
+          tenantConcurrencyRenewal = null;
+        });
+    };
+
+    tenantConcurrencyHeartbeat = setInterval(renewTenantConcurrencyLease, TENANT_CONCURRENCY_HEARTBEAT_MS);
+    tenantConcurrencyHeartbeat.unref?.();
 
     const decisionId = String(body.decisionId ?? "");
     if (!decisionId) throw new Error("decisionId is required");
@@ -51,18 +103,34 @@ export async function POST(request: NextRequest) {
 
     const runtime = createOrchestrationRuntime();
     const result = await runtime.run(decision, claims, action);
+
+    if (tenantConcurrencyRenewal) await tenantConcurrencyRenewal;
+    if (tenantConcurrencyLeaseLost || !(await tenantConcurrencyLease.renew())) {
+      throw new Error("Tenant concurrency lease lost during orchestration");
+    }
+
     const runs = new PostgresOrchestrationRepository();
     const persisted = await runs.save(organizationId, result);
 
     return NextResponse.json({ ...result, runId: persisted.id, persistedAt: persisted.createdAt }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid orchestration request";
-    const status = message.includes("No AI providers configured") || message.includes("OIDC verifier is not configured") ? 503
+    const status = message.includes("No AI providers configured") || message.includes("OIDC verifier is not configured") || message.includes("Tenant concurrency lease lost") ? 503
       : message.includes("authentication") || message.includes("Bearer") || message.includes("Identity") || message.includes("token") ? 401
       : message.includes("Step-up") || message.includes("Recent authentication") ? 401
       : message.includes("Access denied") || message.includes("membership") || message.includes("Organization access") ? 403
       : message.includes("subscription") || message.includes("plan") || message.includes("usage limit") || message.includes("Payment recovery") ? 402
       : 400;
     return NextResponse.json({ error: message }, { status });
+  } finally {
+    if (tenantConcurrencyHeartbeat) clearInterval(tenantConcurrencyHeartbeat);
+    if (tenantConcurrencyRenewal) await tenantConcurrencyRenewal;
+    try {
+      await tenantConcurrencyLease?.release();
+    } catch (error) {
+      console.error("Failed to release distributed tenant concurrency lease", error);
+    } finally {
+      releaseWork();
+    }
   }
 }

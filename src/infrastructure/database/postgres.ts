@@ -11,13 +11,38 @@ function database(): Pool {
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    statement_timeout: 30_000,
+    query_timeout: 35_000,
+    idle_in_transaction_session_timeout: 30_000,
   });
   return pool;
 }
 
-export const db: Pick<Pool, "query"> = {
+export type DatabasePoolSnapshot = {
+  total: number;
+  idle: number;
+  active: number;
+  waiting: number;
+  max: number;
+};
+
+export function getDatabasePoolSnapshot(): DatabasePoolSnapshot {
+  const current = database();
+  const total = current.totalCount;
+  const idle = current.idleCount;
+  return {
+    total,
+    idle,
+    active: Math.max(total - idle, 0),
+    waiting: current.waitingCount,
+    max: current.options.max ?? 10,
+  };
+}
+
+export const db: Pick<Pool, "query" | "connect"> = {
   query: ((...args: unknown[]) => {
     const query = database().query.bind(database()) as (...queryArgs: unknown[]) => unknown;
     return query(...args);
   }) as Pool["query"],
+  connect: (() => database().connect()) as Pool["connect"],
 };
