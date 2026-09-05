@@ -56,183 +56,93 @@ try {
   assert.equal(unlocked.rows[0]?.released, true, "test must release the migration lock");
 
   const afterRelease = await runMigration();
-  assert.equal(
-    afterRelease.code,
-    0,
-    `migration runner must recover after lock release: ${afterRelease.stderr}`,
-  );
+  assert.equal(afterRelease.code, 0, `migration runner must recover after lock release: ${afterRelease.stderr}`);
 
-  const staleKnownBaseline = await runMigration({
-    allowChecksumBaseline: true,
-    checksumBaselineFiles: ["002_ai_board.sql"],
-  });
-  assert.notEqual(
-    staleKnownBaseline.code,
-    0,
-    "baseline authorization for an already-checksummed migration must fail closed",
-  );
-  assert.match(
-    `${staleKnownBaseline.stdout}\n${staleKnownBaseline.stderr}`,
-    /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/,
-    "runner must reject stale baseline grants that are no longer needed",
-  );
-
-  const applied = await holder.query(
-    "SELECT checksum FROM schema_migrations WHERE filename = $1",
-    ["001_core.sql"],
-  );
-  originalChecksum = applied.rows[0]?.checksum ?? null;
-  assert.match(
-    originalChecksum ?? "",
-    /^[a-f0-9]{64}$/,
-    "applied migrations must record a SHA-256 checksum",
-  );
-
+  const missingFilename = "000_missing_source_regression.sql";
   await holder.query(
-    "UPDATE schema_migrations SET checksum = NULL WHERE filename = $1",
-    ["001_core.sql"],
+    "INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2)",
+    [missingFilename, "0".repeat(64)],
   );
+  const missingSource = await runMigration();
+  assert.notEqual(missingSource.code, 0, "applied migration missing from source tree must fail closed");
+  assert.match(
+    `${missingSource.stdout}\n${missingSource.stderr}`,
+    /Applied migrations are missing from source tree: 000_missing_source_regression\.sql/,
+    "runner must identify the applied migration whose source file is missing",
+  );
+  const missingRow = await holder.query(
+    "SELECT checksum FROM schema_migrations WHERE filename = $1",
+    [missingFilename],
+  );
+  assert.equal(missingRow.rows[0]?.checksum, "0".repeat(64), "missing-source rejection must not mutate migration history");
+  await holder.query("DELETE FROM schema_migrations WHERE filename = $1", [missingFilename]);
+
+  const afterMissingSourceCleanup = await runMigration();
+  assert.equal(afterMissingSourceCleanup.code, 0, `migration runner must recover after missing-source history is repaired: ${afterMissingSourceCleanup.stderr}`);
+
+  const staleKnownBaseline = await runMigration({ allowChecksumBaseline: true, checksumBaselineFiles: ["002_ai_board.sql"] });
+  assert.notEqual(staleKnownBaseline.code, 0, "baseline authorization for an already-checksummed migration must fail closed");
+  assert.match(`${staleKnownBaseline.stdout}\n${staleKnownBaseline.stderr}`, /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/);
+
+  const applied = await holder.query("SELECT checksum FROM schema_migrations WHERE filename = $1", ["001_core.sql"]);
+  originalChecksum = applied.rows[0]?.checksum ?? null;
+  assert.match(originalChecksum ?? "", /^[a-f0-9]{64}$/, "applied migrations must record a SHA-256 checksum");
+
+  await holder.query("UPDATE schema_migrations SET checksum = NULL WHERE filename = $1", ["001_core.sql"]);
 
   const implicitBaseline = await runMigration();
-  assert.notEqual(
-    implicitBaseline.code,
-    0,
-    "historical migration without checksum must fail without explicit baseline authorization",
-  );
-  assert.match(
-    `${implicitBaseline.stdout}\n${implicitBaseline.stderr}`,
-    /Migration 001_core\.sql has no checksum baseline/,
-    "runner must explain that controlled checksum baseline adoption is required",
-  );
+  assert.notEqual(implicitBaseline.code, 0, "historical migration without checksum must fail without explicit baseline authorization");
+  assert.match(`${implicitBaseline.stdout}\n${implicitBaseline.stderr}`, /Migration 001_core\.sql has no checksum baseline/);
 
   const broadBaseline = await runMigration({ allowChecksumBaseline: true });
-  assert.notEqual(
-    broadBaseline.code,
-    0,
-    "baseline authorization without an explicit migration allowlist must fail closed",
-  );
-  assert.match(
-    `${broadBaseline.stdout}\n${broadBaseline.stderr}`,
-    /MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations/,
-    "runner must reject broad checksum baseline authorization",
-  );
+  assert.notEqual(broadBaseline.code, 0, "baseline authorization without an explicit migration allowlist must fail closed");
+  assert.match(`${broadBaseline.stdout}\n${broadBaseline.stderr}`, /MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations/);
 
-  const mixedBaseline = await runMigration({
-    allowChecksumBaseline: true,
-    checksumBaselineFiles: ["001_core.sql", "002_ai_board.sql"],
-  });
-  assert.notEqual(
-    mixedBaseline.code,
-    0,
-    "mixed required and stale baseline grants must fail before any adoption",
-  );
-  assert.match(
-    `${mixedBaseline.stdout}\n${mixedBaseline.stderr}`,
-    /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/,
-    "runner must reject the stale grant during preflight",
-  );
-  const afterMixedBaseline = await holder.query(
-    "SELECT checksum FROM schema_migrations WHERE filename = $1",
-    ["001_core.sql"],
-  );
-  assert.equal(
-    afterMixedBaseline.rows[0]?.checksum ?? null,
-    null,
-    "preflight rejection must not partially baseline an otherwise authorized migration",
-  );
+  const mixedBaseline = await runMigration({ allowChecksumBaseline: true, checksumBaselineFiles: ["001_core.sql", "002_ai_board.sql"] });
+  assert.notEqual(mixedBaseline.code, 0, "mixed required and stale baseline grants must fail before any adoption");
+  assert.match(`${mixedBaseline.stdout}\n${mixedBaseline.stderr}`, /Checksum baseline authorization was not consumed for migrations: 002_ai_board\.sql/);
+  const afterMixedBaseline = await holder.query("SELECT checksum FROM schema_migrations WHERE filename = $1", ["001_core.sql"]);
+  assert.equal(afterMixedBaseline.rows[0]?.checksum ?? null, null, "preflight rejection must not partially baseline an otherwise authorized migration");
 
-  const wrongBaseline = await runMigration({
-    allowChecksumBaseline: true,
-    checksumBaselineFiles: ["999_not_the_target.sql"],
-  });
-  assert.notEqual(
-    wrongBaseline.code,
-    0,
-    "baseline authorization for an unknown migration must fail closed",
-  );
-  assert.match(
-    `${wrongBaseline.stdout}\n${wrongBaseline.stderr}`,
-    /MIGRATION_CHECKSUM_BASELINE_FILES contains unknown migrations: 999_not_the_target\.sql/,
-    "runner must reject unknown migration names before baseline processing",
-  );
+  const wrongBaseline = await runMigration({ allowChecksumBaseline: true, checksumBaselineFiles: ["999_not_the_target.sql"] });
+  assert.notEqual(wrongBaseline.code, 0, "baseline authorization for an unknown migration must fail closed");
+  assert.match(`${wrongBaseline.stdout}\n${wrongBaseline.stderr}`, /MIGRATION_CHECKSUM_BASELINE_FILES contains unknown migrations: 999_not_the_target\.sql/);
 
-  const stillMissing = await holder.query(
-    "SELECT checksum FROM schema_migrations WHERE filename = $1",
-    ["001_core.sql"],
-  );
-  assert.equal(
-    stillMissing.rows[0]?.checksum ?? null,
-    null,
-    "failed baseline attempts must not mutate the migration checksum",
-  );
+  const stillMissing = await holder.query("SELECT checksum FROM schema_migrations WHERE filename = $1", ["001_core.sql"]);
+  assert.equal(stillMissing.rows[0]?.checksum ?? null, null, "failed baseline attempts must not mutate the migration checksum");
 
-  const explicitBaseline = await runMigration({
-    allowChecksumBaseline: true,
-    checksumBaselineFiles: ["001_core.sql"],
-  });
-  assert.equal(
-    explicitBaseline.code,
-    0,
-    `explicit checksum baseline adoption must succeed: ${explicitBaseline.stderr}`,
-  );
-  assert.match(
-    explicitBaseline.stdout,
-    /Recorded checksum baseline for migration 001_core\.sql/,
-    "explicit adoption must report the baselined migration",
-  );
+  const explicitBaseline = await runMigration({ allowChecksumBaseline: true, checksumBaselineFiles: ["001_core.sql"] });
+  assert.equal(explicitBaseline.code, 0, `explicit checksum baseline adoption must succeed: ${explicitBaseline.stderr}`);
+  assert.match(explicitBaseline.stdout, /Recorded checksum baseline for migration 001_core\.sql/);
 
-  const baselined = await holder.query(
-    "SELECT checksum FROM schema_migrations WHERE filename = $1",
-    ["001_core.sql"],
-  );
-  assert.equal(
-    baselined.rows[0]?.checksum,
-    originalChecksum,
-    "explicit adoption must persist the current migration SHA-256 checksum",
-  );
+  const baselined = await holder.query("SELECT checksum FROM schema_migrations WHERE filename = $1", ["001_core.sql"]);
+  assert.equal(baselined.rows[0]?.checksum, originalChecksum, "explicit adoption must persist the current migration SHA-256 checksum");
 
-  await holder.query(
-    "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
-    ["001_core.sql", "checksum-drift-regression"],
-  );
-
+  await holder.query("UPDATE schema_migrations SET checksum = $2 WHERE filename = $1", ["001_core.sql", "checksum-drift-regression"]);
   const drifted = await runMigration();
   assert.notEqual(drifted.code, 0, "migration checksum drift must fail closed");
-  assert.match(
-    `${drifted.stdout}\n${drifted.stderr}`,
-    /Migration checksum mismatch for 001_core\.sql/,
-    "migration runner must identify the drifted migration",
-  );
+  assert.match(`${drifted.stdout}\n${drifted.stderr}`, /Migration checksum mismatch for 001_core\.sql/);
 
-  await holder.query(
-    "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
-    ["001_core.sql", originalChecksum],
-  );
-
+  await holder.query("UPDATE schema_migrations SET checksum = $2 WHERE filename = $1", ["001_core.sql", originalChecksum]);
   const afterRestore = await runMigration();
-  assert.equal(
-    afterRestore.code,
-    0,
-    `migration runner must recover after checksum restoration: ${afterRestore.stderr}`,
-  );
+  assert.equal(afterRestore.code, 0, `migration runner must recover after checksum restoration: ${afterRestore.stderr}`);
 
-  console.log("Migration advisory lock and scoped checksum baseline regression checks passed");
+  console.log("Migration advisory lock, source integrity, and scoped checksum baseline regression checks passed");
 } finally {
+  try {
+    await holder.query("DELETE FROM schema_migrations WHERE filename = $1", ["000_missing_source_regression.sql"]);
+  } catch {
+    // Best-effort cleanup only.
+  }
   if (originalChecksum) {
     try {
-      await holder.query(
-        "UPDATE schema_migrations SET checksum = $2 WHERE filename = $1",
-        ["001_core.sql", originalChecksum],
-      );
+      await holder.query("UPDATE schema_migrations SET checksum = $2 WHERE filename = $1", ["001_core.sql", originalChecksum]);
     } catch {
       // Best-effort cleanup only; the regression result remains authoritative.
     }
   }
   try {
-    await holder.query(
-      "SELECT pg_advisory_unlock(hashtextextended($1::text, 0))",
-      [migrationLockKey],
-    );
+    await holder.query("SELECT pg_advisory_unlock(hashtextextended($1::text, 0))", [migrationLockKey]);
   } catch {
     // Connection cleanup releases any remaining session advisory lock.
   }
