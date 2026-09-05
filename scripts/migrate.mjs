@@ -44,8 +44,20 @@ try {
 
   const directory = join(process.cwd(), "db", "migrations");
   const files = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
+  const knownMigrations = new Set(files);
+  const appliedMigrationRows = await client.query(
+    "SELECT filename FROM schema_migrations ORDER BY filename",
+  );
+  const missingAppliedMigrationFiles = appliedMigrationRows.rows
+    .map((row) => row.filename)
+    .filter((filename) => !knownMigrations.has(filename));
+  if (missingAppliedMigrationFiles.length > 0) {
+    throw new Error(
+      `Applied migrations are missing from source tree: ${missingAppliedMigrationFiles.join(", ")}`,
+    );
+  }
+
   if (allowChecksumBaseline) {
-    const knownMigrations = new Set(files);
     const unknownBaselineFiles = [...checksumBaselineFiles].filter(
       (filename) => !knownMigrations.has(filename),
     );
