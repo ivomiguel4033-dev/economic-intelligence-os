@@ -16,9 +16,13 @@ function hasValidPermissionSet(permissions: string[]): boolean {
   return permissions.every(isValidPermission);
 }
 
+function hasValidPrincipalIdentity(principal: TenantPrincipal): boolean {
+  return isValidTenantId(principal.actorId) && isValidTenantId(principal.organizationId);
+}
+
 export function assertTenantBoundary(principal: TenantPrincipal, resourceOrganizationId: string): void {
   if (
-    !isValidTenantId(principal.organizationId) ||
+    !hasValidPrincipalIdentity(principal) ||
     !isValidTenantId(resourceOrganizationId) ||
     principal.organizationId !== resourceOrganizationId
   ) {
@@ -28,6 +32,7 @@ export function assertTenantBoundary(principal: TenantPrincipal, resourceOrganiz
 
 export function assertPermission(principal: TenantPrincipal, permission: string): void {
   if (
+    !hasValidPrincipalIdentity(principal) ||
     !isValidPermission(permission) ||
     !hasValidPermissionSet(principal.permissions) ||
     (!principal.permissions.includes(permission) && !principal.permissions.includes("*"))
