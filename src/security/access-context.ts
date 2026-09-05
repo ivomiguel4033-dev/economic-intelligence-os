@@ -7,12 +7,12 @@ export interface AccessContext {
   permissions: string[];
 }
 
-function isCanonicalIdentifier(value: string): boolean {
-  return value.length > 0 && value.trim() === value;
+function isCanonicalIdentifier(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.trim() === value;
 }
 
 function isCanonicalStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && isCanonicalIdentifier(entry));
+  return Array.isArray(value) && value.every((entry) => isCanonicalIdentifier(entry));
 }
 
 export async function resolveAccessContext(actorId: string, organizationId: string): Promise<AccessContext> {
@@ -33,7 +33,7 @@ export async function resolveAccessContext(actorId: string, organizationId: stri
   const roles: string[] = [];
   const permissions: string[] = [];
   for (const row of membership.rows) {
-    if (typeof row.role !== "string" || !isCanonicalIdentifier(row.role)) {
+    if (!isCanonicalIdentifier(row.role)) {
       throw new Error("Invalid organization role configuration");
     }
     if (row.permissions !== null && row.permissions !== undefined && !isCanonicalStringArray(row.permissions)) {

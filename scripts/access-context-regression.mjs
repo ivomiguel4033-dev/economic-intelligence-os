@@ -14,21 +14,29 @@ async function withRows(rows, assertion) {
   }
 }
 
-await assert.rejects(() => resolveAccessContext("", "org-a"), /Invalid access context identity/);
-await assert.rejects(() => resolveAccessContext(" actor-a", "org-a"), /Invalid access context identity/);
-await assert.rejects(() => resolveAccessContext("actor-a", "org-a "), /Invalid access context identity/);
+for (const [actorId, organizationId] of [
+  ["", "org-a"],
+  [" actor-a", "org-a"],
+  ["actor-a", "org-a "],
+  [null, "org-a"],
+  [42, "org-a"],
+  ["actor-a", null],
+  ["actor-a", 42],
+]) {
+  await assert.rejects(() => resolveAccessContext(actorId, organizationId), /Invalid access context identity/);
+}
 
 await withRows([], async () => {
   await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Organization membership required/);
 });
 
-for (const role of ["", " ", " admin", "admin "]) {
+for (const role of [null, 42, "", " ", " admin", "admin "]) {
   await withRows([{ role, permissions: ["decision:read"] }], async () => {
     await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Invalid organization role configuration/);
   });
 }
 
-for (const permissions of ["decision:read", [""], [" decision:read"], ["decision:read "]]) {
+for (const permissions of ["decision:read", [null], [42], [""], [" decision:read"], ["decision:read "]]) {
   await withRows([{ role: "admin", permissions }], async () => {
     await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Invalid organization permission configuration/);
   });
