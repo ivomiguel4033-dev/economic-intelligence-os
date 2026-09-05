@@ -54,6 +54,31 @@ try {
         `MIGRATION_CHECKSUM_BASELINE_FILES contains unknown migrations: ${unknownBaselineFiles.join(", ")}`,
       );
     }
+
+    const missingChecksumRows = await client.query(
+      "SELECT filename FROM schema_migrations WHERE checksum IS NULL ORDER BY filename",
+    );
+    const baselineTargets = new Set(
+      missingChecksumRows.rows
+        .map((row) => row.filename)
+        .filter((filename) => knownMigrations.has(filename)),
+    );
+    const staleBaselineFiles = [...checksumBaselineFiles].filter(
+      (filename) => !baselineTargets.has(filename),
+    );
+    if (staleBaselineFiles.length > 0) {
+      throw new Error(
+        `Checksum baseline authorization was not consumed for migrations: ${staleBaselineFiles.join(", ")}`,
+      );
+    }
+    const unauthorizedBaselineTargets = [...baselineTargets].filter(
+      (filename) => !checksumBaselineFiles.has(filename),
+    );
+    if (unauthorizedBaselineTargets.length > 0) {
+      throw new Error(
+        `Checksum baseline authorization is missing migrations that require adoption: ${unauthorizedBaselineTargets.join(", ")}`,
+      );
+    }
   }
   const adoptedChecksumBaselines = new Set();
 
