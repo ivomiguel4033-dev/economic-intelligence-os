@@ -20,6 +20,25 @@ assert(
   readinessSource.indexOf("database_pool_saturated") < databaseProbeIndex,
   "Pool saturation guard must execute before the database readiness probe",
 );
+assert(
+  /await client\.query\(["']BEGIN["']\)/.test(readinessSource) &&
+    /await client\.query\(`SET LOCAL statement_timeout = '\$\{readinessStatementTimeoutMs\}ms'`\)/.test(readinessSource) &&
+    /await client\.query\(["']SELECT 1["']\)/.test(readinessSource) &&
+    /await client\.query\(["']COMMIT["']\)/.test(readinessSource),
+  "Readiness must keep its dependency probe inside a bounded dedicated transaction",
+);
+assert(
+  /if \(client && transactionStarted\)[\s\S]*?await client\.query\(["']ROLLBACK["']\)/.test(readinessSource),
+  "Readiness must rollback a started transaction after probe failure",
+);
+assert(
+  /catch \{[\s\S]*?client\.release\(true\);[\s\S]*?client = undefined;[\s\S]*?\}/.test(readinessSource),
+  "Readiness must destroy a client whose rollback fails instead of returning it to the pool",
+);
+assert(
+  /finally \{[\s\S]*?client\?\.release\(\);[\s\S]*?\}/.test(readinessSource),
+  "Readiness must release a recoverable dedicated client on every exit path",
+);
 
 async function waitForServer(baseUrl) {
   const deadline = Date.now() + 20_000;
