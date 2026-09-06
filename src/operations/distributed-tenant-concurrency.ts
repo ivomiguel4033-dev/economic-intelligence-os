@@ -9,17 +9,34 @@ export type DistributedTenantConcurrencyLease = {
 };
 
 function configuredLimit(): number {
-  const parsed = Number.parseInt(process.env.ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT ?? "2", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+  const raw = process.env.ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT ?? "2";
+  if (!/^\d+$/.test(raw)) return 2;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 2;
 }
 
 function boundedTtlSeconds(ttlSeconds: number): number {
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) {
+    throw new Error("Distributed tenant concurrency ttlSeconds must be a positive safe integer");
+  }
   return Math.max(5, Math.min(ttlSeconds, 3600));
 }
 
 function configuredLockTimeoutMillis(): number {
-  const parsed = Number.parseInt(process.env.ORCHESTRATION_TENANT_LOCK_TIMEOUT_MS ?? "1000", 10);
-  return Number.isFinite(parsed) ? Math.max(100, Math.min(parsed, 5000)) : 1000;
+  const raw = process.env.ORCHESTRATION_TENANT_LOCK_TIMEOUT_MS ?? "1000";
+  if (!/^\d+$/.test(raw)) return 1000;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? Math.max(100, Math.min(parsed, 5000))
+    : 1000;
+}
+
+function validOrganizationId(organizationId: string): boolean {
+  return typeof organizationId === "string"
+    && organizationId.length > 0
+    && organizationId.length <= 128
+    && organizationId === organizationId.trim()
+    && !/[\u0000-\u001f\u007f]/.test(organizationId);
 }
 
 function postgresErrorCode(error: unknown): string | undefined {
@@ -32,7 +49,9 @@ export async function tryAcquireDistributedTenantConcurrency(
   organizationId: string,
   ttlSeconds = 120,
 ): Promise<DistributedTenantConcurrencyLease | null> {
-  if (!organizationId) throw new Error("Distributed tenant concurrency requires organizationId");
+  if (!validOrganizationId(organizationId)) {
+    throw new Error("Distributed tenant concurrency requires a valid organizationId");
+  }
 
   const leaseToken = randomUUID();
   const ttl = boundedTtlSeconds(ttlSeconds);
