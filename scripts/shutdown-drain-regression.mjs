@@ -57,7 +57,7 @@ for (const [name, route] of [["decisions", decisionsRoute], ["orchestrate", orch
 }
 
 const drainCheckIndex = readiness.indexOf("if (isDraining())");
-const databaseProbeIndex = readiness.indexOf("await db.query(");
+const databaseProbeIndex = readiness.indexOf("await db.connect()");
 assert(drainCheckIndex >= 0, "Readiness must check drain state");
 assert(databaseProbeIndex >= 0, "Readiness database probe missing");
 assert(
