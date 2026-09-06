@@ -74,6 +74,8 @@ jobs:
         run: node scripts/execution-reliability-regression.mjs
       - name: AI provider failover regression checks
         run: node scripts/ai-failover-regression.mjs
+      - name: Circuit breaker regression checks
+        run: node scripts/circuit-breaker-regression.mjs
       - name: Shutdown drain/readiness regression checks
         run: node scripts/shutdown-drain-regression.mjs
       - name: Orchestration load-shedding regression checks
