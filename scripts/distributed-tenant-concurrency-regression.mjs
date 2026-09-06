@@ -26,6 +26,13 @@ assert.match(source, /WHERE organization_id=\$1(?:::uuid)?\s+AND lease_token=\$2
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
 assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
+assert.match(source, /Number\.isSafeInteger\(ttlSeconds\) &&?[^\n]*ttlSeconds > 0|!Number\.isSafeInteger\(ttlSeconds\) \|\| ttlSeconds <= 0/, "lease TTL must reject unsafe or non-positive values");
+assert.match(source, /organizationId\.length <= 128/, "organization identifiers must have a bounded length");
+assert.match(source, /organizationId === organizationId\.trim\(\)/, "organization identifiers must reject ambiguous surrounding whitespace");
+assert.match(source, /\\u0000-\\u001f\\u007f/, "organization identifiers must reject control characters");
+assert.match(source, /\^\\d\+\$/.source ? /\^\\d\+\$/ : /ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT/, "numeric configuration must be parsed strictly");
+assert.match(source, /Number\.isSafeInteger\(parsed\) && parsed > 0/, "numeric configuration must stay within the safe positive integer domain");
+assert.match(source, /Math\.max\(100, Math\.min\(parsed, 5000\)\)/, "tenant lock timeout must remain operationally bounded");
 
 const pool = new Pool({ connectionString, max: 12 });
 
