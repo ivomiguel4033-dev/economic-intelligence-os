@@ -11,7 +11,7 @@ assert.throws(() => assertTenantBoundary({ ...tenantA, organizationId: "org-a " 
 assert.throws(() => assertTenantBoundary(tenantA, " org-a"), /Cross-tenant access denied/);
 assert.throws(() => assertTenantBoundary(tenantA, "org-a "), /Cross-tenant access denied/);
 
-for (const malformedActorId of ["", " ", " actor-a", "actor-a "]) {
+for (const malformedActorId of ["", " ", " actor-a", "actor-a ", "actor\nadmin", "actor\tadmin", "actor\u0000admin", 42, null]) {
   const malformedPrincipal = { ...tenantA, actorId: malformedActorId };
   assert.throws(
     () => assertTenantBoundary(malformedPrincipal, "org-a"),
@@ -23,6 +23,21 @@ for (const malformedActorId of ["", " ", " actor-a", "actor-a "]) {
   );
 }
 
+for (const malformedOrganizationId of ["org\nadmin", "org\tadmin", "org\u0000admin", 42, null]) {
+  assert.throws(
+    () => assertTenantBoundary({ ...tenantA, organizationId: malformedOrganizationId }, "org-a"),
+    /Cross-tenant access denied/,
+  );
+  assert.throws(
+    () => assertPermission({ ...tenantA, organizationId: malformedOrganizationId }, "decision:read"),
+    /Permission denied/,
+  );
+  assert.throws(
+    () => assertTenantBoundary(tenantA, malformedOrganizationId),
+    /Cross-tenant access denied/,
+  );
+}
+
 assert.doesNotThrow(() => assertPermission(tenantA, "decision:read"));
 assert.throws(() => assertPermission(tenantA, "decision:execute"), /Permission denied/);
 assert.throws(() => assertPermission(tenantA, ""), /Permission denied/);
@@ -30,16 +45,27 @@ assert.throws(() => assertPermission(tenantA, " decision:read"), /Permission den
 assert.throws(() => assertPermission(tenantA, "decision:read "), /Permission denied/);
 assert.doesNotThrow(() => assertPermission({ ...tenantA, permissions: ["*"] }, "decision:execute"));
 
+for (const malformedPermission of ["decision:\nread", "decision:\tread", "decision:\u0000read", 42, null]) {
+  assert.throws(() => assertPermission(tenantA, malformedPermission), /Permission denied/);
+}
+
 // Permission sets are authorization input. Any malformed entry must poison the
 // whole set instead of being ignored, including when another entry would grant
 // the requested permission or wildcard access.
-for (const malformed of ["", " decision:read", "decision:read ", " "]) {
+for (const malformed of ["", " decision:read", "decision:read ", " ", "decision:\nread", "decision:\tread", "decision:\u0000read", 42, null]) {
   assert.throws(
     () => assertPermission({ ...tenantA, permissions: ["decision:read", malformed] }, "decision:read"),
     /Permission denied/,
   );
   assert.throws(
     () => assertPermission({ ...tenantA, permissions: ["*", malformed] }, "decision:execute"),
+    /Permission denied/,
+  );
+}
+
+for (const malformedPermissionSet of [null, "decision:read", { permission: "decision:read" }, 42]) {
+  assert.throws(
+    () => assertPermission({ ...tenantA, permissions: malformedPermissionSet }, "decision:read"),
     /Permission denied/,
   );
 }
