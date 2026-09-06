@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { executionIdempotencyKey } from "../src/execution/idempotency.ts";
 
 function retryDelay(attempt, policy = { maxAttempts: 3, baseDelayMs: 250, maxDelayMs: 2000 }) {
   return Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** Math.max(0, attempt - 1));
@@ -26,6 +27,30 @@ breaker.failure(); breaker.failure();
 assert.equal(breaker.canExecute(), true);
 breaker.failure();
 assert.equal(breaker.canExecute(), false);
+
+const validIdempotencyKey = executionIdempotencyKey({ organizationId: "org-a", actionId: "action-1", actionType: "decision.execute" });
+assert.match(validIdempotencyKey, /^[a-f0-9]{64}$/);
+assert.equal(
+  executionIdempotencyKey({ organizationId: "org-a", actionId: "action-1", actionType: "decision.execute" }),
+  validIdempotencyKey,
+  "identical execution identity must derive the same idempotency key",
+);
+assert.notEqual(
+  executionIdempotencyKey({ organizationId: "org-b", actionId: "action-1", actionType: "decision.execute" }),
+  validIdempotencyKey,
+  "organization identity must be part of the idempotency key",
+);
+
+for (const invalidValue of ["", " value", "value ", "value:other", "value\nother", "value\tother", 42, null]) {
+  for (const field of ["organizationId", "actionId", "actionType"]) {
+    const input = { organizationId: "org-a", actionId: "action-1", actionType: "decision.execute", [field]: invalidValue };
+    assert.throws(() => executionIdempotencyKey(input), /Invalid idempotency/);
+  }
+}
+assert.throws(
+  () => executionIdempotencyKey({ organizationId: "o".repeat(257), actionId: "action-1", actionType: "decision.execute" }),
+  /Invalid idempotency organizationId/,
+);
 
 const leaseSource = readFileSync(new URL("../src/execution/execution-lease.ts", import.meta.url), "utf8");
 assert.match(leaseSource, /async renew\(leaseKey: string, ttlSeconds = 60, fencingToken\?: string\)/);
