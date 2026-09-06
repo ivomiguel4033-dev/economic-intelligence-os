@@ -14,8 +14,10 @@ assert(
   /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.total >= pool\.max && pool\.idle === 0\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
   "Readiness must fail fast without querying PostgreSQL when the connection pool is saturated",
 );
+const databaseProbeIndex = readinessSource.indexOf("await db.connect()");
+assert(databaseProbeIndex !== -1, "Readiness must acquire a dedicated PostgreSQL client for its transactional probe");
 assert(
-  readinessSource.indexOf("database_pool_saturated") < readinessSource.indexOf("await db.query"),
+  readinessSource.indexOf("database_pool_saturated") < databaseProbeIndex,
   "Pool saturation guard must execute before the database readiness probe",
 );
 
