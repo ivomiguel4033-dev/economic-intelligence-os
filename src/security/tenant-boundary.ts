@@ -4,16 +4,27 @@ export interface TenantPrincipal {
   permissions: string[];
 }
 
-function isValidTenantId(value: string): boolean {
-  return value.length > 0 && value.trim() === value && value.trim().length > 0;
+const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/;
+
+function isCanonicalAuthorizationValue(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    !CONTROL_CHARACTERS.test(value)
+  );
 }
 
-function isValidPermission(value: string): boolean {
-  return value.length > 0 && value.trim() === value;
+function isValidTenantId(value: unknown): value is string {
+  return isCanonicalAuthorizationValue(value);
 }
 
-function hasValidPermissionSet(permissions: string[]): boolean {
-  return permissions.every(isValidPermission);
+function isValidPermission(value: unknown): value is string {
+  return isCanonicalAuthorizationValue(value);
+}
+
+function hasValidPermissionSet(permissions: unknown): permissions is string[] {
+  return Array.isArray(permissions) && permissions.every(isValidPermission);
 }
 
 function hasValidPrincipalIdentity(principal: TenantPrincipal): boolean {
