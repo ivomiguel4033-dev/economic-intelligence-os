@@ -17,6 +17,6 @@ assert.ok(loopIndex >= 0 && catchIndex > loopIndex, "provider failures must be h
 assert.ok(finallyIndex > catchIndex, "timeout cleanup must execute after provider success or failure handling");
 
 assert.match(source, /failures\.push\(`\$\{provider\.name\}:/, "failover diagnostics must retain the provider name");
-assert.match(source, /failures\.join\("; "\)/, "terminal failure must aggregate provider diagnostics");
+assert.match(source, /All AI providers failed: \$\{failures\.join\(["'][^"']+["']\)\}/, "terminal failure must aggregate provider diagnostics");
 
 console.log("AI failover regression checks passed");
