@@ -31,12 +31,17 @@ export async function GET() {
   }
 
   const started = Date.now();
+  let client;
+  let transactionStarted = false;
   try {
-    // Keep the probe bounded inside PostgreSQL itself. Using SET LOCAL in the
-    // same transaction avoids leaking the timeout to another pooled request.
-    await db.query(
-      `BEGIN; SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'; SELECT 1; COMMIT;`,
-    );
+    client = await db.connect();
+    await client.query("BEGIN");
+    transactionStarted = true;
+    await client.query(`SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'`);
+    await client.query("SELECT 1");
+    await client.query("COMMIT");
+    transactionStarted = false;
+
     return NextResponse.json(
       {
         status: "ready",
@@ -49,6 +54,17 @@ export async function GET() {
       { status: 200, headers: responseHeaders },
     );
   } catch {
+    if (client && transactionStarted) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // The probe is already unhealthy. release(true) below discards a
+        // connection whose transaction state could not be recovered safely.
+        client.release(true);
+        client = undefined;
+      }
+    }
+
     return NextResponse.json(
       {
         status: "not_ready",
@@ -60,5 +76,7 @@ export async function GET() {
       },
       { status: 503, headers: { ...responseHeaders, "Retry-After": "1" } },
     );
+  } finally {
+    client?.release();
   }
 }
