@@ -18,6 +18,8 @@ for (const [actorId, organizationId] of [
   ["", "org-a"],
   [" actor-a", "org-a"],
   ["actor-a", "org-a "],
+  ["actor\na", "org-a"],
+  ["actor-a", "org\ta"],
   [null, "org-a"],
   [42, "org-a"],
   ["actor-a", null],
@@ -30,13 +32,13 @@ await withRows([], async () => {
   await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Organization membership required/);
 });
 
-for (const role of [null, 42, "", " ", " admin", "admin "]) {
+for (const role of [null, 42, "", " ", " admin", "admin ", "ad\nmin"]) {
   await withRows([{ role, permissions: ["decision:read"] }], async () => {
     await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Invalid organization role configuration/);
   });
 }
 
-for (const permissions of ["decision:read", [null], [42], [""], [" decision:read"], ["decision:read "]]) {
+for (const permissions of ["decision:read", [null], [42], [""], [" decision:read"], ["decision:read "], ["decision:\nread"]]) {
   await withRows([{ role: "admin", permissions }], async () => {
     await assert.rejects(() => resolveAccessContext("actor-a", "org-a"), /Invalid organization permission configuration/);
   });

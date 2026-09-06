@@ -8,7 +8,12 @@ export interface AccessContext {
 }
 
 function isCanonicalIdentifier(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.trim() === value;
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
 }
 
 function isCanonicalStringArray(value: unknown): value is string[] {
