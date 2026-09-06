@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { executionIdempotencyKey } from "../src/execution/idempotency.ts";
+import { isRetryableStatus, retryDelay } from "../src/execution/retry-policy.ts";
 
-function retryDelay(attempt, policy = { maxAttempts: 3, baseDelayMs: 250, maxDelayMs: 2000 }) {
-  return Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** Math.max(0, attempt - 1));
-}
 function evaluateReexecution(result) {
   if (result.status === "confirmed_succeeded") return { mayReexecute: false };
   if (result.status === "still_uncertain") return { mayReexecute: false };
@@ -19,6 +17,23 @@ class CircuitBreaker {
 assert.equal(retryDelay(1), 250);
 assert.equal(retryDelay(2), 500);
 assert.equal(retryDelay(10), 2000);
+assert.equal(retryDelay(Number.MAX_SAFE_INTEGER), 2000, "very large attempts must cap without overflow");
+for (const invalidAttempt of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+  assert.throws(() => retryDelay(invalidAttempt), /Invalid retry policy attempt/);
+}
+for (const invalidPolicy of [
+  { maxAttempts: 0, baseDelayMs: 250, maxDelayMs: 2000 },
+  { maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 2000 },
+  { maxAttempts: 3, baseDelayMs: 250, maxDelayMs: 0 },
+  { maxAttempts: 3.5, baseDelayMs: 250, maxDelayMs: 2000 },
+  { maxAttempts: 3, baseDelayMs: 2001, maxDelayMs: 2000 },
+]) {
+  assert.throws(() => retryDelay(1, invalidPolicy), /Invalid retry policy/);
+}
+for (const status of [408, 429, 500, 503, 599]) assert.equal(isRetryableStatus(status), true);
+for (const status of [99, 200, 400, 499, 600, 500.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+  assert.equal(isRetryableStatus(status), false);
+}
 assert.equal(evaluateReexecution({ status: "confirmed_succeeded" }).mayReexecute, false);
 assert.equal(evaluateReexecution({ status: "still_uncertain" }).mayReexecute, false);
 assert.equal(evaluateReexecution({ status: "confirmed_failed" }).mayReexecute, true);
