@@ -3,10 +3,16 @@ type TenantConcurrencyState = {
 };
 
 const tenantConcurrency = new Map<string, TenantConcurrencyState>();
+const DEFAULT_MAX_CONCURRENCY_PER_TENANT = 2;
 
 function configuredLimit(): number {
-  const parsed = Number.parseInt(process.env.ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT ?? "2", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+  const raw = process.env.ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT;
+  if (!raw) return DEFAULT_MAX_CONCURRENCY_PER_TENANT;
+
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_CONCURRENCY_PER_TENANT;
 }
 
 export function tryAcquireTenantConcurrency(organizationId: string): (() => void) | null {
