@@ -59,9 +59,11 @@ export async function tryAcquireDistributedTenantConcurrency(
   const lockTimeoutMillis = configuredLockTimeoutMillis();
   const client = await db.connect();
   let discardClient = false;
+  let transactionOpen = false;
 
   try {
     await client.query("BEGIN");
+    transactionOpen = true;
     await client.query("SELECT set_config('lock_timeout', $1, true)", [`${lockTimeoutMillis}ms`]);
     await client.query(
       `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
@@ -81,6 +83,7 @@ export async function tryAcquireDistributedTenantConcurrency(
 
     if ((capacity.rows[0]?.active ?? limit) >= limit) {
       await client.query("COMMIT");
+      transactionOpen = false;
       incrementMetric("tenant_concurrency_limited_total");
       return null;
     }
@@ -92,6 +95,7 @@ export async function tryAcquireDistributedTenantConcurrency(
       [organizationId, leaseToken, ttl],
     );
     await client.query("COMMIT");
+    transactionOpen = false;
 
     if (acquired.rows[0]?.lease_token !== leaseToken) {
       incrementMetric("tenant_concurrency_acquire_failures_total");
@@ -99,9 +103,17 @@ export async function tryAcquireDistributedTenantConcurrency(
     }
     incrementMetric("tenant_concurrency_acquired_total");
   } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
+    if (transactionOpen) {
+      try {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+      } catch {
+        discardClient = true;
+      }
+    } else {
+      // A failed COMMIT has an ambiguous transaction outcome. Never reuse the
+      // session: the server may have committed even though the client observed
+      // an error, and a follow-up ROLLBACK cannot make that outcome certain.
       discardClient = true;
     }
     if (postgresErrorCode(error) === "55P03") {
