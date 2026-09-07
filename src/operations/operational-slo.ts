@@ -38,6 +38,12 @@ function assertOperationalCount(value: number, name: string): void {
   }
 }
 
+function assertPositiveThreshold(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive safe integer`);
+  }
+}
+
 export function getOutboxSloThresholds(): OutboxSloThresholds {
   return {
     readyBacklog: positiveInteger(
@@ -64,6 +70,10 @@ export function evaluateOutboxSlo(
   assertOperationalCount(snapshot.failed, "snapshot.failed");
   assertOperationalCount(snapshot.deadLettered, "snapshot.deadLettered");
   assertOperationalCount(snapshot.oldestReadyAgeSeconds, "snapshot.oldestReadyAgeSeconds");
+
+  assertPositiveThreshold(thresholds.readyBacklog, "thresholds.readyBacklog");
+  assertPositiveThreshold(thresholds.failedMessages, "thresholds.failedMessages");
+  assertPositiveThreshold(thresholds.oldestReadyAgeSeconds, "thresholds.oldestReadyAgeSeconds");
 
   return {
     backlogBreached: snapshot.ready >= thresholds.readyBacklog,
