@@ -21,7 +21,9 @@ assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at <= NOW
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\(\)/, "capacity must count only active leases for the tenant");
 assert.match(source, /if \(\(capacity\.rows\[0\]\?\.active \?\? limit\) >= limit\)/, "acquisition must fail closed at the configured limit");
 assert.match(source, /await client\.query\("ROLLBACK"\)/, "failed acquisition must attempt transaction rollback");
-assert.match(source, /finally \{\s*client\.release\(\);\s*\}/s, "acquisition must always return the PostgreSQL connection to the pool");
+assert.match(source, /let discardClient = false;/, "acquisition must track whether a failed rollback poisoned the PostgreSQL client");
+assert.match(source, /catch \{\s*discardClient = true;\s*\}/s, "failed rollback must mark the PostgreSQL client for destruction");
+assert.match(source, /finally \{\s*client\.release\(discardClient\);\s*\}/s, "acquisition must always release the PostgreSQL client and discard it when rollback failed");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)?\s+AND lease_token=\$2(?:::uuid)?\s+AND expires_at > NOW\(\)/s, "renewal must be tenant/token fenced and refuse expired leases");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
