@@ -58,6 +58,7 @@ export async function tryAcquireDistributedTenantConcurrency(
   const limit = configuredLimit();
   const lockTimeoutMillis = configuredLockTimeoutMillis();
   const client = await db.connect();
+  let discardClient = false;
 
   try {
     await client.query("BEGIN");
@@ -101,7 +102,7 @@ export async function tryAcquireDistributedTenantConcurrency(
     try {
       await client.query("ROLLBACK");
     } catch {
-      // Preserve the original acquisition failure.
+      discardClient = true;
     }
     if (postgresErrorCode(error) === "55P03") {
       incrementMetric("tenant_concurrency_limited_total");
@@ -110,7 +111,7 @@ export async function tryAcquireDistributedTenantConcurrency(
     incrementMetric("tenant_concurrency_acquire_failures_total");
     throw error;
   } finally {
-    client.release();
+    client.release(discardClient);
   }
 
   let releasePromise: Promise<void> | undefined;
