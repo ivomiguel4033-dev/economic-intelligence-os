@@ -64,4 +64,46 @@ assert.equal(
   "integers above Number.MAX_SAFE_INTEGER must fall back to the production default",
 );
 
+const runtimeThresholdHelperMatch = source.match(
+  /function assertPositiveThreshold\(value: number, name: string\): void \{[\s\S]*?\n\}/,
+);
+assert.ok(
+  runtimeThresholdHelperMatch,
+  "runtime outbox SLO thresholds must remain guarded by assertPositiveThreshold",
+);
+
+const executableRuntimeThresholdHelper = runtimeThresholdHelperMatch[0]
+  .replace("function assertPositiveThreshold(value: number, name: string): void", "function assertPositiveThreshold(value, name)");
+const assertPositiveThreshold = new Function(
+  `${executableRuntimeThresholdHelper}; return assertPositiveThreshold;`,
+)();
+
+for (const value of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+  assert.throws(
+    () => assertPositiveThreshold(value, "threshold"),
+    /threshold must be a positive safe integer/,
+    `runtime threshold ${String(value)} must fail closed`,
+  );
+}
+assert.doesNotThrow(
+  () => assertPositiveThreshold(1, "threshold"),
+  "the smallest positive safe integer must remain valid at runtime",
+);
+assert.doesNotThrow(
+  () => assertPositiveThreshold(Number.MAX_SAFE_INTEGER, "threshold"),
+  "the largest positive safe integer must remain valid at runtime",
+);
+
+for (const thresholdName of [
+  "readyBacklog",
+  "failedMessages",
+  "oldestReadyAgeSeconds",
+]) {
+  assert.match(
+    source,
+    new RegExp(`assertPositiveThreshold\\(thresholds\\.${thresholdName},`),
+    `thresholds.${thresholdName} must be validated before SLO evaluation`,
+  );
+}
+
 console.log("Operational SLO regression checks passed");
