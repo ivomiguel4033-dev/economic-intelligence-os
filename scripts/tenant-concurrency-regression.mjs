@@ -31,6 +31,39 @@ assert.match(
   "release must remain tenant and lease-token scoped",
 );
 
+assert.match(guard, /if \(!\/\^\\d\+\$\/\.test\(raw\)\) return 2;/, "tenant limit configuration must reject ambiguous numeric strings");
+assert.match(guard, /Number\.isSafeInteger\(parsed\) && parsed > 0 \? parsed : 2/, "tenant limit configuration must accept only positive safe integers");
+assert.doesNotMatch(guard, /parseInt\(/, "tenant limit configuration must not use permissive parseInt parsing");
+
+const configuredLimitMatch = guard.match(/function configuredLimit\(\): number \{[\s\S]*?\n\}/);
+assert.ok(configuredLimitMatch, "configuredLimit helper must remain available for regression validation");
+const executableConfiguredLimit = configuredLimitMatch[0]
+  .replace("function configuredLimit(): number", "function configuredLimit")
+  .replaceAll("process.env", "env");
+const configuredLimit = new Function("env", `${executableConfiguredLimit}; return configuredLimit;`);
+
+for (const [raw, expected] of [
+  [undefined, 2],
+  ["1", 1],
+  ["25", 25],
+  ["0", 2],
+  ["-1", 2],
+  ["2.5", 2],
+  ["2abc", 2],
+  [" 2", 2],
+  ["2 ", 2],
+  ["+2", 2],
+  ["Infinity", 2],
+  [String(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER],
+  [String(Number.MAX_SAFE_INTEGER + 1), 2],
+]) {
+  assert.equal(
+    configuredLimit({ ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT: raw })(),
+    expected,
+    `tenant concurrency limit ${String(raw)} must resolve safely`,
+  );
+}
+
 const authIndex = route.indexOf("await resolveAuthenticatedContext(");
 const authorizationIndex = route.indexOf("requireAuthorization(");
 const acquireIndex = route.indexOf("await tryAcquireDistributedTenantConcurrency(organizationId)");
