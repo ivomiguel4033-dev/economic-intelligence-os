@@ -22,8 +22,12 @@ assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND expires_at > NOW\
 assert.match(source, /if \(\(capacity\.rows\[0\]\?\.active \?\? limit\) >= limit\)/, "acquisition must fail closed at the configured limit");
 assert.match(source, /await client\.query\("ROLLBACK"\)/, "failed acquisition must attempt transaction rollback");
 assert.match(source, /let discardClient = false;/, "acquisition must track whether a failed rollback poisoned the PostgreSQL client");
+assert.match(source, /let transactionOpen = false;/, "acquisition must explicitly track transaction state");
+assert.match(source, /await client\.query\("BEGIN"\);\s*transactionOpen = true;/s, "transaction state must become open only after BEGIN succeeds");
+assert.match(source, /await client\.query\("COMMIT"\);\s*transactionOpen = false;/s, "successful COMMIT must close the tracked transaction state");
+assert.match(source, /if \(transactionOpen\) \{[\s\S]*?await client\.query\("ROLLBACK"\);[\s\S]*?\} else \{[\s\S]*?discardClient = true;[\s\S]*?\}/, "a failed COMMIT must be treated as ambiguous and force PostgreSQL client destruction");
 assert.match(source, /catch \{\s*discardClient = true;\s*\}/s, "failed rollback must mark the PostgreSQL client for destruction");
-assert.match(source, /finally \{\s*client\.release\(discardClient\);\s*\}/s, "acquisition must always release the PostgreSQL client and discard it when rollback failed");
+assert.match(source, /finally \{\s*client\.release\(discardClient\);\s*\}/s, "acquisition must always release the PostgreSQL client and discard it when transaction outcome is unsafe");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)?\s+AND lease_token=\$2(?:::uuid)?\s+AND expires_at > NOW\(\)/s, "renewal must be tenant/token fenced and refuse expired leases");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
