@@ -38,7 +38,7 @@ assert.doesNotMatch(guard, /parseInt\(/, "tenant limit configuration must not us
 const configuredLimitMatch = guard.match(/function configuredLimit\(\): number \{[\s\S]*?\n\}/);
 assert.ok(configuredLimitMatch, "configuredLimit helper must remain available for regression validation");
 const executableConfiguredLimit = configuredLimitMatch[0]
-  .replace("function configuredLimit(): number", "function configuredLimit")
+  .replace("function configuredLimit(): number", "function configuredLimit()")
   .replaceAll("process.env", "env");
 const configuredLimit = new Function("env", `${executableConfiguredLimit}; return configuredLimit;`);
 
