@@ -11,14 +11,19 @@ function assert(condition, message) {
 
 const readinessSource = await readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8");
 assert(
-  /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.total >= pool\.max && pool\.idle === 0\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
-  "Readiness must fail fast without querying PostgreSQL when the connection pool is saturated",
+  /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.waiting > 0 \|\| \(pool\.total >= pool\.max && pool\.idle === 0\)\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
+  "Readiness must fail fast without querying PostgreSQL when the connection pool is saturated or already has queued work",
 );
-const databaseProbeIndex = readinessSource.indexOf("await db.connect()");
-assert(databaseProbeIndex !== -1, "Readiness must acquire a dedicated PostgreSQL client for its transactional probe");
+const databaseProbeIndex = readinessSource.indexOf("client = await connectForReadiness()");
+assert(databaseProbeIndex !== -1, "Readiness must acquire a dedicated PostgreSQL client through its bounded connection probe");
 assert(
   readinessSource.indexOf("database_pool_saturated") < databaseProbeIndex,
   "Pool saturation guard must execute before the database readiness probe",
+);
+assert(
+  /const readinessConnectionTimeoutMs = 1_000;/.test(readinessSource) &&
+    /Promise\.race\(\[[\s\S]*?db\.connect\(\)[\s\S]*?readinessConnectionTimeoutMs[\s\S]*?\]\)/.test(readinessSource),
+  "Readiness PostgreSQL connection acquisition must remain independently bounded to one second",
 );
 assert(
   /await client\.query\(["']BEGIN["']\)/.test(readinessSource) &&
