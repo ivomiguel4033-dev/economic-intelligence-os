@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { db, getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import { isDraining } from "@/operations/drain-state";
 
@@ -28,10 +29,10 @@ function notReady(reason: string) {
   );
 }
 
-async function connectForReadiness() {
+async function connectForReadiness(): Promise<PoolClient> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
-  const connection = db.connect();
+  const connection: Promise<PoolClient> = db.connect();
 
   try {
     return await Promise.race([
@@ -60,7 +61,7 @@ async function connectForReadiness() {
 }
 
 async function queryForReadiness(
-  client: Awaited<ReturnType<typeof db.connect>>,
+  client: PoolClient,
   text: string,
 ): Promise<void> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -104,7 +105,7 @@ export async function GET() {
   }
 
   const started = Date.now();
-  let client;
+  let client: PoolClient | undefined;
   let transactionStarted = false;
   try {
     // The pool's general connection timeout is intentionally more tolerant for
