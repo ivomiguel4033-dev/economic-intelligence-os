@@ -29,6 +29,10 @@ assert.match(source, /if \(transactionOpen\) \{[\s\S]*?await client\.query\("ROL
 assert.match(source, /catch \{\s*discardClient = true;\s*\}/s, "failed rollback must mark the PostgreSQL client for destruction");
 assert.match(source, /finally \{\s*client\.release\(discardClient\);\s*\}/s, "acquisition must always release the PostgreSQL client and discard it when transaction outcome is unsafe");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)?\s+AND lease_token=\$2(?:::uuid)?\s+AND expires_at > NOW\(\)/s, "renewal must be tenant/token fenced and refuse expired leases");
+assert.match(source, /let leaseLost = false;/, "lease ownership must track ambiguous renewal loss locally");
+assert.match(source, /if \(released \|\| leaseLost\)/, "renewal must fail closed after release or ambiguous lease loss");
+assert.match(source, /if \(\(renewed\.rowCount \?\? 0\) !== 1\) \{\s*leaseLost = true;/s, "a fenced renewal miss must permanently mark the local lease as lost");
+assert.match(source, /catch \(error\) \{[\s\S]*?leaseLost = true;[\s\S]*?tenant_concurrency_renew_failures_total[\s\S]*?throw error;/s, "ambiguous renewal errors must mark the local lease lost before propagating");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
 assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
