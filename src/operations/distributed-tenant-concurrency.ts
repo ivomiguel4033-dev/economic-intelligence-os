@@ -139,6 +139,7 @@ export async function tryAcquireDistributedTenantConcurrency(
       const renewClient = await db.connect();
       let discardRenewClient = false;
       try {
+        await renewClient.query("SELECT set_config('statement_timeout', $1, false)", [`${lockTimeoutMillis}ms`]);
         const renewed = await renewClient.query(
           `UPDATE tenant_concurrency_leases
            SET expires_at=NOW() + ($3 * INTERVAL '1 second')
@@ -174,6 +175,7 @@ export async function tryAcquireDistributedTenantConcurrency(
         const releaseClient = await db.connect();
         let discardReleaseClient = false;
         try {
+          await releaseClient.query("SELECT set_config('statement_timeout', $1, false)", [`${lockTimeoutMillis}ms`]);
           await releaseClient.query(
             `DELETE FROM tenant_concurrency_leases
              WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
