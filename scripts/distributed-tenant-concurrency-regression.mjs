@@ -32,11 +32,13 @@ assert.match(source, /WHERE organization_id=\$1(?:::uuid)?\s+AND lease_token=\$2
 assert.match(source, /let leaseLost = false;/, "lease ownership must track ambiguous renewal loss locally");
 assert.match(source, /if \(released \|\| leaseLost\)/, "renewal must fail closed after release or ambiguous lease loss");
 assert.match(source, /if \(\(renewed\.rowCount \?\? 0\) !== 1\) \{\s*leaseLost = true;/s, "a fenced renewal miss must permanently mark the local lease as lost");
-assert.match(source, /catch \(error\) \{[\s\S]*?leaseLost = true;[\s\S]*?tenant_concurrency_renew_failures_total[\s\S]*?throw error;/s, "ambiguous renewal errors must mark the local lease lost before propagating");
+assert.match(source, /const renewClient = await db\.connect\(\);[\s\S]*?let discardRenewClient = false;/s, "renewal must use a dedicated PostgreSQL session whose safety is tracked");
+assert.match(source, /catch \(error\) \{[\s\S]*?leaseLost = true;[\s\S]*?discardRenewClient = true;[\s\S]*?tenant_concurrency_renew_failures_total[\s\S]*?throw error;[\s\S]*?\} finally \{\s*renewClient\.release\(discardRenewClient\);\s*\}/s, "ambiguous renewal errors must fail closed and discard the uncertain PostgreSQL session");
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
-assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
-assert.match(source, /\.catch\(\(error\) => \{[\s\S]*?leaseLost = true;[\s\S]*?tenant_concurrency_release_failures_total[\s\S]*?releasePromise = undefined;[\s\S]*?throw error;[\s\S]*?\}\);/s, "ambiguous release errors must fail closed locally before becoming retryable");
+assert.match(source, /const releaseClient = await db\.connect\(\);[\s\S]*?let discardReleaseClient = false;/s, "release must use a dedicated PostgreSQL session whose safety is tracked");
+assert.match(source, /catch \(error\) \{[\s\S]*?leaseLost = true;[\s\S]*?discardReleaseClient = true;[\s\S]*?tenant_concurrency_release_failures_total[\s\S]*?throw error;[\s\S]*?\} finally \{\s*releaseClient\.release\(discardReleaseClient\);\s*\}/s, "ambiguous release errors must fail closed and discard the uncertain PostgreSQL session");
+assert.match(source, /\}\)\(\)\.catch\(\(error\) => \{\s*releasePromise = undefined;\s*throw error;\s*\}\);/s, "failed release must clear the in-flight promise so a later caller can retry safely");
 assert.match(source, /if \(released \|\| leaseLost\)[\s\S]*?return false;/s, "renewal must remain disabled after an ambiguous release even when release itself is retried");
 assert.match(source, /Number\.isSafeInteger\(ttlSeconds\) &&?[^\n]*ttlSeconds > 0|!Number\.isSafeInteger\(ttlSeconds\) \|\| ttlSeconds <= 0/, "lease TTL must reject unsafe or non-positive values");
 assert.match(source, /organizationId\.length <= 128/, "organization identifiers must have a bounded length");
