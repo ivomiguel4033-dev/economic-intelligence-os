@@ -36,6 +36,8 @@ assert.match(source, /catch \(error\) \{[\s\S]*?leaseLost = true;[\s\S]*?tenant_
 assert.match(source, /WHERE organization_id=\$1(?:::uuid)? AND lease_token=\$2(?:::uuid)?/, "release must be tenant and token scoped");
 assert.match(source, /if \(releasePromise\) return releasePromise;/, "release must be idempotent under concurrent callers");
 assert.match(source, /releasePromise = undefined;/, "failed release must remain retryable");
+assert.match(source, /\.catch\(\(error\) => \{[\s\S]*?leaseLost = true;[\s\S]*?tenant_concurrency_release_failures_total[\s\S]*?releasePromise = undefined;[\s\S]*?throw error;[\s\S]*?\}\);/s, "ambiguous release errors must fail closed locally before becoming retryable");
+assert.match(source, /if \(released \|\| leaseLost\)[\s\S]*?return false;/s, "renewal must remain disabled after an ambiguous release even when release itself is retried");
 assert.match(source, /Number\.isSafeInteger\(ttlSeconds\) &&?[^\n]*ttlSeconds > 0|!Number\.isSafeInteger\(ttlSeconds\) \|\| ttlSeconds <= 0/, "lease TTL must reject unsafe or non-positive values");
 assert.match(source, /organizationId\.length <= 128/, "organization identifiers must have a bounded length");
 assert.match(source, /organizationId === organizationId\.trim\(\)/, "organization identifiers must reject ambiguous surrounding whitespace");
