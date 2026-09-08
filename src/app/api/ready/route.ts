@@ -7,6 +7,14 @@ export const dynamic = "force-dynamic";
 const responseHeaders = { "Cache-Control": "no-store" };
 const readinessStatementTimeoutMs = 2_000;
 const readinessConnectionTimeoutMs = 1_000;
+const readinessQueryTimeoutMs = 2_000;
+
+class ReadinessQueryTimeoutError extends Error {
+  constructor() {
+    super("Readiness database query timed out");
+    this.name = "ReadinessQueryTimeoutError";
+  }
+}
 
 function notReady(reason: string) {
   return NextResponse.json(
@@ -51,6 +59,39 @@ async function connectForReadiness() {
   }
 }
 
+async function queryForReadiness(
+  client: Awaited<ReturnType<typeof db.connect>>,
+  text: string,
+): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const query = client.query(text);
+
+  try {
+    await Promise.race([
+      query,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          reject(new ReadinessQueryTimeoutError());
+        }, readinessQueryTimeoutMs);
+        timeout.unref?.();
+      }),
+    ]);
+  } catch (error) {
+    if (timedOut) {
+      // A timed-out query can still be running on the server. Destroy this
+      // session rather than returning a potentially desynchronised connection
+      // to the shared application pool, and absorb its eventual rejection.
+      client.release(true);
+      void query.catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function GET() {
   if (isDraining()) return notReady("draining");
 
@@ -70,11 +111,11 @@ export async function GET() {
     // application work. Readiness must answer faster so an unhealthy instance
     // is removed from traffic before probes themselves accumulate in the pool.
     client = await connectForReadiness();
-    await client.query("BEGIN");
+    await queryForReadiness(client, "BEGIN");
     transactionStarted = true;
-    await client.query(`SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'`);
-    await client.query("SELECT 1");
-    await client.query("COMMIT");
+    await queryForReadiness(client, `SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'`);
+    await queryForReadiness(client, "SELECT 1");
+    await queryForReadiness(client, "COMMIT");
     transactionStarted = false;
 
     return NextResponse.json(
@@ -88,10 +129,15 @@ export async function GET() {
       },
       { status: 200, headers: responseHeaders },
     );
-  } catch {
-    if (client && transactionStarted) {
+  } catch (error) {
+    if (error instanceof ReadinessQueryTimeoutError) {
+      // queryForReadiness has already destroyed this connection because its
+      // protocol state cannot be trusted after abandoning an in-flight query.
+      client = undefined;
+      transactionStarted = false;
+    } else if (client && transactionStarted) {
       try {
-        await client.query("ROLLBACK");
+        await queryForReadiness(client, "ROLLBACK");
       } catch {
         // The probe is already unhealthy. release(true) below discards a
         // connection whose transaction state could not be recovered safely.

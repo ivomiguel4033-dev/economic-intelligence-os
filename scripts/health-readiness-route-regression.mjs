@@ -31,15 +31,28 @@ assert(
   "A PostgreSQL session delivered after readiness times out must be released immediately without creating an unhandled rejection",
 );
 assert(
-  /await client\.query\(["']BEGIN["']\)/.test(readinessSource) &&
-    /await client\.query\(`SET LOCAL statement_timeout = '\$\{readinessStatementTimeoutMs\}ms'`\)/.test(readinessSource) &&
-    /await client\.query\(["']SELECT 1["']\)/.test(readinessSource) &&
-    /await client\.query\(["']COMMIT["']\)/.test(readinessSource),
-  "Readiness must keep its dependency probe inside a bounded dedicated transaction",
+  /const readinessQueryTimeoutMs = 2_000;/.test(readinessSource) &&
+    /async function queryForReadiness[\s\S]*?const query = client\.query\(text\);[\s\S]*?Promise\.race\(\[[\s\S]*?query,[\s\S]*?readinessQueryTimeoutMs[\s\S]*?\]\)/.test(readinessSource),
+  "Every PostgreSQL readiness statement must have an independent query-phase deadline",
 );
 assert(
-  /if \(client && transactionStarted\)[\s\S]*?await client\.query\(["']ROLLBACK["']\)/.test(readinessSource),
-  "Readiness must rollback a started transaction after probe failure",
+  /if \(timedOut\) \{[\s\S]*?client\.release\(true\);[\s\S]*?void query\.catch\(\(\) => undefined\);[\s\S]*?\}/.test(readinessSource),
+  "A timed-out readiness query must destroy its session and absorb the abandoned query rejection",
+);
+assert(
+  /await queryForReadiness\(client, ["']BEGIN["']\)/.test(readinessSource) &&
+    /await queryForReadiness\(client, `SET LOCAL statement_timeout = '\$\{readinessStatementTimeoutMs\}ms'`\)/.test(readinessSource) &&
+    /await queryForReadiness\(client, ["']SELECT 1["']\)/.test(readinessSource) &&
+    /await queryForReadiness\(client, ["']COMMIT["']\)/.test(readinessSource),
+  "Readiness must keep every dependency-probe statement inside its bounded query wrapper",
+);
+assert(
+  /else if \(client && transactionStarted\)[\s\S]*?await queryForReadiness\(client, ["']ROLLBACK["']\)/.test(readinessSource),
+  "Readiness must rollback a started transaction after a recoverable probe failure",
+);
+assert(
+  /error instanceof ReadinessQueryTimeoutError[\s\S]*?client = undefined;[\s\S]*?transactionStarted = false;/.test(readinessSource),
+  "A timed-out readiness query must not reuse or rollback a session already destroyed by the timeout guard",
 );
 assert(
   /catch \{[\s\S]*?client\.release\(true\);[\s\S]*?client = undefined;[\s\S]*?\}/.test(readinessSource),
