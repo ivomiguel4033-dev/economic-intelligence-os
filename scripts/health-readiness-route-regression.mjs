@@ -22,8 +22,12 @@ assert(
 );
 assert(
   /const readinessConnectionTimeoutMs = 1_000;/.test(readinessSource) &&
-    /Promise\.race\(\[[\s\S]*?db\.connect\(\)[\s\S]*?readinessConnectionTimeoutMs[\s\S]*?\]\)/.test(readinessSource),
+    /const connection = db\.connect\(\);[\s\S]*?Promise\.race\(\[[\s\S]*?connection,[\s\S]*?readinessConnectionTimeoutMs[\s\S]*?\]\)/.test(readinessSource),
   "Readiness PostgreSQL connection acquisition must remain independently bounded to one second",
+);
+assert(
+  /if \(timedOut\) \{[\s\S]*?void connection[\s\S]*?\.then\(\(lateClient\) => lateClient\.release\(\)\)[\s\S]*?\.catch\(\(\) => undefined\);[\s\S]*?\}/.test(readinessSource),
+  "A PostgreSQL session delivered after readiness times out must be released immediately without creating an unhandled rejection",
 );
 assert(
   /await client\.query\(["']BEGIN["']\)/.test(readinessSource) &&
