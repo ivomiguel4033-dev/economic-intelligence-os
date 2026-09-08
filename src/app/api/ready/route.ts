@@ -32,7 +32,7 @@ function notReady(reason: string) {
 async function connectForReadiness(): Promise<PoolClient> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
-  const connection: Promise<PoolClient> = db.connect();
+  const connection = db.connect();
 
   try {
     return await Promise.race([
