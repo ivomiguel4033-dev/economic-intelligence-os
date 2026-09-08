@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const responseHeaders = { "Cache-Control": "no-store" };
 const readinessStatementTimeoutMs = 2_000;
+const readinessConnectionTimeoutMs = 1_000;
 
 function notReady(reason: string) {
   return NextResponse.json(
@@ -19,6 +20,24 @@ function notReady(reason: string) {
   );
 }
 
+async function connectForReadiness() {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      db.connect(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Readiness database connection timed out")),
+          readinessConnectionTimeoutMs,
+        );
+        timeout.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function GET() {
   if (isDraining()) return notReady("draining");
 
@@ -26,7 +45,7 @@ export async function GET() {
   // slot is already occupied. Readiness should shed new traffic, not add more
   // pressure to a saturated dependency. Metrics remain aggregate-only.
   const pool = getDatabasePoolSnapshot();
-  if (pool.total >= pool.max && pool.idle === 0) {
+  if (pool.waiting > 0 || (pool.total >= pool.max && pool.idle === 0)) {
     return notReady("database_pool_saturated");
   }
 
@@ -34,7 +53,10 @@ export async function GET() {
   let client;
   let transactionStarted = false;
   try {
-    client = await db.connect();
+    // The pool's general connection timeout is intentionally more tolerant for
+    // application work. Readiness must answer faster so an unhealthy instance
+    // is removed from traffic before probes themselves accumulate in the pool.
+    client = await connectForReadiness();
     await client.query("BEGIN");
     transactionStarted = true;
     await client.query(`SET LOCAL statement_timeout = '${readinessStatementTimeoutMs}ms'`);
