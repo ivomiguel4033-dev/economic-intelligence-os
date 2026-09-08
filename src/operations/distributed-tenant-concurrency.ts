@@ -128,10 +128,11 @@ export async function tryAcquireDistributedTenantConcurrency(
 
   let releasePromise: Promise<void> | undefined;
   let released = false;
+  let leaseLost = false;
   return {
     leaseToken,
     renew: async () => {
-      if (released) {
+      if (released || leaseLost) {
         incrementMetric("tenant_concurrency_lease_lost_total");
         return false;
       }
@@ -146,12 +147,17 @@ export async function tryAcquireDistributedTenantConcurrency(
           [organizationId, leaseToken, ttl],
         );
         if ((renewed.rowCount ?? 0) !== 1) {
+          leaseLost = true;
           incrementMetric("tenant_concurrency_lease_lost_total");
           return false;
         }
         incrementMetric("tenant_concurrency_renewed_total");
         return true;
       } catch (error) {
+        // A renewal error can be ambiguous: PostgreSQL may have applied the
+        // UPDATE even if the client did not receive the result. Fail closed so
+        // this process never continues work based on an uncertain lease.
+        leaseLost = true;
         incrementMetric("tenant_concurrency_renew_failures_total");
         throw error;
       }
