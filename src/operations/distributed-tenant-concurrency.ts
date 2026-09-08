@@ -136,8 +136,10 @@ export async function tryAcquireDistributedTenantConcurrency(
         incrementMetric("tenant_concurrency_lease_lost_total");
         return false;
       }
+      const renewClient = await db.connect();
+      let discardRenewClient = false;
       try {
-        const renewed = await db.query(
+        const renewed = await renewClient.query(
           `UPDATE tenant_concurrency_leases
            SET expires_at=NOW() + ($3 * INTERVAL '1 second')
            WHERE organization_id=$1::uuid
@@ -155,28 +157,41 @@ export async function tryAcquireDistributedTenantConcurrency(
         return true;
       } catch (error) {
         // A renewal error can be ambiguous: PostgreSQL may have applied the
-        // UPDATE even if the client did not receive the result. Fail closed so
-        // this process never continues work based on an uncertain lease.
+        // UPDATE even if the client did not receive the result. Fail closed and
+        // discard the session so an uncertain connection never re-enters pool.
         leaseLost = true;
+        discardRenewClient = true;
         incrementMetric("tenant_concurrency_renew_failures_total");
         throw error;
+      } finally {
+        renewClient.release(discardRenewClient);
       }
     },
     release: async () => {
       if (released) return;
       if (releasePromise) return releasePromise;
-      releasePromise = db.query(
-        `DELETE FROM tenant_concurrency_leases
-         WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
-        [organizationId, leaseToken],
-      ).then(() => {
-        released = true;
-      }).catch((error) => {
-        // A release error is also ambiguous: the DELETE may already have
-        // committed. Prevent any subsequent renewal from treating ownership as
-        // certain, while leaving release itself retryable and idempotent.
-        leaseLost = true;
-        incrementMetric("tenant_concurrency_release_failures_total");
+      releasePromise = (async () => {
+        const releaseClient = await db.connect();
+        let discardReleaseClient = false;
+        try {
+          await releaseClient.query(
+            `DELETE FROM tenant_concurrency_leases
+             WHERE organization_id=$1::uuid AND lease_token=$2::uuid`,
+            [organizationId, leaseToken],
+          );
+          released = true;
+        } catch (error) {
+          // A release error is also ambiguous: the DELETE may already have
+          // committed. Prevent any subsequent renewal from treating ownership
+          // as certain and discard the uncertain database session.
+          leaseLost = true;
+          discardReleaseClient = true;
+          incrementMetric("tenant_concurrency_release_failures_total");
+          throw error;
+        } finally {
+          releaseClient.release(discardReleaseClient);
+        }
+      })().catch((error) => {
         releasePromise = undefined;
         throw error;
       });
