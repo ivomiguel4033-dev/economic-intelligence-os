@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import net from "node:net";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 
@@ -120,6 +121,35 @@ async function withServer(env, run) {
   assert(!/UnhandledPromiseRejection/i.test(stderr), "Health regression server emitted an unhandled rejection");
 }
 
+async function withStalledDatabase(run) {
+  const sockets = new Set();
+  const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+    // Intentionally accept the TCP connection and never answer the PostgreSQL
+    // startup handshake. This exercises the readiness acquisition deadline
+    // rather than the much easier immediate ECONNREFUSED path.
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, host, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  assert(address && typeof address !== "string", "Stalled database server did not expose a TCP port");
+
+  try {
+    await run(address.port);
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 await withServer({}, async (baseUrl) => {
   const health = await fetch(`${baseUrl}/api/health`);
   assert(health.status === 200, `Expected liveness 200, got ${health.status}`);
@@ -155,5 +185,29 @@ await withServer(
     assert(!("error" in readyBody), "Readiness response must not expose internal error details");
   },
 );
+
+await withStalledDatabase(async (databasePort) => {
+  await withServer(
+    { DATABASE_URL: `postgresql://postgres:postgres@${host}:${databasePort}/app_test` },
+    async (baseUrl) => {
+      const started = Date.now();
+      const ready = await fetch(`${baseUrl}/api/ready`);
+      const elapsedMs = Date.now() - started;
+
+      assert(ready.status === 503, `Expected readiness 503 for a stalled database handshake, got ${ready.status}`);
+      assert(
+        elapsedMs < 2_500,
+        `Readiness must abandon a stalled PostgreSQL connection promptly; response took ${elapsedMs}ms`,
+      );
+      assert(ready.headers.get("retry-after") === "1", "Stalled database readiness must advertise retry timing");
+      const readyBody = await ready.json();
+      assert(readyBody.status === "not_ready", "Stalled database readiness status must be not_ready");
+      assert(
+        readyBody.dependencies?.database?.status === "unavailable",
+        "Stalled database handshake must be reported as an unavailable dependency",
+      );
+    },
+  );
+});
 
 console.log("Health and readiness route regression checks passed");
