@@ -37,7 +37,9 @@ const databaseProbeIndex = readiness.indexOf("client = await connectForReadiness
 assert(drainCheckIndex >= 0, "Readiness must check drain state");
 assert(databaseProbeIndex >= 0, "Readiness database probe missing");
 assert(drainCheckIndex < databaseProbeIndex, "Readiness must fail closed on draining before touching PostgreSQL");
-assert(/async function connectForReadiness\(\)[\s\S]*?Promise\.race\(\[[\s\S]*?db\.connect\(\)[\s\S]*?readinessConnectionTimeoutMs/.test(readiness), "Readiness database acquisition must be bounded independently of the application pool timeout");
+assert(/async function connectForReadiness\(\)[\s\S]*?const connection = db\.connect\(\);[\s\S]*?Promise\.race\(\[[\s\S]*?connection,[\s\S]*?readinessConnectionTimeoutMs/.test(readiness), "Readiness database acquisition must be bounded independently of the application pool timeout");
+assert(/let timedOut = false;[\s\S]*?timedOut = true;[\s\S]*?if \(timedOut\)/.test(readiness), "Readiness connection timeout must explicitly track an abandoned pool acquisition");
+assert(/if \(timedOut\) \{[\s\S]*?void connection[\s\S]*?\.then\(\(lateClient\) => lateClient\.release\(\)\)[\s\S]*?\.catch\(\(\) => undefined\)/.test(readiness), "A database session delivered after readiness timeout must be released instead of leaking pool capacity");
 assert(/const readinessConnectionTimeoutMs = 1_000/.test(readiness), "Readiness connection timeout must remain short enough to avoid probe pileups");
 assert(/getDatabasePoolSnapshot\(\)[\s\S]*?pool\.waiting > 0[\s\S]*?database_pool_saturated/.test(readiness), "Readiness must shed traffic before adding a probe behind an already saturated database pool");
 
