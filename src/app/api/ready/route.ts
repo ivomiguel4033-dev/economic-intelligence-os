@@ -22,17 +22,30 @@ function notReady(reason: string) {
 
 async function connectForReadiness() {
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const connection = db.connect();
+
   try {
     return await Promise.race([
-      db.connect(),
+      connection,
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error("Readiness database connection timed out")),
-          readinessConnectionTimeoutMs,
-        );
+        timeout = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("Readiness database connection timed out"));
+        }, readinessConnectionTimeoutMs);
         timeout.unref?.();
       }),
     ]);
+  } catch (error) {
+    if (timedOut) {
+      // pg Pool does not expose cancellation for an already queued connect().
+      // If readiness abandons the wait, immediately return any session that is
+      // allocated later so a timed-out probe cannot leak pool capacity.
+      void connection
+        .then((lateClient) => lateClient.release())
+        .catch(() => undefined);
+    }
+    throw error;
   } finally {
     if (timeout) clearTimeout(timeout);
   }
