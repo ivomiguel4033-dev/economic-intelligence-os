@@ -172,6 +172,10 @@ export async function tryAcquireDistributedTenantConcurrency(
       ).then(() => {
         released = true;
       }).catch((error) => {
+        // A release error is also ambiguous: the DELETE may already have
+        // committed. Prevent any subsequent renewal from treating ownership as
+        // certain, while leaving release itself retryable and idempotent.
+        leaseLost = true;
         incrementMetric("tenant_concurrency_release_failures_total");
         releasePromise = undefined;
         throw error;
