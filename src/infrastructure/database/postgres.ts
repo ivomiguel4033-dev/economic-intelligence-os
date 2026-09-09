@@ -59,6 +59,14 @@ function databaseIdleInTransactionTimeoutMillis(): number {
   return Math.min(configured, 120_000);
 }
 
+function databaseLockTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_LOCK_TIMEOUT_MS ?? "5000");
+  if (!Number.isSafeInteger(configured) || configured < 250) return 5_000;
+  // Fail boundedly when another transaction holds a conflicting lock instead of
+  // allowing lock contention to consume the request and connection budgets.
+  return Math.min(configured, 30_000);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -79,6 +87,7 @@ function database(): Pool {
     statement_timeout: databaseStatementTimeoutMillis(),
     query_timeout: databaseQueryTimeoutMillis(),
     idle_in_transaction_session_timeout: databaseIdleInTransactionTimeoutMillis(),
+    lock_timeout: databaseLockTimeoutMillis(),
   });
   // pg emits an `error` event when an idle pooled client fails unexpectedly.
   // EventEmitter treats an unhandled `error` as fatal, so always consume it;
