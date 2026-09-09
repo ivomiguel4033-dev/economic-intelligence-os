@@ -19,3 +19,12 @@ groups:
         annotations:
           summary: PostgreSQL pool utilization is at least 80% for 5 minutes
           runbook: docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation
+      - alert: DatabasePoolExhaustionImminent
+        expr: database_pool_max > 0 and (database_pool_active / database_pool_max) >= 0.95
+        for: 2m
+        labels:
+          severity: critical
+          component: postgresql-pool
+        annotations:
+          summary: PostgreSQL pool utilization is at least 95% for 2 minutes
+          runbook: docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation
