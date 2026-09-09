@@ -10,3 +10,12 @@ groups:
         annotations:
           summary: PostgreSQL pool has sustained connection waiters
           runbook: docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation
+      - alert: DatabasePoolUtilizationHigh
+        expr: database_pool_max > 0 and (database_pool_active / database_pool_max) >= 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: postgresql-pool
+        annotations:
+          summary: PostgreSQL pool utilization is at least 80% for 5 minutes
+          runbook: docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation

@@ -24,7 +24,9 @@ type MetricKey =
 export type OperationalGaugeKey =
   | "database_pool_total"
   | "database_pool_idle"
+  | "database_pool_active"
   | "database_pool_waiting"
+  | "database_pool_max"
   | "outbox_ready"
   | "outbox_processing"
   | "outbox_failed"

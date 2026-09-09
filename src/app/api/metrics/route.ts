@@ -46,7 +46,9 @@ export async function GET(request: Request) {
     gauges = {
       database_pool_total: pool.total,
       database_pool_idle: pool.idle,
+      database_pool_active: pool.active,
       database_pool_waiting: pool.waiting,
+      database_pool_max: pool.max,
       outbox_ready: outbox.ready,
       outbox_processing: outbox.processing,
       outbox_failed: outbox.failed,
