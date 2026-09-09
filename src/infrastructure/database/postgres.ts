@@ -19,6 +19,14 @@ function databasePoolMaxLifetimeSeconds(): number {
   return Math.min(configured, 1_800);
 }
 
+function databasePoolConnectionTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS ?? "5000");
+  if (!Number.isSafeInteger(configured) || configured < 250) return 5_000;
+  // Bound acquisition/handshake waits so a degraded database cannot hold
+  // application work indefinitely, while allowing slower managed failovers.
+  return Math.min(configured, 30_000);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -28,7 +36,7 @@ function database(): Pool {
     application_name: "economic-intelligence-os",
     max: databasePoolMax(),
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis: databasePoolConnectionTimeoutMillis(),
     // Recycle long-lived sessions so DNS/failover changes, credential rotation,
     // and intermediary connection state are picked up without a full restart.
     maxLifetimeSeconds: databasePoolMaxLifetimeSeconds(),
