@@ -43,6 +43,14 @@ function databaseStatementTimeoutMillis(): number {
   return Math.min(configured, 120_000);
 }
 
+function databaseIdleInTransactionTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS ?? "30000");
+  if (!Number.isSafeInteger(configured) || configured < 5_000) return 30_000;
+  // Bound abandoned transactions so they cannot retain locks or prevent vacuum
+  // progress indefinitely, while allowing legitimate multi-statement operations.
+  return Math.min(configured, 120_000);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -62,7 +70,7 @@ function database(): Pool {
     keepAliveInitialDelayMillis: 10_000,
     statement_timeout: databaseStatementTimeoutMillis(),
     query_timeout: 35_000,
-    idle_in_transaction_session_timeout: 30_000,
+    idle_in_transaction_session_timeout: databaseIdleInTransactionTimeoutMillis(),
   });
   // pg emits an `error` event when an idle pooled client fails unexpectedly.
   // EventEmitter treats an unhandled `error` as fatal, so always consume it;
