@@ -43,6 +43,14 @@ function databaseStatementTimeoutMillis(): number {
   return Math.min(configured, 120_000);
 }
 
+function databaseQueryTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_QUERY_TIMEOUT_MS ?? "35000");
+  if (!Number.isSafeInteger(configured) || configured < 1_000) return 35_000;
+  // Keep the client-side query watchdog finite as a second line of defence when
+  // server-side cancellation is unavailable or delayed during database failure.
+  return Math.min(configured, 125_000);
+}
+
 function databaseIdleInTransactionTimeoutMillis(): number {
   const configured = Number(process.env.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS ?? "30000");
   if (!Number.isSafeInteger(configured) || configured < 5_000) return 30_000;
@@ -69,7 +77,7 @@ function database(): Pool {
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
     statement_timeout: databaseStatementTimeoutMillis(),
-    query_timeout: 35_000,
+    query_timeout: databaseQueryTimeoutMillis(),
     idle_in_transaction_session_timeout: databaseIdleInTransactionTimeoutMillis(),
   });
   // pg emits an `error` event when an idle pooled client fails unexpectedly.
