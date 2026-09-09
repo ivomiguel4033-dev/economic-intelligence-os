@@ -6,7 +6,10 @@ import { isDraining } from "@/operations/drain-state";
 export const dynamic = "force-dynamic";
 
 const responseHeaders = { "Cache-Control": "no-store" };
-const readinessStatementTimeoutMs = 2_000;
+// Keep the server-side cancellation deadline below the client-side guard so
+// PostgreSQL normally cancels a slow probe while the protocol is still usable.
+// The outer query timeout remains the final safety net for network stalls.
+const readinessStatementTimeoutMs = 1_500;
 const readinessConnectionTimeoutMs = 1_000;
 const readinessQueryTimeoutMs = 2_000;
 
