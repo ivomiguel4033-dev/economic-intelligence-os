@@ -3,13 +3,21 @@ import { log } from "../../observability/structured-log.ts";
 
 let pool: Pool | undefined;
 
+function databasePoolMax(): number {
+  const configured = Number.parseInt(process.env.DATABASE_POOL_MAX ?? "10", 10);
+  if (!Number.isFinite(configured) || configured < 1) return 10;
+  // Bound per-process concurrency so a bad deployment value cannot exhaust
+  // the shared PostgreSQL connection budget across horizontally scaled replicas.
+  return Math.min(configured, 50);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required at runtime");
   pool = new Pool({
     connectionString,
-    max: 10,
+    max: databasePoolMax(),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
     // Recycle long-lived sessions so DNS/failover changes, credential rotation,
