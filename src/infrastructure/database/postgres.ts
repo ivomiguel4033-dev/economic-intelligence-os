@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { log } from "../../observability/structured-log";
 
 let pool: Pool | undefined;
 
@@ -22,10 +23,16 @@ function database(): Pool {
   // pg emits an `error` event when an idle pooled client fails unexpectedly.
   // EventEmitter treats an unhandled `error` as fatal, so always consume it;
   // pg removes the failed client from the pool and subsequent work reconnects.
+  // Keep the event structured and deliberately omit the raw error message so
+  // connection details cannot leak into centralized production logs.
   pool.on("error", (error) => {
-    console.error("Unexpected PostgreSQL idle client error", {
-      name: error.name,
-      message: error.message,
+    const databaseError = error as Error & { code?: string };
+    log("error", {
+      event: "postgres.pool.idle_client_error",
+      metadata: {
+        name: databaseError.name,
+        code: databaseError.code,
+      },
     });
   });
   return pool;
