@@ -35,6 +35,14 @@ function databasePoolIdleTimeoutMillis(): number {
   return Math.min(configured, 300_000);
 }
 
+function databaseStatementTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? "30000");
+  if (!Number.isSafeInteger(configured) || configured < 1_000) return 30_000;
+  // Bound server-side statement execution so pathological queries cannot retain
+  // shared connections indefinitely; keep the ceiling conservative for API work.
+  return Math.min(configured, 120_000);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -52,7 +60,7 @@ function database(): Pool {
     // events instead of leaving stale sessions occupying shared pool capacity.
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
-    statement_timeout: 30_000,
+    statement_timeout: databaseStatementTimeoutMillis(),
     query_timeout: 35_000,
     idle_in_transaction_session_timeout: 30_000,
   });
