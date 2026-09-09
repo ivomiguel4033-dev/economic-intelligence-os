@@ -12,6 +12,9 @@ function database(): Pool {
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    // Recycle long-lived sessions so DNS/failover changes, credential rotation,
+    // and intermediary connection state are picked up without a full restart.
+    maxLifetimeSeconds: 300,
     // Detect half-open database sockets promptly after network or failover
     // events instead of leaving stale sessions occupying shared pool capacity.
     keepAlive: true,
