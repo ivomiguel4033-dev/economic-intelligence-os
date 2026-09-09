@@ -17,6 +17,7 @@ function database(): Pool {
   if (!connectionString) throw new Error("DATABASE_URL is required at runtime");
   pool = new Pool({
     connectionString,
+    application_name: "economic-intelligence-os",
     max: databasePoolMax(),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
