@@ -27,6 +27,14 @@ function databasePoolConnectionTimeoutMillis(): number {
   return Math.min(configured, 30_000);
 }
 
+function databasePoolIdleTimeoutMillis(): number {
+  const configured = Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS ?? "30000");
+  if (!Number.isSafeInteger(configured) || configured < 1_000) return 30_000;
+  // Release unused sessions predictably so horizontally scaled replicas do not
+  // retain an unnecessarily large share of the shared database connection budget.
+  return Math.min(configured, 300_000);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -35,7 +43,7 @@ function database(): Pool {
     connectionString,
     application_name: "economic-intelligence-os",
     max: databasePoolMax(),
-    idleTimeoutMillis: 30_000,
+    idleTimeoutMillis: databasePoolIdleTimeoutMillis(),
     connectionTimeoutMillis: databasePoolConnectionTimeoutMillis(),
     // Recycle long-lived sessions so DNS/failover changes, credential rotation,
     // and intermediary connection state are picked up without a full restart.
