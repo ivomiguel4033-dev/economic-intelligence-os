@@ -11,6 +11,14 @@ function databasePoolMax(): number {
   return Math.min(configured, 50);
 }
 
+function databasePoolMaxLifetimeSeconds(): number {
+  const configured = Number(process.env.DATABASE_POOL_MAX_LIFETIME_SECONDS ?? "300");
+  if (!Number.isSafeInteger(configured) || configured < 60) return 300;
+  // Keep recycling frequent enough to recover from stale infrastructure state,
+  // while preventing an accidental value from retaining sessions indefinitely.
+  return Math.min(configured, 1_800);
+}
+
 function database(): Pool {
   if (pool) return pool;
   const connectionString = process.env.DATABASE_URL;
@@ -23,7 +31,7 @@ function database(): Pool {
     connectionTimeoutMillis: 5_000,
     // Recycle long-lived sessions so DNS/failover changes, credential rotation,
     // and intermediary connection state are picked up without a full restart.
-    maxLifetimeSeconds: 300,
+    maxLifetimeSeconds: databasePoolMaxLifetimeSeconds(),
     // Detect half-open database sockets promptly after network or failover
     // events instead of leaving stale sessions occupying shared pool capacity.
     keepAlive: true,
