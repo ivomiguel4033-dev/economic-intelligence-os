@@ -11,6 +11,10 @@ function database(): Pool {
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    // Detect half-open database sockets promptly after network or failover
+    // events instead of leaving stale sessions occupying shared pool capacity.
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
     idle_in_transaction_session_timeout: 30_000,
