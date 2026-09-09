@@ -13,6 +13,8 @@
 - `DATABASE_POOL_MAX`: maximum PostgreSQL connections per application process. Defaults to `10`, invalid or non-integer values fall back to `10`, and valid values are capped at `50` to protect the shared database connection budget during horizontal scale-out.
 - `DATABASE_POOL_MAX_LIFETIME_SECONDS`: maximum lifetime of a PostgreSQL pooled connection before controlled recycling. Defaults to `300` seconds; invalid, non-integer, or values below `60` fall back to `300`, and valid values are capped at `1800` seconds. Keep this comfortably below infrastructure or credential-rotation horizons so stale sessions are replaced without requiring a process restart.
 - `DATABASE_POOL_CONNECTION_TIMEOUT_MS`: maximum wait for PostgreSQL connection acquisition/establishment. Defaults to `5000` ms; invalid, non-integer, or values below `250` fall back to `5000`, and valid values are capped at `30000` ms. Keep this finite so database degradation produces bounded failures instead of indefinitely retained application work.
+- `DATABASE_POOL_IDLE_TIMEOUT_MS`: maximum time an unused pooled PostgreSQL connection is retained. Defaults to `30000` ms; invalid, non-integer, or values below `1000` fall back to `30000`, and valid values are capped at `300000` ms. This bounds idle connection retention across horizontally scaled replicas.
+- `DATABASE_STATEMENT_TIMEOUT_MS`: server-side maximum execution time for an individual PostgreSQL statement. Defaults to `30000` ms; invalid, non-integer, or values below `1000` fall back to `30000`, and valid values are capped at `120000` ms. Keep this aligned with API latency budgets so pathological statements release shared pool capacity predictably.
 
 ## Billing when enabled
 - `STRIPE_SECRET_KEY`: server-side Stripe credential.
