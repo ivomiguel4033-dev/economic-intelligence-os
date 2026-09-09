@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { log } from "../../observability/structured-log";
+import { log } from "../../observability/structured-log.ts";
 
 let pool: Pool | undefined;
 
