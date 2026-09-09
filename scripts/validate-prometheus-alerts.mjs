@@ -83,6 +83,39 @@ if (!metrics.includes('"database_pool_waiting"')) {
 if (!poolWaitersBlock.includes("docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation")) {
   throw new Error("DatabasePoolWaitersPersistent must link to the pool saturation runbook.");
 }
+
+const poolUtilizationHighBlock = databaseRules.split("- alert: DatabasePoolUtilizationHigh", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!poolUtilizationHighBlock) {
+  throw new Error("Missing alert rule: DatabasePoolUtilizationHigh");
+}
+if (!/^\s*expr: database_pool_max > 0 and \(database_pool_active \/ database_pool_max\) >= 0\.8$/m.test(poolUtilizationHighBlock)) {
+  throw new Error("DatabasePoolUtilizationHigh must alert at 80% pool utilization.");
+}
+if (!/^\s*for: 5m$/m.test(poolUtilizationHighBlock) || !/^\s*severity: warning$/m.test(poolUtilizationHighBlock)) {
+  throw new Error("DatabasePoolUtilizationHigh must remain a warning after a 5m sustained breach.");
+}
+if (!poolUtilizationHighBlock.includes("docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation")) {
+  throw new Error("DatabasePoolUtilizationHigh must link to the pool saturation runbook.");
+}
+
+const poolExhaustionBlock = databaseRules.split("- alert: DatabasePoolExhaustionImminent", 2)[1]?.split("- alert:", 1)[0] ?? "";
+if (!poolExhaustionBlock) {
+  throw new Error("Missing alert rule: DatabasePoolExhaustionImminent");
+}
+if (!/^\s*expr: database_pool_max > 0 and \(database_pool_active \/ database_pool_max\) >= 0\.95$/m.test(poolExhaustionBlock)) {
+  throw new Error("DatabasePoolExhaustionImminent must alert at 95% pool utilization.");
+}
+if (!/^\s*for: 2m$/m.test(poolExhaustionBlock) || !/^\s*severity: critical$/m.test(poolExhaustionBlock)) {
+  throw new Error("DatabasePoolExhaustionImminent must remain critical after a 2m sustained breach.");
+}
+if (!poolExhaustionBlock.includes("docs/PRODUCTION_RUNBOOK.md#postgresql-pool-saturation")) {
+  throw new Error("DatabasePoolExhaustionImminent must link to the pool saturation runbook.");
+}
+for (const metricName of ["database_pool_active", "database_pool_max"]) {
+  if (!metrics.includes(`"${metricName}"`)) {
+    throw new Error(`Database pool utilization alerts reference an unexported metric: ${metricName}`);
+  }
+}
 if (!runbook.includes("## PostgreSQL pool saturation")) {
   throw new Error("Missing PostgreSQL pool saturation runbook section.");
 }
