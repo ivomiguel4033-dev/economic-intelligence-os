@@ -19,6 +19,15 @@ function database(): Pool {
     query_timeout: 35_000,
     idle_in_transaction_session_timeout: 30_000,
   });
+  // pg emits an `error` event when an idle pooled client fails unexpectedly.
+  // EventEmitter treats an unhandled `error` as fatal, so always consume it;
+  // pg removes the failed client from the pool and subsequent work reconnects.
+  pool.on("error", (error) => {
+    console.error("Unexpected PostgreSQL idle client error", {
+      name: error.name,
+      message: error.message,
+    });
+  });
   return pool;
 }
 
