@@ -4,8 +4,8 @@ import { log } from "../../observability/structured-log.ts";
 let pool: Pool | undefined;
 
 function databasePoolMax(): number {
-  const configured = Number.parseInt(process.env.DATABASE_POOL_MAX ?? "10", 10);
-  if (!Number.isFinite(configured) || configured < 1) return 10;
+  const configured = Number(process.env.DATABASE_POOL_MAX ?? "10");
+  if (!Number.isSafeInteger(configured) || configured < 1) return 10;
   // Bound per-process concurrency so a bad deployment value cannot exhaust
   // the shared PostgreSQL connection budget across horizontally scaled replicas.
   return Math.min(configured, 50);

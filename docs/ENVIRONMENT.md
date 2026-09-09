@@ -9,6 +9,9 @@
 - `METRICS_TOKEN`: bearer token required to scrape the internal `/api/metrics` endpoint.
 - `OUTBOX_WORKER_ID`: stable, non-empty identity for this runtime instance. It must be unique among concurrently running replicas and must remain unchanged for the lifetime of the instance so durable outbox claims and graceful-shutdown ownership use the same identity.
 
+## Optional runtime tuning
+- `DATABASE_POOL_MAX`: maximum PostgreSQL connections per application process. Defaults to `10`, invalid or non-integer values fall back to `10`, and valid values are capped at `50` to protect the shared database connection budget during horizontal scale-out.
+
 ## Billing when enabled
 - `STRIPE_SECRET_KEY`: server-side Stripe credential.
 - `STRIPE_WEBHOOK_SECRET`: webhook signing secret.
