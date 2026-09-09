@@ -11,6 +11,7 @@
 
 ## Optional runtime tuning
 - `DATABASE_POOL_MAX`: maximum PostgreSQL connections per application process. Defaults to `10`, invalid or non-integer values fall back to `10`, and valid values are capped at `50` to protect the shared database connection budget during horizontal scale-out.
+- `DATABASE_POOL_MAX_LIFETIME_SECONDS`: maximum lifetime of a PostgreSQL pooled connection before controlled recycling. Defaults to `300` seconds; invalid, non-integer, or values below `60` fall back to `300`, and valid values are capped at `1800` seconds. Keep this comfortably below infrastructure or credential-rotation horizons so stale sessions are replaced without requiring a process restart.
 
 ## Billing when enabled
 - `STRIPE_SECRET_KEY`: server-side Stripe credential.
