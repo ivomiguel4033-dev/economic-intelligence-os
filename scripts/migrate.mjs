@@ -32,6 +32,12 @@ const migrationLockTimeoutMs = boundedIntegerEnv(
   250,
   120_000,
 );
+const migrationIdleInTransactionTimeoutMs = boundedIntegerEnv(
+  "MIGRATION_IDLE_IN_TRANSACTION_TIMEOUT_MS",
+  60_000,
+  5_000,
+  600_000,
+);
 
 const client = new Client({
   connectionString,
@@ -40,6 +46,7 @@ const client = new Client({
   statement_timeout: migrationStatementTimeoutMs,
   query_timeout: migrationQueryTimeoutMs,
   lock_timeout: migrationLockTimeoutMs,
+  idle_in_transaction_session_timeout: migrationIdleInTransactionTimeoutMs,
 });
 await client.connect();
 
