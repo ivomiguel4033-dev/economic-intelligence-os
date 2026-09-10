@@ -7,7 +7,40 @@ const { Client } = pg;
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
-const client = new Client({ connectionString });
+function boundedIntegerEnv(name, defaultValue, minimum, maximum) {
+  const configured = Number(process.env[name] ?? String(defaultValue));
+  if (!Number.isSafeInteger(configured) || configured < minimum) return defaultValue;
+  return Math.min(configured, maximum);
+}
+
+const migrationConnectionTimeoutMs = boundedIntegerEnv(
+  "MIGRATION_CONNECTION_TIMEOUT_MS",
+  10_000,
+  250,
+  60_000,
+);
+const migrationStatementTimeoutMs = boundedIntegerEnv(
+  "MIGRATION_STATEMENT_TIMEOUT_MS",
+  300_000,
+  1_000,
+  1_800_000,
+);
+const migrationQueryTimeoutMs = Math.min(migrationStatementTimeoutMs + 5_000, 1_805_000);
+const migrationLockTimeoutMs = boundedIntegerEnv(
+  "MIGRATION_LOCK_TIMEOUT_MS",
+  30_000,
+  250,
+  120_000,
+);
+
+const client = new Client({
+  connectionString,
+  application_name: "economic-intelligence-os:migrate",
+  connectionTimeoutMillis: migrationConnectionTimeoutMs,
+  statement_timeout: migrationStatementTimeoutMs,
+  query_timeout: migrationQueryTimeoutMs,
+  lock_timeout: migrationLockTimeoutMs,
+});
 await client.connect();
 
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
