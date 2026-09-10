@@ -3,15 +3,14 @@ import http from "node:http";
 import process from "node:process";
 
 const host = "127.0.0.1";
-const port = 3240;
-const baseUrl = `http://${host}:${port}`;
+let nextPort = 3240;
 const maxBytes = 1_000_000;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function waitForServer() {
+async function waitForServer(baseUrl) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     try {
@@ -47,7 +46,7 @@ async function stopServer(child) {
   }
 }
 
-function sendStalledRequest() {
+function sendStalledRequest(port) {
   return new Promise((resolve, reject) => {
     const request = http.request({
       host,
@@ -70,6 +69,8 @@ function sendStalledRequest() {
 }
 
 async function runServer(extraEnv, assertions) {
+  const port = nextPort++;
+  const baseUrl = `http://${host}:${port}`;
   const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
     env: {
       ...process.env,
@@ -82,15 +83,15 @@ async function runServer(extraEnv, assertions) {
   let stderr = "";
   child.stderr.on("data", (chunk) => { stderr += String(chunk); });
   try {
-    await waitForServer();
-    await assertions();
+    await waitForServer(baseUrl);
+    await assertions({ baseUrl, port });
   } finally {
     await stopServer(child);
   }
   assert(!/UnhandledPromiseRejection/i.test(stderr), "Stripe payload regression server emitted an unhandled rejection");
 }
 
-await runServer({ STRIPE_LIVEMODE: "false" }, async () => {
+await runServer({ STRIPE_LIVEMODE: "false" }, async ({ baseUrl, port }) => {
   const declared = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
     headers: { "content-length": String(maxBytes + 1), "stripe-signature": "invalid" },
@@ -124,7 +125,7 @@ await runServer({ STRIPE_LIVEMODE: "false" }, async () => {
 
   const slowStartedAt = Date.now();
   const slow = await Promise.race([
-    sendStalledRequest(),
+    sendStalledRequest(port),
     new Promise((_, reject) => setTimeout(() => reject(new Error("Stalled Stripe request did not receive a response within 25s")), 25_000)),
   ]);
   const slowElapsedMs = Date.now() - slowStartedAt;
@@ -136,7 +137,7 @@ await runServer({ STRIPE_LIVEMODE: "false" }, async () => {
 
 for (const invalidMode of [undefined, "", "TRUE", "0", "test"]) {
   const modeEnv = invalidMode === undefined ? { STRIPE_LIVEMODE: undefined } : { STRIPE_LIVEMODE: invalidMode };
-  await runServer(modeEnv, async () => {
+  await runServer(modeEnv, async ({ baseUrl }) => {
     const response = await fetch(`${baseUrl}/api/stripe/webhook`, {
       method: "POST",
       headers: { "stripe-signature": "invalid" },
