@@ -94,7 +94,9 @@ jobs:
         run: node scripts/tenant-concurrency-regression.mjs
       - name: Distributed tenant concurrency regression checks
         run: node scripts/distributed-tenant-concurrency-regression.mjs
-      - run: npm run typecheck
+      - name: Typecheck
+        timeout-minutes: 3
+        run: npm run typecheck
       - name: Build production application
         timeout-minutes: 5
         run: npm run build
