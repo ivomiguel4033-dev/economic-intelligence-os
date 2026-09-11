@@ -10,6 +10,26 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertSecurityHeaders(response, label) {
+  const expected = new Map([
+    ["x-content-type-options", "nosniff"],
+    ["x-frame-options", "DENY"],
+    ["referrer-policy", "strict-origin-when-cross-origin"],
+    ["permissions-policy", "camera=(), microphone=(), geolocation=()"],
+    ["cross-origin-opener-policy", "same-origin"],
+    ["x-dns-prefetch-control", "off"],
+    ["strict-transport-security", "max-age=31536000"],
+    ["origin-agent-cluster", "?1"],
+    ["x-permitted-cross-domain-policies", "none"],
+  ]);
+
+  for (const [header, value] of expected) {
+    assert(response.headers.get(header) === value, `${label} must preserve ${header}: ${value}`);
+  }
+
+  assert(response.headers.get("x-powered-by") === null, `${label} must not expose X-Powered-By`);
+}
+
 const readinessSource = await readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8");
 assert(
   /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.waiting > 0 \|\| \(pool\.total >= pool\.max && pool\.idle === 0\)\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
@@ -166,6 +186,7 @@ async function withStalledDatabase(run) {
 await withServer({}, async (baseUrl) => {
   const health = await fetch(`${baseUrl}/api/health`);
   assert(health.status === 200, `Expected liveness 200, got ${health.status}`);
+  assertSecurityHeaders(health, "Liveness response");
   assert(health.headers.get("cache-control") === "no-store", "Liveness response must disable caching");
   const healthBody = await health.json();
   assert(healthBody.status === "ok", "Liveness status must be ok");
@@ -173,6 +194,7 @@ await withServer({}, async (baseUrl) => {
 
   const ready = await fetch(`${baseUrl}/api/ready`);
   assert(ready.status === 200, `Expected readiness 200 with healthy database, got ${ready.status}`);
+  assertSecurityHeaders(ready, "Readiness response");
   assert(ready.headers.get("cache-control") === "no-store", "Readiness response must disable caching");
   const readyBody = await ready.json();
   assert(readyBody.status === "ready", "Readiness status must be ready");
@@ -185,11 +207,13 @@ await withServer(
   async (baseUrl) => {
     const health = await fetch(`${baseUrl}/api/health`);
     assert(health.status === 200, `Liveness must remain 200 during database outage, got ${health.status}`);
+    assertSecurityHeaders(health, "Degraded liveness response");
     const healthBody = await health.json();
     assert(healthBody.status === "ok", "Application must remain live when a dependency is unavailable");
 
     const ready = await fetch(`${baseUrl}/api/ready`);
     assert(ready.status === 503, `Expected readiness 503 during database outage, got ${ready.status}`);
+    assertSecurityHeaders(ready, "Degraded readiness response");
     assert(ready.headers.get("cache-control") === "no-store", "Degraded readiness response must disable caching");
     assert(ready.headers.get("retry-after") === "1", "Degraded readiness response must advertise retry timing");
     const readyBody = await ready.json();
@@ -208,6 +232,7 @@ await withStalledDatabase(async (databasePort) => {
       const elapsedMs = Date.now() - started;
 
       assert(ready.status === 503, `Expected readiness 503 for a stalled database handshake, got ${ready.status}`);
+      assertSecurityHeaders(ready, "Stalled database readiness response");
       assert(
         elapsedMs < 2_500,
         `Readiness must abandon a stalled PostgreSQL connection promptly; response took ${elapsedMs}ms`,
