@@ -50,6 +50,7 @@ jobs:
             npm install --ignore-scripts --no-audit --no-fund
           fi
       - name: Validate migrations
+        timeout-minutes: 2
         run: node scripts/validate-migrations.mjs
       - name: Migration validation regression checks
         run: node scripts/migration-validation-regression.mjs
