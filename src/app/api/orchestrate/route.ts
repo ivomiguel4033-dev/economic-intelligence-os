@@ -9,10 +9,13 @@ import { requireAuthorization } from "@/security/authorization-policy";
 import { requireRecentAuthentication, requireStepUp } from "@/security/step-up-auth";
 import { tryBeginTrackedWork } from "@/operations/drain-state";
 import { tryAcquireDistributedTenantConcurrency, type DistributedTenantConcurrencyLease } from "@/operations/distributed-tenant-concurrency";
+import { declaredPayloadTooLarge, readBoundedPayload } from "@/http/bounded-request-body";
 import type { SupportedClaim } from "@/trust/provenance";
 import type { ProposedAction } from "@/execution/execution-policy";
 
 const TENANT_CONCURRENCY_HEARTBEAT_MS = 30_000;
+const MAX_ORCHESTRATION_REQUEST_BYTES = 1_000_000;
+const ORCHESTRATION_REQUEST_READ_TIMEOUT_MS = 15_000;
 
 export async function POST(request: NextRequest) {
   const releaseWork = tryBeginTrackedWork();
@@ -37,7 +40,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    if (declaredPayloadTooLarge(request, MAX_ORCHESTRATION_REQUEST_BYTES)) {
+      return NextResponse.json(
+        { error: "Orchestration request payload too large" },
+        { status: 413, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const payload = await readBoundedPayload(
+      request,
+      MAX_ORCHESTRATION_REQUEST_BYTES,
+      ORCHESTRATION_REQUEST_READ_TIMEOUT_MS,
+    );
+    if (payload.status === "too_large") {
+      return NextResponse.json(
+        { error: "Orchestration request payload too large" },
+        { status: 413, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (payload.status === "timeout") {
+      return NextResponse.json(
+        { error: "Orchestration request payload read timed out" },
+        { status: 408, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    let body: Record<string, any>;
+    try {
+      const parsed = JSON.parse(payload.payload) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid body");
+      body = parsed as Record<string, any>;
+    } catch {
+      return NextResponse.json({ error: "Invalid orchestration request" }, { status: 400 });
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       body.organizationId ? String(body.organizationId) : undefined,

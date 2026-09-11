@@ -101,6 +101,8 @@ jobs:
       - name: Build production application
         timeout-minutes: 5
         run: npm run build
+      - name: Orchestration payload bound regression checks
+        run: node scripts/orchestrate-payload-regression.mjs
       - name: Stripe webhook payload bound regression checks
         run: node scripts/stripe-webhook-payload-regression.mjs
       - name: Metrics endpoint production regression checks
