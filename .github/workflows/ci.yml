@@ -41,13 +41,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
+          cache: npm
+      - name: Install dependencies reproducibly
+        run: npm ci --no-audit --no-fund
       - name: Validate migrations
         run: node scripts/validate-migrations.mjs
       - name: Migration validation regression checks
