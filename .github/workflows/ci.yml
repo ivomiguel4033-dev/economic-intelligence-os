@@ -56,6 +56,7 @@ jobs:
       - name: Validate Prometheus alert rules
         run: node scripts/validate-prometheus-alerts.mjs
       - name: Apply migrations to PostgreSQL
+        timeout-minutes: 2
         run: npm run migrate
       - name: Migration advisory lock regression checks
         run: node scripts/migration-lock-regression.mjs
