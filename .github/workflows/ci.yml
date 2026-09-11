@@ -44,9 +44,9 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci --ignore-scripts
           else
-            npm install --no-audit --no-fund
+            npm install --ignore-scripts --no-audit --no-fund
           fi
       - name: Validate migrations
         run: node scripts/validate-migrations.mjs
