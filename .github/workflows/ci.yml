@@ -94,7 +94,9 @@ jobs:
       - name: Distributed tenant concurrency regression checks
         run: node scripts/distributed-tenant-concurrency-regression.mjs
       - run: npm run typecheck
-      - run: npm run build
+      - name: Build production application
+        timeout-minutes: 5
+        run: npm run build
       - name: Stripe webhook payload bound regression checks
         run: node scripts/stripe-webhook-payload-regression.mjs
       - name: Metrics endpoint production regression checks
