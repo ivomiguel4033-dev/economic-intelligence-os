@@ -17,6 +17,7 @@ function assertSecurityHeaders(response, label) {
     ["referrer-policy", "strict-origin-when-cross-origin"],
     ["permissions-policy", "camera=(), microphone=(), geolocation=()"],
     ["cross-origin-opener-policy", "same-origin"],
+    ["cross-origin-resource-policy", "same-origin"],
     ["x-dns-prefetch-control", "off"],
     ["strict-transport-security", "max-age=31536000"],
     ["origin-agent-cluster", "?1"],
