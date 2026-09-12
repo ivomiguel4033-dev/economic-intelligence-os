@@ -4,6 +4,10 @@ import { PostgresDecisionRepository } from "@/infrastructure/decision/postgres-d
 import type { ModelProvider, ModelRequest, ModelResponse, ModelRouter } from "@/ai/model-provider";
 import { resolveAuthenticatedContext } from "@/security/authenticated-context";
 import { tryBeginTrackedWork } from "@/operations/drain-state";
+import { declaredPayloadTooLarge, readBoundedPayload } from "@/http/bounded-request-body";
+
+const MAX_DECISION_PAYLOAD_BYTES = 1_000_000;
+const DECISION_PAYLOAD_TIMEOUT_MS = 5_000;
 
 class UnconfiguredProvider implements ModelProvider {
   readonly name = "unconfigured";
@@ -27,7 +31,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    if (declaredPayloadTooLarge(request, MAX_DECISION_PAYLOAD_BYTES)) {
+      return NextResponse.json(
+        { error: "Decision request payload too large" },
+        { status: 413, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const payload = await readBoundedPayload(request, MAX_DECISION_PAYLOAD_BYTES, DECISION_PAYLOAD_TIMEOUT_MS);
+    if (payload.status === "too_large") {
+      return NextResponse.json(
+        { error: "Decision request payload too large" },
+        { status: 413, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (payload.status === "timeout") {
+      return NextResponse.json(
+        { error: "Decision request payload read timed out" },
+        { status: 408, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    const body = JSON.parse(payload.payload) as Record<string, unknown>;
     const context = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       typeof body.organizationId === "string" ? body.organizationId : undefined,
