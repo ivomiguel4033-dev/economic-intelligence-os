@@ -1,7 +1,15 @@
-import { db } from "@/infrastructure/database/postgres";
+import { db } from "../infrastructure/database/postgres.ts";
+
+function isCanonicalIdentifier(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value === value.trim();
+}
 
 export async function resolveOrganizationForActor(actorId: string, requestedOrganizationId?: string): Promise<string> {
-  if (requestedOrganizationId) {
+  if (!isCanonicalIdentifier(actorId)) throw new Error("Invalid actor identity");
+
+  if (requestedOrganizationId !== undefined) {
+    if (!isCanonicalIdentifier(requestedOrganizationId)) throw new Error("Invalid organization selection");
+
     const allowed = await db.query(
       `SELECT 1 FROM organization_memberships WHERE actor_id=$1 AND organization_id=$2`,
       [actorId, requestedOrganizationId],
@@ -16,5 +24,8 @@ export async function resolveOrganizationForActor(actorId: string, requestedOrga
   );
   if (!memberships.rowCount) throw new Error("No organization membership found");
   if (memberships.rowCount > 1) throw new Error("Organization selection required");
-  return String(memberships.rows[0].organization_id);
+
+  const organizationId = memberships.rows[0]?.organization_id;
+  if (!isCanonicalIdentifier(organizationId)) throw new Error("Invalid organization membership");
+  return organizationId;
 }

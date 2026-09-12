@@ -24,8 +24,9 @@ function resolvePlan(object: StripeSubscriptionObject): PlanCode {
   throw new Error("Stripe subscription is missing a valid planCode metadata value");
 }
 
-export async function processStripeEvent(event: { type: string; data?: { object?: StripeSubscriptionObject } }): Promise<void> {
+export async function processStripeEvent(event: { type: string; created?: number; data?: { object?: StripeSubscriptionObject } }): Promise<void> {
   if (!["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"].includes(event.type)) return;
+  if (!Number.isSafeInteger(event.created) || (event.created ?? 0) <= 0) throw new Error("Stripe event is missing a valid created timestamp");
   const object = event.data?.object;
   if (!object?.id || !object.customer) throw new Error("Invalid Stripe subscription event payload");
   const organizationId = object.metadata?.organizationId;
@@ -38,5 +39,6 @@ export async function processStripeEvent(event: { type: string; data?: { object?
     state: event.type === "customer.subscription.deleted" ? "canceled" : mapState(object.status),
     currentPeriodEnd: object.current_period_end ? new Date(object.current_period_end * 1000).toISOString() : undefined,
     cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+    stripeEventCreatedAt: event.created as number,
   });
 }
