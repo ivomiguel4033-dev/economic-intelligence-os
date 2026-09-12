@@ -81,7 +81,8 @@ const limitedBlock = route.slice(acquireIndex, decisionLookupIndex);
 assert.match(limitedBlock, /reason:\s*"tenant_concurrency_limited"/, "limit responses must expose a stable machine-readable reason");
 assert.match(limitedBlock, /status:\s*429/, "tenant concurrency exhaustion must return HTTP 429");
 assert.match(limitedBlock, /"Retry-After":\s*"1"/, "limited tenants must receive retry guidance");
-assert.match(limitedBlock, /"Cache-Control":\s*"no-store"/, "tenant limit responses must not be cached");
+assert.match(limitedBlock, /\.\.\.NO_STORE_HEADERS/, "tenant limit responses must use the shared no-store policy");
+assert.match(route, /const NO_STORE_HEADERS\s*=\s*\{\s*"Cache-Control":\s*"no-store"\s*\}/, "shared no-store policy must disable caching");
 
 const cleanupIndex = route.lastIndexOf("  } finally {", releaseIndex);
 assert.ok(cleanupIndex >= 0 && cleanupIndex < releaseIndex, "distributed lease cleanup must execute from the route finally block");
