@@ -85,6 +85,7 @@ async function withServer(env, run) {
 await withServer({ METRICS_TOKEN: "" }, async (baseUrl) => {
   const response = await fetch(`${baseUrl}/api/metrics`);
   assert(response.status === 503, `Expected 503 without METRICS_TOKEN, got ${response.status}`);
+  assert(response.headers.get("cache-control") === "no-store", "Disabled metrics response must not be cached");
   assert((await response.text()) === "metrics unavailable\n", "Unexpected disabled metrics response body");
 });
 
@@ -93,6 +94,11 @@ await withServer({ METRICS_TOKEN: "ci-metrics-token" }, async (baseUrl) => {
     headers: { authorization: "Bearer wrong-token" },
   });
   assert(unauthorized.status === 401, `Expected 401 for invalid token, got ${unauthorized.status}`);
+  assert(unauthorized.headers.get("cache-control") === "no-store", "Unauthorized metrics response must not be cached");
+  assert(
+    unauthorized.headers.get("www-authenticate") === 'Bearer realm="metrics"',
+    "Unauthorized metrics response must advertise Bearer authentication",
+  );
 
   const response = await fetch(`${baseUrl}/api/metrics`, {
     headers: { authorization: "Bearer ci-metrics-token" },

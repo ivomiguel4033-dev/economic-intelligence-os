@@ -12,6 +12,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const textResponseHeaders = {
+  "content-type": "text/plain; charset=utf-8",
+  "cache-control": "no-store",
+};
+
 function authorized(request: Request): boolean {
   const expected = process.env.METRICS_TOKEN;
   if (!expected) return false;
@@ -29,11 +34,20 @@ function authorized(request: Request): boolean {
 
 export async function GET(request: Request) {
   if (!process.env.METRICS_TOKEN) {
-    return new Response("metrics unavailable\n", { status: 503 });
+    return new Response("metrics unavailable\n", {
+      status: 503,
+      headers: textResponseHeaders,
+    });
   }
 
   if (!authorized(request)) {
-    return new Response("unauthorized\n", { status: 401 });
+    return new Response("unauthorized\n", {
+      status: 401,
+      headers: {
+        ...textResponseHeaders,
+        "www-authenticate": 'Bearer realm="metrics"',
+      },
+    });
   }
 
   let gauges: Partial<Record<OperationalGaugeKey, number>> = {};
@@ -69,8 +83,8 @@ export async function GET(request: Request) {
   return new Response(renderPrometheusMetrics(gauges), {
     status: 200,
     headers: {
+      ...textResponseHeaders,
       "content-type": "text/plain; version=0.0.4; charset=utf-8",
-      "cache-control": "no-store",
     },
   });
 }
