@@ -5,6 +5,7 @@ import { processStripeEvent } from "@/billing/stripe-event-processor";
 
 const MAX_STRIPE_WEBHOOK_BYTES = 1_000_000;
 const STRIPE_WEBHOOK_READ_TIMEOUT_MS = 15_000;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 type StripeWebhookEvent = {
   id: string;
@@ -53,6 +54,10 @@ function configuredStripeMode(): boolean | null {
   if (value === "true") return true;
   if (value === "false") return false;
   return null;
+}
+
+function json(body: object, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
 }
 
 function cancelReader(reader: ReadableStreamDefaultReader<Uint8Array>, reason: string): void {
@@ -123,51 +128,51 @@ async function readBoundedPayload(request: NextRequest): Promise<PayloadReadResu
 
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return NextResponse.json({ error: "Stripe webhook not configured" }, { status: 503 });
+  if (!secret) return json({ error: "Stripe webhook not configured" }, 503);
 
   const expectedLive = configuredStripeMode();
   if (expectedLive === null) {
-    return NextResponse.json({ error: "Stripe webhook mode not configured" }, { status: 503 });
+    return json({ error: "Stripe webhook mode not configured" }, 503);
   }
 
   if (declaredPayloadTooLarge(request)) {
-    return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
+    return json({ error: "Stripe event payload too large" }, 413);
   }
 
   const body = await readBoundedPayload(request);
   if (body.status === "too_large") {
-    return NextResponse.json({ error: "Stripe event payload too large" }, { status: 413 });
+    return json({ error: "Stripe event payload too large" }, 413);
   }
   if (body.status === "timeout") {
-    return NextResponse.json({ error: "Stripe event payload read timed out" }, { status: 408 });
+    return json({ error: "Stripe event payload read timed out" }, 408);
   }
 
   const payload = body.payload;
   const signature = request.headers.get("stripe-signature") ?? "";
   if (!verifyStripeSignature(payload, signature, secret)) {
-    return NextResponse.json({ error: "Invalid Stripe signature" }, { status: 400 });
+    return json({ error: "Invalid Stripe signature" }, 400);
   }
 
   const event = parseStripeEvent(payload);
   if (!event) {
-    return NextResponse.json({ error: "Invalid Stripe event payload" }, { status: 400 });
+    return json({ error: "Invalid Stripe event payload" }, 400);
   }
 
   if (event.livemode !== expectedLive) {
-    return NextResponse.json({ error: "Stripe event mode mismatch" }, { status: 400 });
+    return json({ error: "Stripe event mode mismatch" }, 400);
   }
 
   const registration = await registerStripeEvent({ id: event.id, type: event.type, livemode: event.livemode, rawPayload: payload });
-  if (registration.status === "duplicate") return NextResponse.json({ received: true, duplicate: true });
+  if (registration.status === "duplicate") return json({ received: true, duplicate: true });
 
   try {
     await processStripeEvent(event);
     const finalized = await markStripeEventProcessed(event.id, registration.generation);
-    if (!finalized) return NextResponse.json({ received: true, superseded: true });
-    return NextResponse.json({ received: true });
+    if (!finalized) return json({ received: true, superseded: true });
+    return json({ received: true });
   } catch (error) {
     const recorded = await markStripeEventFailed(event.id, registration.generation, error);
-    if (!recorded) return NextResponse.json({ received: true, superseded: true });
-    return NextResponse.json({ error: "Stripe event processing failed" }, { status: 500 });
+    if (!recorded) return json({ received: true, superseded: true });
+    return json({ error: "Stripe event processing failed" }, 500);
   }
 }
