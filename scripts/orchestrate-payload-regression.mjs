@@ -47,7 +47,12 @@ async function stopServer(child) {
 }
 
 const child = spawn("npm", ["run", "start", "--", "--hostname", host, "--port", String(port)], {
-  env: process.env,
+  env: {
+    ...process.env,
+    OIDC_ISSUER: "https://issuer.example.test",
+    OIDC_AUDIENCE: "economic-intelligence-os",
+    OIDC_JWKS_URL: "https://issuer.example.test/.well-known/jwks.json",
+  },
   stdio: ["ignore", "pipe", "pipe"],
   detached: true,
 });
@@ -64,6 +69,7 @@ try {
   }).catch(() => null);
   if (declared) {
     assert(declared.status === 413, `Expected declared oversized orchestration payload 413, got ${declared.status}`);
+    assert(declared.headers.get("cache-control") === "no-store", "Declared oversized orchestration response must disable caching");
   }
 
   const chunkSize = 64 * 1024;
@@ -86,11 +92,33 @@ try {
     duplex: "half",
   });
   assert(streamed.status === 413, `Expected chunked oversized orchestration payload 413, got ${streamed.status}`);
-  const body = await streamed.json();
-  assert(body.error === "Orchestration request payload too large", "Oversized orchestration response must use the bounded-payload error");
+  assert(streamed.headers.get("cache-control") === "no-store", "Chunked oversized orchestration response must disable caching");
+  const streamedBody = await streamed.json();
+  assert(streamedBody.error === "Orchestration request payload too large", "Oversized orchestration response must use the bounded-payload error");
+
+  const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{not-json",
+  });
+  assert(malformed.status === 400, `Expected malformed orchestration payload 400, got ${malformed.status}`);
+  assert(malformed.headers.get("cache-control") === "no-store", "Malformed orchestration response must disable caching");
+  const malformedBody = await malformed.json();
+  assert(malformedBody.error === "Invalid orchestration request", "Malformed orchestration payload must return a generic client-safe error");
+
+  const unauthorized = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision_test" }),
+  });
+  assert(unauthorized.status === 401, `Expected unauthenticated orchestration request 401, got ${unauthorized.status}`);
+  assert(unauthorized.headers.get("cache-control") === "no-store", "Unauthenticated orchestration response must disable caching");
+  assert(unauthorized.headers.get("www-authenticate") === "Bearer", "Unauthenticated orchestration response must advertise Bearer authentication");
+  const unauthorizedBody = await unauthorized.json();
+  assert(unauthorizedBody.error === "Authentication required", "Unauthenticated orchestration response must not expose internal authentication details");
 } finally {
   await stopServer(child);
 }
 
 assert(!/UnhandledPromiseRejection/i.test(stderr), "Orchestration payload regression server emitted an unhandled rejection");
-console.log("Orchestration payload bound regression checks passed");
+console.log("Orchestration payload bounds, cache controls and client-safe error regression checks passed");

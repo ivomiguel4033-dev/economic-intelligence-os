@@ -16,14 +16,19 @@ import type { ProposedAction } from "@/execution/execution-policy";
 const TENANT_CONCURRENCY_HEARTBEAT_MS = 30_000;
 const MAX_ORCHESTRATION_REQUEST_BYTES = 1_000_000;
 const ORCHESTRATION_REQUEST_READ_TIMEOUT_MS = 15_000;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+
+function orchestrationError(error: string, status: number, headers: Record<string, string> = {}) {
+  return NextResponse.json(
+    { error },
+    { status, headers: { ...NO_STORE_HEADERS, ...headers } },
+  );
+}
 
 export async function POST(request: NextRequest) {
   const releaseWork = tryBeginTrackedWork();
   if (!releaseWork) {
-    return NextResponse.json(
-      { error: "Service is draining" },
-      { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
-    );
+    return orchestrationError("Service is draining", 503, { "Retry-After": "1" });
   }
 
   let tenantConcurrencyLease: DistributedTenantConcurrencyLease | null = null;
@@ -36,15 +41,12 @@ export async function POST(request: NextRequest) {
     if (pool.waiting > 0 || (pool.total >= pool.max && pool.idle === 0)) {
       return NextResponse.json(
         { error: "Service temporarily overloaded", reason: "database_pool_saturated" },
-        { status: 503, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+        { status: 503, headers: { "Retry-After": "1", ...NO_STORE_HEADERS } },
       );
     }
 
     if (declaredPayloadTooLarge(request, MAX_ORCHESTRATION_REQUEST_BYTES)) {
-      return NextResponse.json(
-        { error: "Orchestration request payload too large" },
-        { status: 413, headers: { "Cache-Control": "no-store" } },
-      );
+      return orchestrationError("Orchestration request payload too large", 413);
     }
 
     const payload = await readBoundedPayload(
@@ -53,16 +55,10 @@ export async function POST(request: NextRequest) {
       ORCHESTRATION_REQUEST_READ_TIMEOUT_MS,
     );
     if (payload.status === "too_large") {
-      return NextResponse.json(
-        { error: "Orchestration request payload too large" },
-        { status: 413, headers: { "Cache-Control": "no-store" } },
-      );
+      return orchestrationError("Orchestration request payload too large", 413);
     }
     if (payload.status === "timeout") {
-      return NextResponse.json(
-        { error: "Orchestration request payload read timed out" },
-        { status: 408, headers: { "Cache-Control": "no-store" } },
-      );
+      return orchestrationError("Orchestration request payload read timed out", 408);
     }
 
     let body: Record<string, any>;
@@ -71,7 +67,7 @@ export async function POST(request: NextRequest) {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid body");
       body = parsed as Record<string, any>;
     } catch {
-      return NextResponse.json({ error: "Invalid orchestration request" }, { status: 400 });
+      return orchestrationError("Invalid orchestration request", 400);
     }
 
     const access = await resolveAuthenticatedContext(
@@ -85,7 +81,7 @@ export async function POST(request: NextRequest) {
     if (!tenantConcurrencyLease) {
       return NextResponse.json(
         { error: "Tenant orchestration concurrency limit reached", reason: "tenant_concurrency_limited" },
-        { status: 429, headers: { "Retry-After": "1", "Cache-Control": "no-store" } },
+        { status: 429, headers: { "Retry-After": "1", ...NO_STORE_HEADERS } },
       );
     }
 
@@ -112,9 +108,9 @@ export async function POST(request: NextRequest) {
 
     const decisions = new PostgresDecisionRepository();
     const decision = await decisions.findById(decisionId);
-    if (!decision) return NextResponse.json({ error: "Decision not found" }, { status: 404 });
+    if (!decision) return orchestrationError("Decision not found", 404);
     if (decision.organizationId !== organizationId) {
-      return NextResponse.json({ error: "Cross-organization access denied" }, { status: 403 });
+      return orchestrationError("Access denied", 403);
     }
 
     const claims = Array.isArray(body.claims) ? body.claims as SupportedClaim[] : [];
@@ -148,16 +144,31 @@ export async function POST(request: NextRequest) {
     const runs = new PostgresOrchestrationRepository();
     const persisted = await runs.save(organizationId, result);
 
-    return NextResponse.json({ ...result, runId: persisted.id, persistedAt: persisted.createdAt }, { status: 200 });
+    return NextResponse.json(
+      { ...result, runId: persisted.id, persistedAt: persisted.createdAt },
+      { status: 200, headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid orchestration request";
-    const status = message.includes("No AI providers configured") || message.includes("OIDC verifier is not configured") || message.includes("Tenant concurrency lease lost") ? 503
-      : message.includes("authentication") || message.includes("Bearer") || message.includes("Identity") || message.includes("token") ? 401
-      : message.includes("Step-up") || message.includes("Recent authentication") ? 401
-      : message.includes("Access denied") || message.includes("membership") || message.includes("Organization access") ? 403
-      : message.includes("subscription") || message.includes("plan") || message.includes("usage limit") || message.includes("Payment recovery") ? 402
-      : 400;
-    return NextResponse.json({ error: message }, { status });
+    const message = error instanceof Error ? error.message : "";
+
+    if (/No AI providers configured|OIDC verifier is not configured|Tenant concurrency lease lost/i.test(message)) {
+      return orchestrationError("Orchestration service unavailable", 503, { "Retry-After": "1" });
+    }
+    if (/authentication|Bearer|Identity|token|Step-up|Recent authentication/i.test(message)) {
+      return orchestrationError("Authentication required", 401, { "WWW-Authenticate": "Bearer" });
+    }
+    if (/Access denied|membership|Organization access/i.test(message)) {
+      return orchestrationError("Access denied", 403);
+    }
+    if (/subscription|plan|usage limit|Payment recovery/i.test(message)) {
+      return orchestrationError("Billing entitlement required", 402);
+    }
+    if (/decisionId is required/i.test(message)) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
+    console.error("Orchestration request failed", error);
+    return orchestrationError("Orchestration request failed", 500);
   } finally {
     if (tenantConcurrencyHeartbeat) clearInterval(tenantConcurrencyHeartbeat);
     if (tenantConcurrencyRenewal) await tenantConcurrencyRenewal;
