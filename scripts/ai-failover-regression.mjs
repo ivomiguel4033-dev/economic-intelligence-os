@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 
@@ -19,4 +20,23 @@ assert.ok(finallyIndex > catchIndex, "timeout cleanup must execute after provide
 assert.match(source, /failures\.push\(`\$\{provider\.name\}:/, "failover diagnostics must retain the provider name");
 assert.match(source, /All AI providers failed: \$\{failures\.join\(["'][^"']+["']\)\}/, "terminal failure must aggregate provider diagnostics");
 
-console.log("AI failover regression checks passed");
+assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
+for (const unsafeUrl of [
+  "https://user:secret@api.example.com/v1",
+  "https://api.example.com/v1#internal",
+  "https://localhost/v1",
+  "https://service.localhost/v1",
+  "https://127.0.0.1/v1",
+  "https://10.0.0.1/v1",
+  "https://169.254.169.254/latest/meta-data",
+  "https://[::1]/v1",
+  "https://[::]/v1",
+  "https://[fc00::1]/v1",
+  "https://[fd12:3456::1]/v1",
+  "https://[fe80::1]/v1",
+  "https://[::ffff:127.0.0.1]/v1",
+]) {
+  assert.throws(() => assertSafeProviderUrl(unsafeUrl), undefined, `provider URL must reject ${unsafeUrl}`);
+}
+
+console.log("AI failover and provider URL regression checks passed");
