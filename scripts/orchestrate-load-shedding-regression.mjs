@@ -20,7 +20,8 @@ assert.ok(billingIndex > saturationIndex, "load shedding must happen before bill
 const overloadBlock = route.slice(saturationIndex, boundedReadIndex);
 assert.match(overloadBlock, /reason:\s*"database_pool_saturated"/, "load shedding must expose a stable machine-readable reason");
 assert.match(overloadBlock, /"Retry-After":\s*"1"/, "load shedding must tell callers when to retry");
-assert.match(overloadBlock, /"Cache-Control":\s*"no-store"/, "overload responses must not be cached");
+assert.match(overloadBlock, /\.\.\.NO_STORE_HEADERS/, "overload responses must use the shared no-store policy");
+assert.match(route, /const NO_STORE_HEADERS\s*=\s*\{\s*"Cache-Control":\s*"no-store"\s*\}/, "shared no-store policy must disable caching");
 assert.match(overloadBlock, /status:\s*503/, "saturated orchestration traffic must fail with HTTP 503");
 
 console.log("orchestrate load-shedding regression checks passed");
