@@ -12,6 +12,7 @@ export interface OpenAICompatibleConfig {
 const DEFAULT_TIMEOUT_MS = 45_000;
 const MAX_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
 function parseContentLength(value: string | null): number | null {
   if (value === null) return null;
@@ -30,8 +31,8 @@ function resolveTimeoutMs(value: number | undefined): number {
 
 function resolveMaxResponseBytes(value: number | undefined): number {
   if (value === undefined) return DEFAULT_MAX_RESPONSE_BYTES;
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error("AI provider maxResponseBytes must be a positive safe integer");
+  if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_RESPONSE_BYTES) {
+    throw new Error(`AI provider maxResponseBytes must be a positive safe integer no greater than ${MAX_RESPONSE_BYTES}`);
   }
   return value;
 }
