@@ -48,6 +48,13 @@ export async function POST(request: NextRequest) {
       return decisionError("Decision request payload read timed out", 408);
     }
 
+    const mediaType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const isJsonMediaType = mediaType === "application/json"
+      || (mediaType?.startsWith("application/") === true && mediaType.endsWith("+json"));
+    if (!isJsonMediaType) {
+      return decisionError("Content-Type must be application/json", 415);
+    }
+
     let body: Record<string, unknown>;
     try {
       const parsed = JSON.parse(payload.payload) as unknown;
