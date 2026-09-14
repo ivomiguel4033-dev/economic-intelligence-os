@@ -9,6 +9,8 @@ export interface OpenAICompatibleConfig {
   maxResponseBytes?: number;
 }
 
+const DEFAULT_TIMEOUT_MS = 45_000;
+const MAX_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 function parseContentLength(value: string | null): number | null {
@@ -16,6 +18,14 @@ function parseContentLength(value: string | null): number | null {
   if (!/^\d+$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function resolveTimeoutMs(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_TIMEOUT_MS;
+  if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMEOUT_MS) {
+    throw new Error(`AI provider timeoutMs must be a positive safe integer no greater than ${MAX_TIMEOUT_MS}`);
+  }
+  return value;
 }
 
 function resolveMaxResponseBytes(value: number | undefined): number {
@@ -32,7 +42,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   async generate(request: ModelRequest): Promise<ModelResponse> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? 45_000);
+    const timeout = setTimeout(() => controller.abort(), resolveTimeoutMs(this.config.timeoutMs));
     const started = Date.now();
     try {
       const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {

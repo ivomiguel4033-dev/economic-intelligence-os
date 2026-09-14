@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
+const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
 
 assert.match(source, /const DEFAULT_TIMEOUT_MS = 30_000;/, "failover must retain a bounded default timeout");
 assert.match(source, /Number\.isSafeInteger\(timeoutMs\)/, "timeout must reject non-safe integers");
@@ -19,6 +20,11 @@ assert.ok(finallyIndex > catchIndex, "timeout cleanup must execute after provide
 
 assert.match(source, /failures\.push\(`\$\{provider\.name\}:/, "failover diagnostics must retain the provider name");
 assert.match(source, /All AI providers failed: \$\{failures\.join\(["'][^"']+["']\)\}/, "terminal failure must aggregate provider diagnostics");
+
+assert.match(providerSource, /const DEFAULT_TIMEOUT_MS = 45_000;/, "provider must retain a bounded default request timeout");
+assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider must cap configured request timeouts");
+assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
+assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
 for (const unsafeUrl of [
