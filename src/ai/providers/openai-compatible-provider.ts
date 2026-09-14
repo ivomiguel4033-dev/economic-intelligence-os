@@ -102,9 +102,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      const data = JSON.parse(new TextDecoder().decode(body)) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
+      const data = JSON.parse(new TextDecoder().decode(body)) as { choices?: Array<{ message?: { content?: unknown } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
       const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error(`${this.name} returned empty content`);
+      if (typeof content !== "string" || content.trim().length === 0) {
+        throw new Error(`${this.name} returned invalid content`);
+      }
       const inputTokens = parseOptionalTokenCount(data.usage?.prompt_tokens, "prompt token count");
       const outputTokens = parseOptionalTokenCount(data.usage?.completion_tokens, "completion token count");
       return { provider: this.name, model: this.config.model, content, inputTokens, outputTokens, latencyMs: Date.now() - started };
