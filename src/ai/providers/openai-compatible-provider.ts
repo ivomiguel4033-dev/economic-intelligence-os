@@ -43,6 +43,14 @@ function isJsonMediaType(value: string | null): boolean {
   return mediaType === "application/json" || Boolean(mediaType?.startsWith("application/") && mediaType.endsWith("+json"));
 }
 
+function parseOptionalTokenCount(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`AI provider returned invalid ${field}`);
+  }
+  return value as number;
+}
+
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly name: string;
   constructor(private readonly config: OpenAICompatibleConfig) { this.name = config.name; }
@@ -94,10 +102,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      const data = JSON.parse(new TextDecoder().decode(body)) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+      const data = JSON.parse(new TextDecoder().decode(body)) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
       const content = data.choices?.[0]?.message?.content;
       if (!content) throw new Error(`${this.name} returned empty content`);
-      return { provider: this.name, model: this.config.model, content, inputTokens: data.usage?.prompt_tokens, outputTokens: data.usage?.completion_tokens, latencyMs: Date.now() - started };
+      const inputTokens = parseOptionalTokenCount(data.usage?.prompt_tokens, "prompt token count");
+      const outputTokens = parseOptionalTokenCount(data.usage?.completion_tokens, "completion token count");
+      return { provider: this.name, model: this.config.model, content, inputTokens, outputTokens, latencyMs: Date.now() - started };
     } finally { clearTimeout(timeout); }
   }
 }
