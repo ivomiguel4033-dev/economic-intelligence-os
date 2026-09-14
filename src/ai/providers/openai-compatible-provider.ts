@@ -23,6 +23,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body: JSON.stringify({ model: this.config.model, temperature: request.temperature ?? 0.2, messages: [
           { role: "system", content: request.system }, { role: "user", content: request.prompt },
         ] }),
+        redirect: "error",
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`${this.name} returned HTTP ${response.status}`);
