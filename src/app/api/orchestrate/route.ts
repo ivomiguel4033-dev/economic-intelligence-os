@@ -25,6 +25,12 @@ function orchestrationError(error: string, status: number, headers: Record<strin
   );
 }
 
+function hasJsonMediaType(request: NextRequest): boolean {
+  const mediaType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  return mediaType === "application/json"
+    || Boolean(mediaType?.startsWith("application/") && mediaType.endsWith("+json"));
+}
+
 export async function POST(request: NextRequest) {
   const releaseWork = tryBeginTrackedWork();
   if (!releaseWork) {
@@ -59,6 +65,9 @@ export async function POST(request: NextRequest) {
     }
     if (payload.status === "timeout") {
       return orchestrationError("Orchestration request payload read timed out", 408);
+    }
+    if (!hasJsonMediaType(request)) {
+      return orchestrationError("Unsupported media type", 415);
     }
 
     let body: Record<string, any>;
