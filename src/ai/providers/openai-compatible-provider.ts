@@ -18,6 +18,14 @@ function parseContentLength(value: string | null): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
+function resolveMaxResponseBytes(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_MAX_RESPONSE_BYTES;
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error("AI provider maxResponseBytes must be a positive safe integer");
+  }
+  return value;
+}
+
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly name: string;
   constructor(private readonly config: OpenAICompatibleConfig) { this.name = config.name; }
@@ -38,7 +46,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       });
       if (!response.ok) throw new Error(`${this.name} returned HTTP ${response.status}`);
 
-      const maxResponseBytes = this.config.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+      const maxResponseBytes = resolveMaxResponseBytes(this.config.maxResponseBytes);
       const contentLength = parseContentLength(response.headers.get("content-length"));
       if (contentLength !== null && contentLength > maxResponseBytes) {
         controller.abort();
