@@ -54,6 +54,7 @@ function sendStalledRequest(port) {
       path: "/api/stripe/webhook",
       method: "POST",
       headers: {
+        "content-type": "application/json",
         "stripe-signature": "invalid",
         "transfer-encoding": "chunked",
       },
@@ -94,7 +95,11 @@ async function runServer(extraEnv, assertions) {
 await runServer({ STRIPE_LIVEMODE: "false" }, async ({ baseUrl, port }) => {
   const declared = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
-    headers: { "content-length": String(maxBytes + 1), "stripe-signature": "invalid" },
+    headers: {
+      "content-type": "application/json",
+      "content-length": String(maxBytes + 1),
+      "stripe-signature": "invalid",
+    },
     body: "x",
   }).catch(() => null);
   if (declared) assert(declared.status === 413, `Expected declared oversized payload 413, got ${declared.status}`);
@@ -115,7 +120,10 @@ await runServer({ STRIPE_LIVEMODE: "false" }, async ({ baseUrl, port }) => {
   });
   const streamed = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
-    headers: { "stripe-signature": "invalid" },
+    headers: {
+      "content-type": "application/json",
+      "stripe-signature": "invalid",
+    },
     body: stream,
     duplex: "half",
   });
@@ -140,7 +148,10 @@ for (const invalidMode of [undefined, "", "TRUE", "0", "test"]) {
   await runServer(modeEnv, async ({ baseUrl }) => {
     const response = await fetch(`${baseUrl}/api/stripe/webhook`, {
       method: "POST",
-      headers: { "stripe-signature": "invalid" },
+      headers: {
+        "content-type": "application/json",
+        "stripe-signature": "invalid",
+      },
       body: "{}",
     });
     assert(response.status === 503, `Expected invalid STRIPE_LIVEMODE=${String(invalidMode)} to fail closed with 503, got ${response.status}`);
