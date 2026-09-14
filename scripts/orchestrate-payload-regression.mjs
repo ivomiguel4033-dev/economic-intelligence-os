@@ -96,6 +96,16 @@ try {
   const streamedBody = await streamed.json();
   assert(streamedBody.error === "Orchestration request payload too large", "Oversized orchestration response must use the bounded-payload error");
 
+  const unsupported = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision_test" }),
+  });
+  assert(unsupported.status === 415, `Expected unsupported orchestration media type 415, got ${unsupported.status}`);
+  assert(unsupported.headers.get("cache-control") === "no-store", "Unsupported orchestration media type response must disable caching");
+  const unsupportedBody = await unsupported.json();
+  assert(unsupportedBody.error === "Unsupported media type", "Unsupported orchestration media type must return a generic client-safe error");
+
   const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -105,6 +115,14 @@ try {
   assert(malformed.headers.get("cache-control") === "no-store", "Malformed orchestration response must disable caching");
   const malformedBody = await malformed.json();
   assert(malformedBody.error === "Invalid orchestration request", "Malformed orchestration payload must return a generic client-safe error");
+
+  const suffixJson = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/vnd.eios.request+json; charset=utf-8" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision_test" }),
+  });
+  assert(suffixJson.status === 401, `Expected application/*+json orchestration request to reach authentication, got ${suffixJson.status}`);
+  assert(suffixJson.headers.get("www-authenticate") === "Bearer", "Structured-suffix JSON request must reach Bearer authentication");
 
   const unauthorized = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
@@ -121,4 +139,4 @@ try {
 }
 
 assert(!/UnhandledPromiseRejection/i.test(stderr), "Orchestration payload regression server emitted an unhandled rejection");
-console.log("Orchestration payload bounds, cache controls and client-safe error regression checks passed");
+console.log("Orchestration payload bounds, media type, cache controls and client-safe error regression checks passed");
