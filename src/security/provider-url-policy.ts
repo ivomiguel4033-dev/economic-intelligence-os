@@ -11,8 +11,12 @@ function isPrivateIpv6(host: string): boolean {
   if (host === "::" || host === "::1") return true;
   if (/^f[cd][0-9a-f]{2}:/i.test(host) || /^fe[89ab][0-9a-f]:/i.test(host)) return true;
 
-  const mappedIpv4 = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)?.[1];
-  return mappedIpv4 ? isPrivateIpv4(mappedIpv4) : false;
+  // URL parsers may canonicalize IPv4-mapped IPv6 addresses into hexadecimal
+  // form (for example ::ffff:127.0.0.1 -> ::ffff:7f00:1). Treat the entire
+  // IPv4-mapped range as unsafe rather than relying on dotted-decimal parsing.
+  if (/^::ffff:/i.test(host)) return true;
+
+  return false;
 }
 
 export function assertSafeProviderUrl(value: string): URL {
