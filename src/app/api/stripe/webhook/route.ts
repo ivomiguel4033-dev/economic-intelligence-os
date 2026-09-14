@@ -49,6 +49,13 @@ function declaredPayloadTooLarge(request: NextRequest): boolean {
   return !Number.isSafeInteger(bytes) || bytes > MAX_STRIPE_WEBHOOK_BYTES;
 }
 
+function hasJsonMediaType(request: NextRequest): boolean {
+  const contentType = request.headers.get("content-type");
+  if (!contentType) return false;
+  const mediaType = contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  return mediaType === "application/json" || /^application\/[a-z0-9!#$&^_.+-]+\+json$/.test(mediaType);
+}
+
 function configuredStripeMode(): boolean | null {
   const value = process.env.STRIPE_LIVEMODE;
   if (value === "true") return true;
@@ -133,6 +140,10 @@ export async function POST(request: NextRequest) {
   const expectedLive = configuredStripeMode();
   if (expectedLive === null) {
     return json({ error: "Stripe webhook mode not configured" }, 503);
+  }
+
+  if (!hasJsonMediaType(request)) {
+    return json({ error: "Unsupported media type" }, 415);
   }
 
   if (declaredPayloadTooLarge(request)) {
