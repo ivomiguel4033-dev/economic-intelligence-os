@@ -37,6 +37,12 @@ function resolveMaxResponseBytes(value: number | undefined): number {
   return value;
 }
 
+function isJsonMediaType(value: string | null): boolean {
+  if (value === null) return false;
+  const mediaType = value.split(";", 1)[0]?.trim().toLowerCase();
+  return mediaType === "application/json" || Boolean(mediaType?.startsWith("application/") && mediaType.endsWith("+json"));
+}
+
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly name: string;
   constructor(private readonly config: OpenAICompatibleConfig) { this.name = config.name; }
@@ -56,6 +62,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`${this.name} returned HTTP ${response.status}`);
+      if (!isJsonMediaType(response.headers.get("content-type"))) {
+        controller.abort();
+        throw new Error(`${this.name} returned a non-JSON response`);
+      }
 
       const maxResponseBytes = resolveMaxResponseBytes(this.config.maxResponseBytes);
       const contentLength = parseContentLength(response.headers.get("content-length"));
