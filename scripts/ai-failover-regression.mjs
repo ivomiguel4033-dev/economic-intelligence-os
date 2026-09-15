@@ -4,6 +4,7 @@ import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
+const telemetrySource = await readFile(new URL("../src/ai/providers/telemetry-provider.ts", import.meta.url), "utf8");
 
 assert.match(source, /const DEFAULT_TIMEOUT_MS = 30_000;/, "failover must retain a bounded default timeout");
 assert.match(source, /Number\.isSafeInteger\(timeoutMs\)/, "timeout must reject non-safe integers");
@@ -26,6 +27,11 @@ assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider mu
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
 
+assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(query, values\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a best-effort boundary");
+assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await db\.query\(/, "provider failures must not be masked by a direct telemetry database write");
+assert.match(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\([\s\S]*?throw error;/, "provider failures must preserve the original error after best-effort telemetry");
+assert.match(telemetrySource, /await recordTelemetry\([\s\S]*?return response;/, "successful provider responses must survive telemetry persistence failures");
+
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
 for (const unsafeUrl of [
   "https://user:secret@api.example.com/v1",
@@ -45,4 +51,4 @@ for (const unsafeUrl of [
   assert.throws(() => assertSafeProviderUrl(unsafeUrl), undefined, `provider URL must reject ${unsafeUrl}`);
 }
 
-console.log("AI failover and provider URL regression checks passed");
+console.log("AI failover, telemetry resilience, and provider URL regression checks passed");
