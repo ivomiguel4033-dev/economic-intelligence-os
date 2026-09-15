@@ -30,7 +30,9 @@ export class TelemetryProvider implements ModelProvider {
     try {
       response = await this.inner.generate(request);
     } catch (error) {
-      await recordTelemetry(
+      // Do not make provider failures wait for an optional telemetry write.
+      // recordTelemetry handles its own rejection and has a bounded DB timeout.
+      void recordTelemetry(
         `INSERT INTO model_performance_events (
           organization_id, provider, model, capability, task_type, success, latency_ms
         ) VALUES ($1,$2,$3,$4,$5,false,$6)`,
@@ -46,7 +48,9 @@ export class TelemetryProvider implements ModelProvider {
       throw error;
     }
 
-    await recordTelemetry(
+    // Telemetry must not add database latency to a successful model response.
+    // The write remains bounded and best-effort in the background.
+    void recordTelemetry(
       `INSERT INTO model_performance_events (
         organization_id, provider, model, capability, task_type, success, latency_ms, input_tokens, output_tokens
       ) VALUES ($1,$2,$3,$4,$5,true,$6,$7,$8)`,
