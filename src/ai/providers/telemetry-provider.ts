@@ -1,9 +1,15 @@
 import type { ModelProvider, ModelRequest, ModelResponse } from "@/ai/model-provider";
 import { db } from "@/infrastructure/database/postgres";
 
+const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;
+
 async function recordTelemetry(query: string, values: unknown[]): Promise<void> {
   try {
-    await db.query(query, values);
+    await db.query({
+      text: query,
+      values,
+      query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,
+    });
   } catch {
     // Telemetry is best-effort and must never change the model call outcome.
   }

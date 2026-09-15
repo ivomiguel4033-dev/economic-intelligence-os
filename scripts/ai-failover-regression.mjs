@@ -27,7 +27,8 @@ assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider mu
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
 
-assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(query, values\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a best-effort boundary");
+assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
+assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
 assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await db\.query\(/, "provider failures must not be masked by a direct telemetry database write");
 assert.match(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\([\s\S]*?throw error;/, "provider failures must preserve the original error after best-effort telemetry");
 assert.match(telemetrySource, /await recordTelemetry\([\s\S]*?return response;/, "successful provider responses must survive telemetry persistence failures");
