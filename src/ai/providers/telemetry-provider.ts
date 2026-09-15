@@ -5,6 +5,11 @@ const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;
 
 async function recordTelemetry(query: string, values: unknown[]): Promise<void> {
   try {
+    // node-postgres supports per-query `query_timeout` at runtime, but the
+    // installed @types/pg QueryConfig declaration does not currently expose it.
+    // Keep this narrow suppression next to the option so a future type update
+    // fails CI and prompts removal instead of weakening db.query globally.
+    // @ts-expect-error runtime-supported node-postgres query timeout option
     await db.query({
       text: query,
       values,
