@@ -75,9 +75,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
         signal: controller.signal,
       });
       if (!response.ok) {
-        // Provider error bodies are untrusted and are not needed for routing decisions.
-        // Abort immediately so a large or never-ending error response cannot consume
-        // the normal response budget or hold the connection open.
         controller.abort();
         throw new Error(`${this.name} returned HTTP ${response.status}`);
       }
@@ -106,20 +103,25 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
       const chunks: Uint8Array[] = [];
       let totalBytes = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        totalBytes += value.byteLength;
-        if (totalBytes > maxResponseBytes) {
-          await reader.cancel();
-          controller.abort();
-          throw new Error(`${this.name} response exceeded size limit`);
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          totalBytes += value.byteLength;
+          if (totalBytes > maxResponseBytes) {
+            controller.abort();
+            throw new Error(`${this.name} response exceeded size limit`);
+          }
+          chunks.push(value);
         }
-        chunks.push(value);
+      } catch (error) {
+        // A failed or oversized stream must be cancelled so the remote body cannot
+        // retain transport resources after this provider attempt has failed.
+        try { await reader.cancel(); } catch { /* best-effort cleanup */ }
+        throw error;
+      } finally {
+        reader.releaseLock();
       }
-      // Release the reader lock explicitly after EOF so the response stream cannot
-      // retain resources while JSON validation and downstream routing continue.
-      reader.releaseLock();
       const body = new Uint8Array(totalBytes);
       let offset = 0;
       for (const chunk of chunks) {
