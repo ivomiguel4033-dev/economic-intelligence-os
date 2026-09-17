@@ -30,8 +30,9 @@ assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolve
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
 assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await db\.query\(/, "provider failures must not be masked by a direct telemetry database write");
-assert.match(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\([\s\S]*?throw error;/, "provider failures must preserve the original error after best-effort telemetry");
-assert.match(telemetrySource, /await recordTelemetry\([\s\S]*?return response;/, "successful provider responses must survive telemetry persistence failures");
+assert.match(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?void recordTelemetry\([\s\S]*?throw error;/, "provider failures must preserve the original error without waiting for best-effort telemetry");
+assert.match(telemetrySource, /void recordTelemetry\([\s\S]*?return response;/, "successful provider responses must not wait for telemetry persistence");
+assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\(/, "provider failure telemetry must remain off the critical path");
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
 for (const unsafeUrl of [
