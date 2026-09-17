@@ -128,13 +128,28 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      const data = JSON.parse(new TextDecoder().decode(body)) as { choices?: Array<{ message?: { content?: unknown } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
+
+      let data: { choices?: Array<{ message?: { content?: unknown } }>; usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } };
+      try {
+        data = JSON.parse(new TextDecoder().decode(body)) as typeof data;
+      } catch (error) {
+        controller.abort();
+        throw error;
+      }
       const content = data.choices?.[0]?.message?.content;
       if (typeof content !== "string" || content.trim().length === 0) {
+        controller.abort();
         throw new Error(`${this.name} returned invalid content`);
       }
-      const inputTokens = parseOptionalTokenCount(data.usage?.prompt_tokens, "prompt token count");
-      const outputTokens = parseOptionalTokenCount(data.usage?.completion_tokens, "completion token count");
+      let inputTokens: number | undefined;
+      let outputTokens: number | undefined;
+      try {
+        inputTokens = parseOptionalTokenCount(data.usage?.prompt_tokens, "prompt token count");
+        outputTokens = parseOptionalTokenCount(data.usage?.completion_tokens, "completion token count");
+      } catch (error) {
+        controller.abort();
+        throw error;
+      }
       return { provider: this.name, model: this.config.model, content, inputTokens, outputTokens, latencyMs: Date.now() - started };
     } finally { clearTimeout(timeout); }
   }
