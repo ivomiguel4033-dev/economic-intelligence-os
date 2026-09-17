@@ -62,7 +62,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
     try {
       const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.config.apiKey}` },
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          authorization: `Bearer ${this.config.apiKey}`,
+        },
         body: JSON.stringify({ model: this.config.model, temperature: request.temperature ?? 0.2, messages: [
           { role: "system", content: request.system }, { role: "user", content: request.prompt },
         ] }),
