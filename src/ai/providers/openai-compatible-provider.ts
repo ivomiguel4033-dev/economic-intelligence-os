@@ -16,9 +16,10 @@ const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
 function parseContentLength(value: string | null): number | null {
   if (value === null) return null;
-  if (!/^\d+$/.test(value)) return null;
+  if (!/^\d+$/.test(value)) throw new Error("AI provider returned invalid Content-Length");
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  if (!Number.isSafeInteger(parsed)) throw new Error("AI provider returned invalid Content-Length");
+  return parsed;
 }
 
 function resolveTimeoutMs(value: number | undefined): number {
@@ -80,7 +81,13 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
 
       const maxResponseBytes = resolveMaxResponseBytes(this.config.maxResponseBytes);
-      const contentLength = parseContentLength(response.headers.get("content-length"));
+      let contentLength: number | null;
+      try {
+        contentLength = parseContentLength(response.headers.get("content-length"));
+      } catch (error) {
+        controller.abort();
+        throw error;
+      }
       if (contentLength !== null && contentLength > maxResponseBytes) {
         controller.abort();
         throw new Error(`${this.name} response exceeded size limit`);
