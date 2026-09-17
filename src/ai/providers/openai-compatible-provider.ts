@@ -117,6 +117,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
         }
         chunks.push(value);
       }
+      // Release the reader lock explicitly after EOF so the response stream cannot
+      // retain resources while JSON validation and downstream routing continue.
+      reader.releaseLock();
       const body = new Uint8Array(totalBytes);
       let offset = 0;
       for (const chunk of chunks) {
