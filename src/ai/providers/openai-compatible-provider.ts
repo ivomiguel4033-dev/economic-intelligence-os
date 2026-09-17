@@ -74,7 +74,13 @@ export class OpenAICompatibleProvider implements ModelProvider {
         redirect: "error",
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`${this.name} returned HTTP ${response.status}`);
+      if (!response.ok) {
+        // Provider error bodies are untrusted and are not needed for routing decisions.
+        // Abort immediately so a large or never-ending error response cannot consume
+        // the normal response budget or hold the connection open.
+        controller.abort();
+        throw new Error(`${this.name} returned HTTP ${response.status}`);
+      }
       if (!isJsonMediaType(response.headers.get("content-type"))) {
         controller.abort();
         throw new Error(`${this.name} returned a non-JSON response`);
