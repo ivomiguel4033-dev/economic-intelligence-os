@@ -94,7 +94,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error(`${this.name} returned an unreadable response`);
+      if (!reader) {
+        controller.abort();
+        throw new Error(`${this.name} returned an unreadable response`);
+      }
       const chunks: Uint8Array[] = [];
       let totalBytes = 0;
       while (true) {
@@ -103,6 +106,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         totalBytes += value.byteLength;
         if (totalBytes > maxResponseBytes) {
           await reader.cancel();
+          controller.abort();
           throw new Error(`${this.name} response exceeded size limit`);
         }
         chunks.push(value);
