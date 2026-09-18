@@ -109,14 +109,15 @@ export class OpenAICompatibleProvider implements ModelProvider {
           if (done) break;
           totalBytes += value.byteLength;
           if (totalBytes > maxResponseBytes) {
-            controller.abort();
             throw new Error(`${this.name} response exceeded size limit`);
           }
           chunks.push(value);
         }
       } catch (error) {
-        // A failed or oversized stream must be cancelled so the remote body cannot
-        // retain transport resources after this provider attempt has failed.
+        // Any failed or oversized stream invalidates the provider attempt. Abort the
+        // request first so the transport is signalled even if reader cancellation
+        // itself fails, then release the body resources on a best-effort basis.
+        controller.abort();
         try { await reader.cancel(); } catch { /* best-effort cleanup */ }
         throw error;
       } finally {
