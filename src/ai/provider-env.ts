@@ -3,6 +3,16 @@ import { TelemetryProvider } from "@/ai/providers/telemetry-provider";
 import type { ModelProvider } from "@/ai/model-provider";
 import { assertSafeProviderUrl } from "@/security/provider-url-policy";
 
+function assertNonBlankProviderValue(value: string, field: string): string {
+  if (value.trim().length === 0) {
+    throw new Error(`${field} must not be blank`);
+  }
+  if (value !== value.trim()) {
+    throw new Error(`${field} must not contain leading or trailing whitespace`);
+  }
+  return value;
+}
+
 export function providersFromEnvironment(): ModelProvider[] {
   const providers: ModelProvider[] = [];
   const entries = [
@@ -19,8 +29,16 @@ export function providersFromEnvironment(): ModelProvider[] {
     if (configuredValues !== 3) {
       throw new Error(`${entry.prefix} provider configuration is incomplete`);
     }
-    const safeUrl = assertSafeProviderUrl(baseUrl!);
-    const provider = new OpenAICompatibleProvider({ name: entry.name, baseUrl: safeUrl.toString(), apiKey: apiKey!, model: model! });
+    const validatedBaseUrl = assertNonBlankProviderValue(baseUrl!, `${entry.prefix}_BASE_URL`);
+    const validatedApiKey = assertNonBlankProviderValue(apiKey!, `${entry.prefix}_API_KEY`);
+    const validatedModel = assertNonBlankProviderValue(model!, `${entry.prefix}_MODEL`);
+    const safeUrl = assertSafeProviderUrl(validatedBaseUrl);
+    const provider = new OpenAICompatibleProvider({
+      name: entry.name,
+      baseUrl: safeUrl.toString(),
+      apiKey: validatedApiKey,
+      model: validatedModel,
+    });
     providers.push(new TelemetryProvider(provider));
   }
   return providers;
