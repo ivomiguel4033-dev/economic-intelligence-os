@@ -48,6 +48,8 @@ for (const unsafeUrl of [
   "https://[fc00::1]/v1",
   "https://[fd12:3456::1]/v1",
   "https://[fe80::1]/v1",
+  "https://[ff02::1]/v1",
+  "https://[2001:db8::1]/v1",
   "https://[::ffff:127.0.0.1]/v1",
 ]) {
   assert.throws(() => assertSafeProviderUrl(unsafeUrl), undefined, `provider URL must reject ${unsafeUrl}`);
