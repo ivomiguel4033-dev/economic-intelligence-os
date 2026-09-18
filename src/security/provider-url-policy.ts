@@ -24,6 +24,7 @@ export function assertSafeProviderUrl(value: string): URL {
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
   if (url.username || url.password) throw new Error("AI provider endpoint must not include credentials");
   if (url.hash) throw new Error("AI provider endpoint must not include a fragment");
+  if (url.search) throw new Error("AI provider endpoint must not include query parameters");
 
   const host = normalizedHostname(url);
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
