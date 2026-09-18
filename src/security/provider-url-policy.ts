@@ -16,11 +16,12 @@ function isPrivateIpv4(host: string): boolean {
   const octets = parts.map(Number);
   if (octets.some((octet) => octet > 255)) return false;
 
-  const [first, second] = octets;
+  const [first, second, third] = octets;
 
   // Provider endpoints must be globally routable. Reject special-use IPv4
   // space as well as RFC1918 ranges so SSRF cannot reach loopback, link-local,
-  // carrier-grade NAT, benchmarking, multicast, or reserved destinations.
+  // carrier-grade NAT, protocol-assignment, documentation, benchmarking,
+  // multicast, or reserved destinations.
   return (
     first === 0 ||
     first === 10 ||
@@ -28,8 +29,12 @@ function isPrivateIpv4(host: string): boolean {
     (first === 100 && second >= 64 && second <= 127) ||
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0 && third === 0) ||
+    (first === 192 && second === 0 && third === 2) ||
     (first === 192 && second === 168) ||
     (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
     first >= 224
   );
 }
