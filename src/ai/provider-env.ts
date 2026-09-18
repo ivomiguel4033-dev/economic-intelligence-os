@@ -14,9 +14,13 @@ export function providersFromEnvironment(): ModelProvider[] {
     const baseUrl = process.env[`${entry.prefix}_BASE_URL`];
     const apiKey = process.env[`${entry.prefix}_API_KEY`];
     const model = process.env[`${entry.prefix}_MODEL`];
-    if (!baseUrl || !apiKey || !model) continue;
-    const safeUrl = assertSafeProviderUrl(baseUrl);
-    const provider = new OpenAICompatibleProvider({ name: entry.name, baseUrl: safeUrl.toString(), apiKey, model });
+    const configuredValues = [baseUrl, apiKey, model].filter((value) => Boolean(value)).length;
+    if (configuredValues === 0) continue;
+    if (configuredValues !== 3) {
+      throw new Error(`${entry.prefix} provider configuration is incomplete`);
+    }
+    const safeUrl = assertSafeProviderUrl(baseUrl!);
+    const provider = new OpenAICompatibleProvider({ name: entry.name, baseUrl: safeUrl.toString(), apiKey: apiKey!, model: model! });
     providers.push(new TelemetryProvider(provider));
   }
   return providers;
