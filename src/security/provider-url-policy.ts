@@ -10,7 +10,28 @@ function normalizedHostname(url: URL): string {
 }
 
 function isPrivateIpv4(host: string): boolean {
-  return /^10\./.test(host) || /^127\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || host === "0.0.0.0";
+  const parts = host.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return false;
+
+  const octets = parts.map(Number);
+  if (octets.some((octet) => octet > 255)) return false;
+
+  const [first, second] = octets;
+
+  // Provider endpoints must be globally routable. Reject special-use IPv4
+  // space as well as RFC1918 ranges so SSRF cannot reach loopback, link-local,
+  // carrier-grade NAT, benchmarking, multicast, or reserved destinations.
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    first >= 224
+  );
 }
 
 function isPrivateIpv6(host: string): boolean {
