@@ -43,6 +43,11 @@ function isPrivateIpv6(host: string): boolean {
   if (host === "::" || host === "::1") return true;
   if (/^f[cd][0-9a-f]{2}:/i.test(host) || /^fe[89ab][0-9a-f]:/i.test(host)) return true;
 
+  // Multicast and documentation prefixes are not globally routable provider
+  // destinations. Reject them explicitly so literal IPv6 endpoints cannot
+  // bypass the same production SSRF policy applied to special-use IPv4 space.
+  if (/^ff[0-9a-f]{2}:/i.test(host) || /^2001:db8:/i.test(host)) return true;
+
   // URL parsers may canonicalize IPv4-mapped IPv6 addresses into hexadecimal
   // form (for example ::ffff:127.0.0.1 -> ::ffff:7f00:1). Treat the entire
   // IPv4-mapped range as unsafe rather than relying on dotted-decimal parsing.
