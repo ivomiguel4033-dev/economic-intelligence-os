@@ -1,6 +1,12 @@
 function normalizedHostname(url: URL): string {
-  const host = url.hostname.toLowerCase();
-  return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+  const rawHost = url.hostname.toLowerCase();
+  const host = rawHost.startsWith("[") && rawHost.endsWith("]") ? rawHost.slice(1, -1) : rawHost;
+
+  // DNS names with a trailing root label are equivalent to their non-dotted
+  // form (for example localhost. -> localhost). Canonicalize them before
+  // applying local/private host policy so an absolute DNS spelling cannot
+  // bypass the production SSRF guard.
+  return host.replace(/\.+$/, "");
 }
 
 function isPrivateIpv4(host: string): boolean {
