@@ -27,6 +27,19 @@ assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider mu
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
 
+// DNS rebinding defense is only useful when both resolution checks happen on
+// the critical path before transport hand-off. Keep this ordering covered so a
+// future refactor cannot accidentally move fetch ahead of the fail-closed guard.
+const safeUrlIndex = providerSource.indexOf("assertSafeProviderUrl(");
+const dnsApprovalIndex = providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint)");
+const dnsRevalidationIndex = providerSource.indexOf("await assertStableProviderDnsResolution(endpoint, approvedAddresses)");
+const fetchIndex = providerSource.indexOf("await fetch(endpoint");
+assert.ok(safeUrlIndex >= 0, "provider must validate endpoint syntax before transport");
+assert.ok(dnsApprovalIndex > safeUrlIndex, "provider must resolve and approve DNS after URL validation");
+assert.ok(dnsRevalidationIndex > dnsApprovalIndex, "provider must revalidate DNS after the initial approval");
+assert.ok(fetchIndex > dnsRevalidationIndex, "provider must complete DNS revalidation before transport hand-off");
+assert.match(providerSource, /redirect:\s*["']error["']/, "provider transport must reject redirects to prevent SSRF policy bypass");
+
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
 assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await db\.query\(/, "provider failures must not be masked by a direct telemetry database write");
