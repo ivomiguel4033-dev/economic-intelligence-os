@@ -1,5 +1,5 @@
 import type { ModelProvider, ModelRequest, ModelResponse } from "@/ai/model-provider";
-import { assertSafeProviderDnsResolution, assertSafeProviderUrl } from "@/security/provider-url-policy";
+import { assertSafeProviderDnsResolution, assertSafeProviderUrl, assertStableProviderDnsResolution } from "@/security/provider-url-policy";
 
 export interface OpenAICompatibleConfig {
   name: string;
@@ -63,7 +63,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const started = Date.now();
     try {
       const endpoint = assertSafeProviderUrl(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`);
-      await assertSafeProviderDnsResolution(endpoint);
+      const approvedAddresses = await assertSafeProviderDnsResolution(endpoint);
+      await assertStableProviderDnsResolution(endpoint, approvedAddresses);
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -117,9 +118,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
           chunks.push(value);
         }
       } catch (error) {
-        // Any failed or oversized stream invalidates the provider attempt. Abort the
-        // request first so the transport is signalled even if reader cancellation
-        // itself fails, then release the body resources on a best-effort basis.
         controller.abort();
         try { await reader.cancel(); } catch { /* best-effort cleanup */ }
         throw error;
