@@ -1,4 +1,5 @@
 import type { ModelProvider, ModelRequest, ModelResponse } from "@/ai/model-provider";
+import { assertSafeProviderDnsResolution, assertSafeProviderUrl } from "@/security/provider-url-policy";
 
 export interface OpenAICompatibleConfig {
   name: string;
@@ -61,7 +62,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const timeout = setTimeout(() => controller.abort(), resolveTimeoutMs(this.config.timeoutMs));
     const started = Date.now();
     try {
-      const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      const endpoint = assertSafeProviderUrl(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`);
+      await assertSafeProviderDnsResolution(endpoint);
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           accept: "application/json",
