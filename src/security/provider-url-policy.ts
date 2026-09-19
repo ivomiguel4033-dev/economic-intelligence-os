@@ -70,6 +70,29 @@ function isUnsafeResolvedAddress(address: string): boolean {
   return isPrivateIpv4(address) || isPrivateIpv6(address);
 }
 
+function canonicalAddressSet(addresses: Array<{ address: string }>): string[] {
+  return [...new Set(addresses.map(({ address }) => address.toLowerCase()))].sort();
+}
+
+async function resolvePublicProviderAddresses(url: URL): Promise<string[]> {
+  const host = normalizedHostname(url);
+  if (isPrivateIpv4(host) || isPrivateIpv6(host)) {
+    throw new Error("Private-network AI provider endpoints are not allowed");
+  }
+
+  let addresses: Array<{ address: string }>;
+  try {
+    addresses = await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new Error("AI provider hostname could not be resolved safely");
+  }
+
+  if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
+    throw new Error("AI provider hostname resolved to a non-public address");
+  }
+  return canonicalAddressSet(addresses);
+}
+
 export function assertSafeProviderUrl(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
@@ -87,24 +110,18 @@ export function assertSafeProviderUrl(value: string): URL {
   return url;
 }
 
-export async function assertSafeProviderDnsResolution(url: URL): Promise<void> {
-  const host = normalizedHostname(url);
+export async function assertSafeProviderDnsResolution(url: URL): Promise<string[]> {
+  // Return the approved address set so callers can revalidate it immediately
+  // before transport hand-off. This narrows the DNS-rebinding/TOCTOU window and
+  // fails closed if a hostname changes between security checks.
+  return resolvePublicProviderAddresses(url);
+}
 
-  // Literal addresses were already checked synchronously. DNS names need a
-  // second boundary check because an otherwise innocuous hostname can resolve
-  // to loopback, link-local, RFC1918/ULA, metadata, or other special-use space.
-  if (isPrivateIpv4(host) || isPrivateIpv6(host)) {
-    throw new Error("Private-network AI provider endpoints are not allowed");
-  }
-
-  let addresses: Array<{ address: string }>;
-  try {
-    addresses = await lookup(host, { all: true, verbatim: true });
-  } catch {
-    throw new Error("AI provider hostname could not be resolved safely");
-  }
-
-  if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
-    throw new Error("AI provider hostname resolved to a non-public address");
+export async function assertStableProviderDnsResolution(url: URL, approvedAddresses: readonly string[]): Promise<void> {
+  if (approvedAddresses.length === 0) throw new Error("AI provider DNS approval set is empty");
+  const current = await resolvePublicProviderAddresses(url);
+  const approved = [...new Set(approvedAddresses.map((address) => address.toLowerCase()))].sort();
+  if (current.length !== approved.length || current.some((address, index) => address !== approved[index])) {
+    throw new Error("AI provider DNS resolution changed during request validation");
   }
 }
