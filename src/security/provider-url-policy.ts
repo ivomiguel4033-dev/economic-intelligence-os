@@ -1,3 +1,5 @@
+import { lookup } from "node:dns/promises";
+
 function normalizedHostname(url: URL): string {
   const rawHost = url.hostname.toLowerCase();
   const host = rawHost.startsWith("[") && rawHost.endsWith("]") ? rawHost.slice(1, -1) : rawHost;
@@ -64,6 +66,10 @@ function isPrivateIpv6(host: string): boolean {
   return false;
 }
 
+function isUnsafeResolvedAddress(address: string): boolean {
+  return isPrivateIpv4(address) || isPrivateIpv6(address);
+}
+
 export function assertSafeProviderUrl(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
@@ -79,4 +85,26 @@ export function assertSafeProviderUrl(value: string): URL {
     throw new Error("Private-network AI provider endpoints are not allowed");
   }
   return url;
+}
+
+export async function assertSafeProviderDnsResolution(url: URL): Promise<void> {
+  const host = normalizedHostname(url);
+
+  // Literal addresses were already checked synchronously. DNS names need a
+  // second boundary check because an otherwise innocuous hostname can resolve
+  // to loopback, link-local, RFC1918/ULA, metadata, or other special-use space.
+  if (isPrivateIpv4(host) || isPrivateIpv6(host)) {
+    throw new Error("Private-network AI provider endpoints are not allowed");
+  }
+
+  let addresses: Array<{ address: string }>;
+  try {
+    addresses = await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new Error("AI provider hostname could not be resolved safely");
+  }
+
+  if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
+    throw new Error("AI provider hostname resolved to a non-public address");
+  }
 }
