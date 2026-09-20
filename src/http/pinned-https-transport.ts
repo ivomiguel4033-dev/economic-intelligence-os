@@ -17,6 +17,11 @@ function selectPinnedAddress(approvedAddresses: readonly string[]): { address: s
   throw new Error("AI provider DNS approval set contains no usable IP address");
 }
 
+function responseMayHaveBody(method: string, status: number): boolean {
+  if (method.toUpperCase() === "HEAD") return false;
+  return status !== 204 && status !== 205 && status !== 304;
+}
+
 /**
  * HTTPS transport that binds the TCP connection to an IP address from the
  * previously approved DNS set while preserving the original hostname for
@@ -64,9 +69,12 @@ export async function pinnedHttpsFetch(
           headers.set(name, value);
         }
       }
-      const body = Readable.toWeb(response) as ReadableStream<Uint8Array>;
+      const status = response.statusCode ?? 502;
+      const body = responseMayHaveBody(init.method, status)
+        ? Readable.toWeb(response) as ReadableStream<Uint8Array>
+        : null;
       resolve(new Response(body, {
-        status: response.statusCode ?? 502,
+        status,
         statusText: response.statusMessage,
         headers,
       }));
