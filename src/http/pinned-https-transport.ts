@@ -70,9 +70,16 @@ export async function pinnedHttpsFetch(
         }
       }
       const status = response.statusCode ?? 502;
-      const body = responseMayHaveBody(init.method, status)
+      const mayHaveBody = responseMayHaveBody(init.method, status);
+      const body = mayHaveBody
         ? Readable.toWeb(response) as ReadableStream<Uint8Array>
         : null;
+
+      // A null Fetch Response body does not consume the Node IncomingMessage.
+      // Drain it explicitly so malformed/upstream body bytes cannot leave the
+      // pinned socket and agent resources hanging until timeout.
+      if (!mayHaveBody) response.resume();
+
       resolve(new Response(body, {
         status,
         statusText: response.statusMessage,
