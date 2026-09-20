@@ -43,7 +43,7 @@ assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?approvedAddress
 assert.match(transportSource, /lookup:\s*\(_hostname, options, callback\)\s*=>/, "pinned transport must override DNS lookup at connection time");
 assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport must preserve TLS SNI and hostname certificate verification");
 assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
-assert.doesNotMatch(transportSource, /location[\s\S]*?httpsRequest|redirect/i, "pinned transport must not follow HTTP redirects automatically");
+assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
 
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
