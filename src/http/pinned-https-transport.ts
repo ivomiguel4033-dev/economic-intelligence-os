@@ -44,6 +44,9 @@ export async function pinnedHttpsFetch(
     },
   });
 
+  // Do not destroy the agent when the response headers arrive. The returned
+  // Response body is streamed and the caller still needs the active socket to
+  // consume it. keepAlive=false ensures the socket is not reused after EOF.
   return await new Promise<Response>((resolve, reject) => {
     const request = httpsRequest(url, {
       method: init.method,
@@ -72,5 +75,5 @@ export async function pinnedHttpsFetch(
     request.once("error", reject);
     if (init.body !== undefined) request.write(init.body);
     request.end();
-  }).finally(() => agent.destroy());
+  });
 }
