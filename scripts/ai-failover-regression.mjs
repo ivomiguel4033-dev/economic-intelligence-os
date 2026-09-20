@@ -45,6 +45,8 @@ assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport m
 assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
 assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport must expose the live response stream without buffering it internally");
 assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\)/, "pinned transport must not destroy the agent before the streamed response body reaches EOF");
+assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
+assert.match(transportSource, /if\s*\(!mayHaveBody\)\s*response\.resume\(\)/, "bodyless responses must be drained so pinned sockets cannot remain hung until timeout");
 assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
 
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
