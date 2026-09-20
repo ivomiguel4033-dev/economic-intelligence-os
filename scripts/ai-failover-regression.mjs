@@ -4,6 +4,7 @@ import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
+const transportSource = await readFile(new URL("../src/http/pinned-https-transport.ts", import.meta.url), "utf8");
 const telemetrySource = await readFile(new URL("../src/ai/providers/telemetry-provider.ts", import.meta.url), "utf8");
 
 assert.match(source, /const DEFAULT_TIMEOUT_MS = 30_000;/, "failover must retain a bounded default timeout");
@@ -27,18 +28,22 @@ assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider mu
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
 
-// DNS rebinding defense is only useful when both resolution checks happen on
-// the critical path before transport hand-off. Keep this ordering covered so a
-// future refactor cannot accidentally move fetch ahead of the fail-closed guard.
+// DNS rebinding defense is only useful when resolution checks complete before
+// the pinned transport receives the approved address set. Keep this ordering
+// covered so a future refactor cannot bypass the fail-closed guard.
 const safeUrlIndex = providerSource.indexOf("assertSafeProviderUrl(");
 const dnsApprovalIndex = providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint)");
 const dnsRevalidationIndex = providerSource.indexOf("await assertStableProviderDnsResolution(endpoint, approvedAddresses)");
-const fetchIndex = providerSource.indexOf("await fetch(endpoint");
+const transportIndex = providerSource.indexOf("await pinnedHttpsFetch(endpoint");
 assert.ok(safeUrlIndex >= 0, "provider must validate endpoint syntax before transport");
 assert.ok(dnsApprovalIndex > safeUrlIndex, "provider must resolve and approve DNS after URL validation");
 assert.ok(dnsRevalidationIndex > dnsApprovalIndex, "provider must revalidate DNS after the initial approval");
-assert.ok(fetchIndex > dnsRevalidationIndex, "provider must complete DNS revalidation before transport hand-off");
-assert.match(providerSource, /redirect:\s*["']error["']/, "provider transport must reject redirects to prevent SSRF policy bypass");
+assert.ok(transportIndex > dnsRevalidationIndex, "provider must complete DNS revalidation before pinned transport hand-off");
+assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?approvedAddresses\)/, "provider must pass only the approved DNS set to pinned transport");
+assert.match(transportSource, /lookup:\s*\(_hostname, options, callback\)\s*=>/, "pinned transport must override DNS lookup at connection time");
+assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport must preserve TLS SNI and hostname certificate verification");
+assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
+assert.doesNotMatch(transportSource, /location[\s\S]*?httpsRequest|redirect/i, "pinned transport must not follow HTTP redirects automatically");
 
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
