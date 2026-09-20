@@ -1,4 +1,5 @@
 import type { ModelProvider, ModelRequest, ModelResponse } from "@/ai/model-provider";
+import { pinnedHttpsFetch } from "@/http/pinned-https-transport";
 import { assertSafeProviderDnsResolution, assertSafeProviderUrl, assertStableProviderDnsResolution } from "@/security/provider-url-policy";
 
 export interface OpenAICompatibleConfig {
@@ -65,7 +66,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const endpoint = assertSafeProviderUrl(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`);
       const approvedAddresses = await assertSafeProviderDnsResolution(endpoint);
       await assertStableProviderDnsResolution(endpoint, approvedAddresses);
-      const response = await fetch(endpoint, {
+      const response = await pinnedHttpsFetch(endpoint, {
         method: "POST",
         headers: {
           accept: "application/json",
@@ -75,9 +76,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body: JSON.stringify({ model: this.config.model, temperature: request.temperature ?? 0.2, messages: [
           { role: "system", content: request.system }, { role: "user", content: request.prompt },
         ] }),
-        redirect: "error",
         signal: controller.signal,
-      });
+      }, approvedAddresses);
       if (!response.ok) {
         controller.abort();
         throw new Error(`${this.name} returned HTTP ${response.status}`);
