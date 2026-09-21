@@ -28,6 +28,9 @@ assert.match(providerSource, /const DEFAULT_TIMEOUT_MS = 45_000;/, "provider mus
 assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider must cap configured request timeouts");
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
+assert.match(providerSource, /assertSafeProviderDnsResolution\(endpoint, controller\.signal\)/, "provider request budget must cancel the initial DNS approval lookup");
+assert.match(providerSource, /assertStableProviderDnsResolution\(endpoint, approvedAddresses, controller\.signal\)/, "provider request budget must cancel DNS rebinding revalidation");
+assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?signal:\s*controller\.signal/, "provider request budget must cancel the pinned HTTPS transport");
 
 // DNS rebinding defense is only useful when resolution checks complete before
 // the pinned transport receives the approved address set. Keep this ordering
