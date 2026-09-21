@@ -64,8 +64,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const started = Date.now();
     try {
       const endpoint = assertSafeProviderUrl(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`);
-      const approvedAddresses = await assertSafeProviderDnsResolution(endpoint);
-      await assertStableProviderDnsResolution(endpoint, approvedAddresses);
+      const approvedAddresses = await assertSafeProviderDnsResolution(endpoint, controller.signal);
+      await assertStableProviderDnsResolution(endpoint, approvedAddresses, controller.signal);
       const response = await pinnedHttpsFetch(endpoint, {
         method: "POST",
         headers: {
