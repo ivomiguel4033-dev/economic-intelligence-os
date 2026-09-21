@@ -5,6 +5,7 @@ import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
 const transportSource = await readFile(new URL("../src/http/pinned-https-transport.ts", import.meta.url), "utf8");
+const providerUrlPolicySource = await readFile(new URL("../src/security/provider-url-policy.ts", import.meta.url), "utf8");
 const telemetrySource = await readFile(new URL("../src/ai/providers/telemetry-provider.ts", import.meta.url), "utf8");
 
 assert.match(source, /const DEFAULT_TIMEOUT_MS = 30_000;/, "failover must retain a bounded default timeout");
@@ -48,6 +49,9 @@ assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\
 assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
 assert.match(transportSource, /if\s*\(!mayHaveBody\)\s*response\.resume\(\)/, "bodyless responses must be drained so pinned sockets cannot remain hung until timeout");
 assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
+assert.match(providerUrlPolicySource, /const PROVIDER_DNS_TIMEOUT_MS = 5_000;/, "provider DNS resolution must have a short bounded timeout");
+assert.match(providerUrlPolicySource, /Promise\.race\(\[[\s\S]*?lookup\(host, \{ all: true, verbatim: true \}\)[\s\S]*?PROVIDER_DNS_TIMEOUT_MS[\s\S]*?\]\)/, "provider DNS lookup must race against the bounded timeout");
+assert.match(providerUrlPolicySource, /finally\s*\{[\s\S]*?clearTimeout\(timeout\)/, "provider DNS timeout timer must be cleared after resolution settles");
 
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");

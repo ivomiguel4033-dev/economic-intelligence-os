@@ -1,5 +1,7 @@
 import { lookup } from "node:dns/promises";
 
+const PROVIDER_DNS_TIMEOUT_MS = 5_000;
+
 function normalizedHostname(url: URL): string {
   const rawHost = url.hostname.toLowerCase();
   const host = rawHost.startsWith("[") && rawHost.endsWith("]") ? rawHost.slice(1, -1) : rawHost;
@@ -74,6 +76,20 @@ function canonicalAddressSet(addresses: Array<{ address: string }>): string[] {
   return [...new Set(addresses.map(({ address }) => address.toLowerCase()))].sort();
 }
 
+async function lookupWithTimeout(host: string): Promise<Array<{ address: string }>> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      lookup(host, { all: true, verbatim: true }),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("AI provider DNS resolution timed out")), PROVIDER_DNS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
 async function resolvePublicProviderAddresses(url: URL): Promise<string[]> {
   const host = normalizedHostname(url);
   if (isPrivateIpv4(host) || isPrivateIpv6(host)) {
@@ -82,7 +98,7 @@ async function resolvePublicProviderAddresses(url: URL): Promise<string[]> {
 
   let addresses: Array<{ address: string }>;
   try {
-    addresses = await lookup(host, { all: true, verbatim: true });
+    addresses = await lookupWithTimeout(host);
   } catch {
     throw new Error("AI provider hostname could not be resolved safely");
   }
