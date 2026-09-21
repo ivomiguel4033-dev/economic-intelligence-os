@@ -71,7 +71,8 @@ async function resolvePublicProviderAddresses(url: URL, signal?: AbortSignal): P
   let addresses: Array<{ address: string }>;
   try {
     addresses = await lookupWithTimeout(host, signal);
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? error;
     throw new Error("AI provider hostname could not be resolved safely");
   }
   if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
