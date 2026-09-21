@@ -1,0 +1,41 @@
+groups:
+  - name: tenant-concurrency
+    rules:
+      - alert: TenantConcurrencySaturationPersistent
+        expr: rate(tenant_concurrency_limited_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Distributed tenant concurrency is persistently saturated
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyAcquireFailures
+        expr: increase(tenant_concurrency_acquire_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Distributed tenant concurrency acquisition is failing
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyReleaseFailures
+        expr: increase(tenant_concurrency_release_failures_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Distributed tenant concurrency lease release failed
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyLeaseLost
+        expr: increase(tenant_concurrency_lease_lost_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A distributed tenant concurrency lease lost ownership or expired during active work
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
+      - alert: TenantConcurrencyRenewFailures
+        expr: increase(tenant_concurrency_renew_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Distributed tenant concurrency lease heartbeat renewal is failing
+          runbook: docs/PRODUCTION_RUNBOOK.md#distributed-tenant-concurrency
