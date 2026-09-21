@@ -33,8 +33,8 @@ assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolve
 // the pinned transport receives the approved address set. Keep this ordering
 // covered so a future refactor cannot bypass the fail-closed guard.
 const safeUrlIndex = providerSource.indexOf("assertSafeProviderUrl(");
-const dnsApprovalIndex = providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint)");
-const dnsRevalidationIndex = providerSource.indexOf("await assertStableProviderDnsResolution(endpoint, approvedAddresses)");
+const dnsApprovalIndex = providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint");
+const dnsRevalidationIndex = providerSource.indexOf("await assertStableProviderDnsResolution(endpoint, approvedAddresses");
 const transportIndex = providerSource.indexOf("await pinnedHttpsFetch(endpoint");
 assert.ok(safeUrlIndex >= 0, "provider must validate endpoint syntax before transport");
 assert.ok(dnsApprovalIndex > safeUrlIndex, "provider must resolve and approve DNS after URL validation");
@@ -52,6 +52,9 @@ assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>
 assert.match(providerUrlPolicySource, /const PROVIDER_DNS_TIMEOUT_MS = 5_000;/, "provider DNS resolution must have a short bounded timeout");
 assert.match(providerUrlPolicySource, /Promise\.race\(\[[\s\S]*?lookup\(host, \{ all: true, verbatim: true \}\)[\s\S]*?PROVIDER_DNS_TIMEOUT_MS[\s\S]*?\]\)/, "provider DNS lookup must race against the bounded timeout");
 assert.match(providerUrlPolicySource, /finally\s*\{[\s\S]*?clearTimeout\(timeout\)/, "provider DNS timeout timer must be cleared after resolution settles");
+assert.match(providerUrlPolicySource, /lookupWithTimeout\(host: string, signal\?: AbortSignal\)/, "provider DNS lookup must accept cancellation from the request budget");
+assert.match(providerUrlPolicySource, /signal\.addEventListener\("abort", abortHandler, \{ once: true \}\)/, "provider DNS lookup must stop waiting when the request is aborted");
+assert.match(providerUrlPolicySource, /signal\.removeEventListener\("abort", abortHandler\)/, "provider DNS lookup must clean up abort listeners after settlement");
 
 assert.match(telemetrySource, /const TELEMETRY_QUERY_TIMEOUT_MS = 2_000;/, "telemetry persistence must have a short bounded query timeout");
 assert.match(telemetrySource, /async function recordTelemetry[\s\S]*?try\s*\{[\s\S]*?await db\.query\(\{[\s\S]*?query_timeout: TELEMETRY_QUERY_TIMEOUT_MS,[\s\S]*?\}\);[\s\S]*?\}\s*catch\s*\{/, "telemetry writes must be isolated behind a bounded best-effort boundary");
