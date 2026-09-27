@@ -83,6 +83,8 @@ jobs:
         run: node scripts/access-context-regression.mjs
       - name: Production security baseline regression checks
         run: node scripts/production-security-baseline-regression.mjs
+      - name: Production preflight regression checks
+        run: node scripts/production-preflight-regression.mjs
       - name: Execution reliability regression checks
         run: node scripts/execution-reliability-regression.mjs
       - name: AI provider failover regression checks
