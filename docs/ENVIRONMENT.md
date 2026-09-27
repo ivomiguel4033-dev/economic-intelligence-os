@@ -6,8 +6,8 @@
 - `OIDC_AUDIENCE`: expected API audience.
 - `OIDC_JWKS_URL`: HTTPS JWKS endpoint.
 - `SECURITY_EVENT_HASH_PEPPER`: random secret of at least 32 characters.
-- `METRICS_TOKEN`: bearer token required to scrape the internal `/api/metrics` endpoint.
-- `OUTBOX_WORKER_ID`: stable, non-empty identity for this runtime instance. It must be unique among concurrently running replicas and must remain unchanged for the lifetime of the instance so durable outbox claims and graceful-shutdown ownership use the same identity.
+- `METRICS_TOKEN`: bearer token required to scrape the internal `/api/metrics` endpoint. Use at least 32 random characters.
+- `OUTBOX_WORKER_ID`: optional explicit stable identity for this runtime instance. On Railway, the runtime derives a unique worker identity from `RAILWAY_DEPLOYMENT_ID` and `RAILWAY_REPLICA_ID` when this variable is omitted. Outside Railway, configure it explicitly whenever durable outbox work is enabled.
 
 ## Optional runtime tuning
 - `DATABASE_POOL_MAX`: maximum PostgreSQL connections per application process. Defaults to `10`, invalid or non-integer values fall back to `10`, and valid values are capped at `50` to protect the shared database connection budget during horizontal scale-out.
@@ -42,4 +42,4 @@ Migration timeout increases should be temporary, justified by a known migration 
 - Rotate a credential immediately if it appears in logs, source control, issue trackers or chat transcripts.
 - Changes to identity or billing credentials require a deployment verification pass.
 - Metrics scraping must use `Authorization: Bearer <METRICS_TOKEN>` and the endpoint must not be exposed without this token.
-- `OUTBOX_WORKER_ID` is an instance identity, not a shared service name. Reusing it across live replicas can make durable claim ownership ambiguous; changing it during an instance lifetime can prevent graceful shutdown from observing that instance's outstanding claims.
+- `OUTBOX_WORKER_ID` is an instance identity, not a shared service name. Reusing it across live replicas can make durable claim ownership ambiguous; changing it during an instance lifetime can prevent graceful shutdown from observing that instance's outstanding claims. Railway deployments should normally rely on the automatic deployment+replica identity unless a controlled override is required.
