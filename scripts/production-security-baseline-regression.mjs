@@ -8,6 +8,7 @@ const validEnv = {
   OIDC_AUDIENCE: "economic-intelligence-os",
   OIDC_JWKS_URL: "https://identity.example.com/.well-known/jwks.json",
   SECURITY_EVENT_HASH_PEPPER: "0123456789abcdef0123456789abcdef",
+  METRICS_TOKEN: "abcdef0123456789abcdef0123456789",
 };
 
 assert.deepEqual(validateProductionSecurityBaseline(validEnv), { ready: true, failures: [] });
@@ -31,5 +32,15 @@ assert.ok(insecureOverride.failures.includes("Insecure authentication override i
 const weakPepper = validateProductionSecurityBaseline({ ...validEnv, SECURITY_EVENT_HASH_PEPPER: "too-short" });
 assert.equal(weakPepper.ready, false);
 assert.ok(weakPepper.failures.includes("SECURITY_EVENT_HASH_PEPPER must be at least 32 characters"));
+
+const weakMetricsToken = validateProductionSecurityBaseline({ ...validEnv, METRICS_TOKEN: "too-short" });
+assert.equal(weakMetricsToken.ready, false);
+assert.ok(weakMetricsToken.failures.includes("METRICS_TOKEN must be at least 32 characters"));
+
+const missingMetricsToken = { ...validEnv };
+delete missingMetricsToken.METRICS_TOKEN;
+const missingMetrics = validateProductionSecurityBaseline(missingMetricsToken);
+assert.equal(missingMetrics.ready, false);
+assert.ok(missingMetrics.failures.includes("METRICS_TOKEN is required"));
 
 console.log("Production security baseline regression checks passed.");
