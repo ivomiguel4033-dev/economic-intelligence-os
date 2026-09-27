@@ -17,8 +17,8 @@ assert.equal(
 
 assert.equal(
   railway.deploy?.preDeployCommand,
-  "npm run migrate",
-  "Database migrations must run before a production deploy becomes active",
+  "node scripts/production-preflight.mjs && npm run migrate",
+  "Production preflight and database migrations must run before a production deploy becomes active",
 );
 assert.equal(
   railway.deploy?.startCommand,
