@@ -1,7 +1,46 @@
-import { validateProductionSecurityBaseline } from "../src/security/production-baseline.ts";
-
 function fail(message) {
   throw new Error(`Production preflight failed: ${message}`);
+}
+
+function validateHttpsUrl(value, label) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    fail(`${label} must be a valid URL`);
+  }
+  if (url.protocol !== "https:") fail(`${label} must use HTTPS`);
+  if (url.username || url.password) fail(`${label} must not contain credentials`);
+  if (url.hash) fail(`${label} must not include a fragment`);
+  return url;
+}
+
+function validateSecurityBaseline(env) {
+  const required = [
+    "DATABASE_URL",
+    "OIDC_ISSUER",
+    "OIDC_AUDIENCE",
+    "OIDC_JWKS_URL",
+    "SECURITY_EVENT_HASH_PEPPER",
+    "METRICS_TOKEN",
+  ];
+
+  for (const key of required) {
+    if (!env[key]?.trim()) fail(`${key} is required`);
+  }
+
+  validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
+  validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
+
+  if (env.ALLOW_INSECURE_AUTH === "true") {
+    fail("Insecure authentication override is forbidden in production");
+  }
+  if (env.SECURITY_EVENT_HASH_PEPPER.length < 32) {
+    fail("SECURITY_EVENT_HASH_PEPPER must be at least 32 characters");
+  }
+  if (env.METRICS_TOKEN.length < 32) {
+    fail("METRICS_TOKEN must be at least 32 characters");
+  }
 }
 
 function requireProductionMode(env) {
@@ -22,28 +61,21 @@ function validateProvider(env, prefix, required = false) {
     fail(`${prefix} provider configuration is incomplete`);
   }
   if (configured === keys.length) {
-    const url = new URL(values[0]);
-    if (url.protocol !== "https:") fail(`${prefix}_BASE_URL must use HTTPS`);
-    if (url.username || url.password) fail(`${prefix}_BASE_URL must not contain credentials`);
+    validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
   }
 }
 
 export function validateProductionPreflight(env = process.env) {
   requireProductionMode(env);
-
-  const baseline = validateProductionSecurityBaseline(env);
-  if (!baseline.ready) {
-    fail(baseline.failures.join("; "));
-  }
-
+  validateSecurityBaseline(env);
   validateProvider(env, "AI_PRIMARY", true);
   validateProvider(env, "AI_SECONDARY");
   validateProvider(env, "AI_TERTIARY");
-
   return { ready: true };
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+const invokedPath = process.argv[1];
+if (invokedPath && import.meta.url === new URL(`file://${invokedPath}`).href) {
   validateProductionPreflight();
   console.log("Production preflight checks passed.");
 }
