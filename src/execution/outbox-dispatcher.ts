@@ -8,7 +8,14 @@ class OutboxClaimLostError extends Error {}
 
 export function resolveOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const configured = env.OUTBOX_WORKER_ID?.trim();
-  return configured || undefined;
+  if (configured) return configured;
+
+  const replicaId = env.RAILWAY_REPLICA_ID?.trim();
+  const deploymentId = env.RAILWAY_DEPLOYMENT_ID?.trim();
+  if (replicaId && deploymentId) return `railway:${deploymentId}:${replicaId}`;
+  if (replicaId) return `railway:${replicaId}`;
+
+  return undefined;
 }
 
 export function requireOutboxWorkerId(env: NodeJS.ProcessEnv = process.env): string {
