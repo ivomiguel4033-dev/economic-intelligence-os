@@ -73,3 +73,6 @@ Capture request ID, deployment SHA, UTC timestamps, affected organization IDs, r
 
 ## Backup policy baseline
 Production PostgreSQL must have automated backups and point-in-time recovery where supported. Recovery is not considered operational until a restore has been tested. Backup existence alone is insufficient.
+
+## Deployment preflight
+Before any production migration or traffic switch, run `node scripts/production-preflight.mjs`. Railway executes this automatically before `npm run migrate`. The preflight fails closed unless production security configuration is complete and at least the primary AI provider is fully configured over HTTPS. Do not bypass this check to force a deployment; correct the missing configuration instead.
