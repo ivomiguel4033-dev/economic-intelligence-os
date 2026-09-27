@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { db, getDatabasePoolSnapshot } from "@/infrastructure/database/postgres";
 import { isDraining } from "@/operations/drain-state";
+import { validateProductionSecurityBaseline } from "@/security/production-baseline";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,11 @@ async function queryForReadiness(
 
 export async function GET() {
   if (isDraining()) return notReady("draining");
+
+  if (process.env.NODE_ENV === "production") {
+    const baseline = validateProductionSecurityBaseline();
+    if (!baseline.ready) return notReady("security_baseline");
+  }
 
   // Do not enqueue a health probe behind application traffic when every pool
   // slot is already occupied. Readiness should shed new traffic, not add more
