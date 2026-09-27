@@ -49,6 +49,8 @@ jobs:
           else
             npm install --ignore-scripts --no-audit --no-fund
           fi
+      - name: Railway deployment config regression checks
+        run: node scripts/railway-config-regression.mjs
       - name: Validate migrations
         timeout-minutes: 2
         run: node scripts/validate-migrations.mjs
