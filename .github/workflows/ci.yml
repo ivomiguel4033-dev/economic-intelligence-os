@@ -107,6 +107,25 @@ jobs:
       - name: Build production application
         timeout-minutes: 5
         run: npm run build
+      - name: Build production Docker image
+        timeout-minutes: 5
+        run: docker build --tag economic-intelligence-os:ci .
+      - name: Smoke production Docker image preflight
+        timeout-minutes: 2
+        run: |
+          docker run --rm \
+            -e NODE_ENV=production \
+            -e DATABASE_URL=postgresql://app:secret@db.internal:5432/app \
+            -e OIDC_ISSUER=https://identity.example.com/tenant \
+            -e OIDC_AUDIENCE=economic-intelligence-os \
+            -e OIDC_JWKS_URL=https://identity.example.com/.well-known/jwks.json \
+            -e SECURITY_EVENT_HASH_PEPPER=0123456789abcdef0123456789abcdef \
+            -e METRICS_TOKEN=abcdef0123456789abcdef0123456789 \
+            -e AI_PRIMARY_BASE_URL=https://api.example.com/v1 \
+            -e AI_PRIMARY_API_KEY=test-provider-key \
+            -e AI_PRIMARY_MODEL=reasoning-model \
+            economic-intelligence-os:ci \
+            node scripts/production-preflight.mjs
       - name: Orchestration payload bound regression checks
         run: node scripts/orchestrate-payload-regression.mjs
       - name: Decision payload bound regression checks
