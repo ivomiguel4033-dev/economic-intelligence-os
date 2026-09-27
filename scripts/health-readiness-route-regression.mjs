@@ -33,6 +33,11 @@ function assertSecurityHeaders(response, label) {
 
 const readinessSource = await readFile(new URL("../src/app/api/ready/route.ts", import.meta.url), "utf8");
 assert(
+  /validateProductionSecurityBaseline\(\)/.test(readinessSource) &&
+    /if \(!baseline\.ready\) return notReady\(["']security_baseline["']\)/.test(readinessSource),
+  "Production readiness must fail closed when the security baseline is incomplete",
+);
+assert(
   /const pool = getDatabasePoolSnapshot\(\);[\s\S]*?if \(pool\.waiting > 0 \|\| \(pool\.total >= pool\.max && pool\.idle === 0\)\)\s*\{[\s\S]*?return notReady\(["']database_pool_saturated["']\);?[\s\S]*?\}/.test(readinessSource),
   "Readiness must fail fast without querying PostgreSQL when the connection pool is saturated or already has queued work",
 );
@@ -127,6 +132,14 @@ async function stopServer(child) {
   }
 }
 
+const validProductionSecurityEnv = {
+  OIDC_ISSUER: "https://identity.example.com/tenant",
+  OIDC_AUDIENCE: "economic-intelligence-os",
+  OIDC_JWKS_URL: "https://identity.example.com/.well-known/jwks.json",
+  SECURITY_EVENT_HASH_PEPPER: "0123456789abcdef0123456789abcdef",
+  METRICS_TOKEN: "abcdef0123456789abcdef0123456789",
+};
+
 async function withServer(env, run) {
   const port = nextPort++;
   const baseUrl = `http://${host}:${port}`;
@@ -134,7 +147,7 @@ async function withServer(env, run) {
     "npm",
     ["run", "start", "--", "--hostname", host, "--port", String(port)],
     {
-      env: { ...process.env, ...env },
+      env: { ...process.env, ...validProductionSecurityEnv, ...env },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
     },
@@ -183,6 +196,18 @@ async function withStalledDatabase(run) {
     await new Promise((resolve) => server.close(resolve));
   }
 }
+
+await withServer({ METRICS_TOKEN: "" }, async (baseUrl) => {
+  const health = await fetch(`${baseUrl}/api/health`);
+  assert(health.status === 200, "Liveness must remain 200 when production security config is incomplete");
+
+  const ready = await fetch(`${baseUrl}/api/ready`);
+  assert(ready.status === 503, `Expected readiness 503 with incomplete production security baseline, got ${ready.status}`);
+  const body = await ready.json();
+  assert(body.status === "not_ready", "Incomplete security baseline must report not_ready");
+  assert(body.reason === "security_baseline", "Readiness must expose only the safe security_baseline reason");
+  assert(!("failures" in body), "Readiness must not expose security configuration details");
+});
 
 await withServer({}, async (baseUrl) => {
   const health = await fetch(`${baseUrl}/api/health`);
