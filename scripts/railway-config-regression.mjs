@@ -57,6 +57,16 @@ assert.ok(
 
 assert.match(
   dockerfile,
+  /COPY --chown=node:node --from=builder \/app\/scripts \.\/scripts/,
+  "Production image migration runner must be present for Railway pre-deploy",
+);
+assert.match(
+  dockerfile,
+  /COPY --chown=node:node --from=builder \/app\/db \.\/db/,
+  "Production image database migrations must be present for Railway pre-deploy",
+);
+assert.match(
+  dockerfile,
   /USER node/,
   "Production image must run as a non-root user",
 );
