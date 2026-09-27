@@ -57,6 +57,11 @@ assert.ok(
 
 assert.match(
   dockerfile,
+  /RUN mkdir -p public/,
+  "Builder must materialize an empty public directory so the production COPY remains valid before static assets exist",
+);
+assert.match(
+  dockerfile,
   /COPY --chown=node:node --from=builder \/app\/scripts \.\/scripts/,
   "Production image migration runner must be present for Railway pre-deploy",
 );
