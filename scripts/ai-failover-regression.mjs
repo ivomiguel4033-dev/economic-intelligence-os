@@ -51,6 +51,8 @@ assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not r
 assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport must expose the live response stream without buffering it internally");
 assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\)/, "pinned transport must not destroy the agent before the streamed response body reaches EOF");
 assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
+assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 \* 1024;/, "pinned transport must retain a bounded provider response header budget");
+assert.match(transportSource, /maxHeaderSize:\s*MAX_PROVIDER_RESPONSE_HEADER_BYTES/, "pinned transport must enforce the provider response header budget at the Node HTTPS parser boundary");
 assert.match(transportSource, /if\s*\(!mayHaveBody\)\s*response\.resume\(\)/, "bodyless responses must be drained so pinned sockets cannot remain hung until timeout");
 assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
 assert.match(providerUrlPolicySource, /const PROVIDER_DNS_TIMEOUT_MS = 5_000;/, "provider DNS resolution must have a short bounded timeout");

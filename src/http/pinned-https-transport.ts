@@ -3,6 +3,8 @@ import { isIP } from "node:net";
 import { Readable } from "node:stream";
 import { assertSafeProviderAddress } from "@/security/provider-url-policy";
 
+const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 * 1024;
+
 export interface PinnedHttpsRequestInit {
   method: string;
   headers: Record<string, string>;
@@ -62,6 +64,7 @@ export async function pinnedHttpsFetch(
       agent,
       signal: init.signal,
       servername: url.hostname,
+      maxHeaderSize: MAX_PROVIDER_RESPONSE_HEADER_BYTES,
     }, (response) => {
       const headers = new Headers();
       for (const [name, value] of Object.entries(response.headers)) {
