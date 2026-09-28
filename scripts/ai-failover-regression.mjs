@@ -84,6 +84,9 @@ for (const unsafeUrl of [
   "https://[2001:2::1]/v1",
   "https://[2001:db8::1]/v1",
   "https://[3fff::1]/v1",
+  "https://[64:ff9b::7f00:1]/v1",
+  "https://[64:ff9b:0:0:0:0:7f00:1]/v1",
+  "https://[64:ff9b:1::7f00:1]/v1",
   "https://[ff02::1]/v1",
   "https://[::ffff:127.0.0.1]/v1",
 ]) {

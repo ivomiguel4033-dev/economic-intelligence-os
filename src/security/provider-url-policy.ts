@@ -30,6 +30,10 @@ function isPrivateIpv6(host: string): boolean {
   if (host === "::" || host === "::1") return true;
   if (/^f[cd][0-9a-f]{2}:/i.test(host) || /^fe[89ab][0-9a-f]:/i.test(host)) return true;
   if (/^100:0*:/i.test(host) || /^2001:0*2:/i.test(host) || /^2001:db8:/i.test(host) || /^3fff:/i.test(host) || /^ff[0-9a-f]{2}:/i.test(host)) return true;
+  // NAT64 prefixes can translate an apparently public IPv6 endpoint into an
+  // arbitrary IPv4 destination. Fail closed so provider SSRF policy is not
+  // bypassed through the well-known or local-use translation prefixes.
+  if (/^64:ff9b::/i.test(host) || /^64:ff9b:0:0:0:0:/i.test(host) || /^64:ff9b:1:/i.test(host)) return true;
   if (/^::ffff:/i.test(host)) return true;
   return false;
 }
