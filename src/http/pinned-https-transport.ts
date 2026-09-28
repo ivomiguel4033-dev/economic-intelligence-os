@@ -1,6 +1,7 @@
 import { Agent, request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { Readable } from "node:stream";
+import { assertSafeProviderAddress } from "@/security/provider-url-policy";
 
 export interface PinnedHttpsRequestInit {
   method: string;
@@ -12,7 +13,9 @@ export interface PinnedHttpsRequestInit {
 function selectPinnedAddress(approvedAddresses: readonly string[]): { address: string; family: 4 | 6 } {
   for (const address of approvedAddresses) {
     const family = isIP(address);
-    if (family === 4 || family === 6) return { address, family };
+    if (family !== 4 && family !== 6) continue;
+    assertSafeProviderAddress(address);
+    return { address, family };
   }
   throw new Error("AI provider DNS approval set contains no usable IP address");
 }

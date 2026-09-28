@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 
 const PROVIDER_DNS_TIMEOUT_MS = 5_000;
 
@@ -40,6 +41,12 @@ function isPrivateIpv6(host: string): boolean {
 
 function isUnsafeResolvedAddress(address: string): boolean {
   return isPrivateIpv4(address) || isPrivateIpv6(address);
+}
+
+export function assertSafeProviderAddress(address: string): void {
+  if (isIP(address) === 0 || isUnsafeResolvedAddress(address)) {
+    throw new Error("AI provider address must be a public IP address");
+  }
 }
 
 function canonicalAddressSet(addresses: Array<{ address: string }>): string[] {

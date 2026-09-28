@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
+import { assertSafeProviderAddress, assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
@@ -45,6 +45,7 @@ assert.ok(dnsRevalidationIndex > dnsApprovalIndex, "provider must revalidate DNS
 assert.ok(transportIndex > dnsRevalidationIndex, "provider must complete DNS revalidation before pinned transport hand-off");
 assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?approvedAddresses\)/, "provider must pass only the approved DNS set to pinned transport");
 assert.match(transportSource, /lookup:\s*\(_hostname, options, callback\)\s*=>/, "pinned transport must override DNS lookup at connection time");
+assert.match(transportSource, /assertSafeProviderAddress\(address\)/, "pinned transport must independently reject unsafe approved addresses");
 assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport must preserve TLS SNI and hostname certificate verification");
 assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
 assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport must expose the live response stream without buffering it internally");
@@ -67,6 +68,10 @@ assert.match(telemetrySource, /void recordTelemetry\([\s\S]*?return response;/, 
 assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\(/, "provider failure telemetry must remain off the critical path");
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
+assert.doesNotThrow(() => assertSafeProviderAddress("203.0.114.10"));
+for (const unsafeAddress of ["127.0.0.1", "10.0.0.1", "::1", "64:ff9b::7f00:1", "not-an-ip"]) {
+  assert.throws(() => assertSafeProviderAddress(unsafeAddress), undefined, `provider address must reject ${unsafeAddress}`);
+}
 for (const unsafeUrl of [
   "https://user:secret@api.example.com/v1",
   "https://api.example.com/v1#internal",
