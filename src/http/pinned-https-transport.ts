@@ -93,6 +93,15 @@ export async function pinnedHttpsFetch(
       }));
     });
 
+    // A 101 response transfers ownership of the socket out of Node's HTTP
+    // parser and does not enter the normal response callback. Providers are
+    // never allowed to upgrade protocols, so fail closed and release the
+    // pinned socket immediately instead of leaving the request unresolved.
+    request.once("upgrade", (_response, socket) => {
+      socket.destroy();
+      reject(new Error("AI provider protocol upgrades are not supported"));
+    });
+
     request.once("error", reject);
     if (init.body !== undefined) request.write(init.body);
     request.end();
