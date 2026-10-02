@@ -4,6 +4,7 @@ import { assertSafeProviderAddress, assertSafeProviderUrl } from "../src/securit
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
+const modelProviderSource = await readFile(new URL("../src/ai/model-provider.ts", import.meta.url), "utf8");
 const transportSource = await readFile(new URL("../src/http/pinned-https-transport.ts", import.meta.url), "utf8");
 const providerUrlPolicySource = await readFile(new URL("../src/security/provider-url-policy.ts", import.meta.url), "utf8");
 const telemetrySource = await readFile(new URL("../src/ai/providers/telemetry-provider.ts", import.meta.url), "utf8");
@@ -12,7 +13,14 @@ assert.match(source, /const DEFAULT_TIMEOUT_MS = 30_000;/, "failover must retain
 assert.match(source, /Number\.isSafeInteger\(timeoutMs\)/, "timeout must reject non-safe integers");
 assert.match(source, /timeoutMs <= 0/, "timeout must reject zero and negative values");
 assert.match(source, /At least one AI provider is required/, "failover must reject an empty provider chain");
-assert.match(source, /Promise\.race\(\[provider\.generate\(request\), timeoutPromise\]\)/, "each provider attempt must race against its timeout");
+assert.match(modelProviderSource, /signal\?: AbortSignal;/, "model requests must support cooperative cancellation");
+assert.match(source, /const attemptController = new AbortController\(\);/, "failover must create a cancellation boundary for each provider attempt");
+assert.match(source, /attemptController\.abort\(timeoutError\);[\s\S]*?reject\(timeoutError\);/, "provider timeout must abort the in-flight provider attempt before failover");
+assert.match(source, /provider\.generate\(\{ \.\.\.request, signal: attemptController\.signal \}\)/, "failover must pass its attempt cancellation signal into the provider");
+assert.match(source, /Promise\.race\(\[[\s\S]*?provider\.generate\([\s\S]*?timeoutPromise,[\s\S]*?callerAbortPromise,[\s\S]*?\]\)/, "each provider attempt must race provider completion, timeout and caller cancellation");
+assert.match(source, /if \(request\.signal\?\.aborted\)[\s\S]*?throw request\.signal\.reason \?\? new Error\("AI request aborted"\)/, "failover must stop immediately when the caller is already cancelled");
+assert.match(source, /request\.signal\.addEventListener\("abort", callerAbortHandler, \{ once: true \}\)/, "failover must propagate caller cancellation into the active attempt");
+assert.match(source, /request\.signal\.removeEventListener\("abort", callerAbortHandler\)/, "failover must clean up caller cancellation listeners");
 assert.match(source, /finally\s*\{[\s\S]*?clearTimeout\(timeout\);[\s\S]*?\}/, "provider timers must be cleared on every settled attempt");
 
 const catchIndex = source.indexOf("} catch (error) {");
@@ -50,6 +58,10 @@ assert.match(
 assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider must cap configured request timeouts");
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
+assert.match(providerSource, /if \(request\.signal\?\.aborted\)[\s\S]*?throw request\.signal\.reason \?\? new Error\("AI provider request aborted"\)/, "provider must fail before network work when its caller is already cancelled");
+assert.match(providerSource, /request\.signal\?\.addEventListener\("abort", callerAbortHandler, \{ once: true \}\)/, "provider must forward caller cancellation into its internal request controller");
+assert.match(providerSource, /controller\.abort\(request\.signal\?\.reason \?\? new Error\("AI provider request aborted"\)\)/, "provider must abort DNS and HTTPS work with the caller cancellation reason");
+assert.match(providerSource, /request\.signal\?\.removeEventListener\("abort", callerAbortHandler\)/, "provider must clean up caller abort listeners after every outcome");
 assert.match(providerSource, /assertSafeProviderDnsResolution\(endpoint, controller\.signal\)/, "provider request budget must cancel the initial DNS approval lookup");
 assert.match(providerSource, /assertStableProviderDnsResolution\(endpoint, approvedAddresses, controller\.signal\)/, "provider request budget must cancel DNS rebinding revalidation");
 assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?signal:\s*controller\.signal/, "provider request budget must cancel the pinned HTTPS transport");
