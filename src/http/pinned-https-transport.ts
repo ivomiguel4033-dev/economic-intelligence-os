@@ -109,6 +109,14 @@ export async function pinnedHttpsFetch(
       reject(new Error("AI provider protocol upgrades are not supported"));
     });
 
+    // CONNECT responses also detach the socket from the HTTP parser and skip
+    // the normal response callback. Provider transport must never become a
+    // tunnel, even if a future caller accidentally supplies CONNECT.
+    request.once("connect", (_response, socket) => {
+      socket.destroy();
+      reject(new Error("AI provider CONNECT tunnels are not supported"));
+    });
+
     request.once("error", reject);
     if (init.body !== undefined) request.write(init.body);
     request.end();
