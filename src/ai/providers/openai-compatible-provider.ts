@@ -8,11 +8,14 @@ export interface OpenAICompatibleConfig {
   apiKey: string;
   model: string;
   timeoutMs?: number;
+  maxRequestBytes?: number;
   maxResponseBytes?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 45_000;
 const MAX_TIMEOUT_MS = 5 * 60_000;
+const DEFAULT_MAX_REQUEST_BYTES = 1 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
@@ -28,6 +31,14 @@ function resolveTimeoutMs(value: number | undefined): number {
   if (value === undefined) return DEFAULT_TIMEOUT_MS;
   if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMEOUT_MS) {
     throw new Error(`AI provider timeoutMs must be a positive safe integer no greater than ${MAX_TIMEOUT_MS}`);
+  }
+  return value;
+}
+
+function resolveMaxRequestBytes(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_MAX_REQUEST_BYTES;
+  if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_REQUEST_BYTES) {
+    throw new Error(`AI provider maxRequestBytes must be a positive safe integer no greater than ${MAX_REQUEST_BYTES}`);
   }
   return value;
 }
@@ -63,6 +74,20 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const timeout = setTimeout(() => controller.abort(), resolveTimeoutMs(this.config.timeoutMs));
     const started = Date.now();
     try {
+      const requestBody = JSON.stringify({
+        model: this.config.model,
+        temperature: request.temperature ?? 0.2,
+        messages: [
+          { role: "system", content: request.system },
+          { role: "user", content: request.prompt },
+        ],
+      });
+      const maxRequestBytes = resolveMaxRequestBytes(this.config.maxRequestBytes);
+      if (Buffer.byteLength(requestBody, "utf8") > maxRequestBytes) {
+        controller.abort();
+        throw new Error(`${this.name} request exceeded size limit`);
+      }
+
       const endpoint = assertSafeProviderUrl(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`);
       const approvedAddresses = await assertSafeProviderDnsResolution(endpoint, controller.signal);
       await assertStableProviderDnsResolution(endpoint, approvedAddresses, controller.signal);
@@ -73,9 +98,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
           "content-type": "application/json",
           authorization: `Bearer ${this.config.apiKey}`,
         },
-        body: JSON.stringify({ model: this.config.model, temperature: request.temperature ?? 0.2, messages: [
-          { role: "system", content: request.system }, { role: "user", content: request.prompt },
-        ] }),
+        body: requestBody,
         signal: controller.signal,
       }, approvedAddresses);
       if (!response.ok) {
