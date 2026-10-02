@@ -17,6 +17,13 @@ export function assessPromptInjection(input: string): InjectionAssessment {
   return { suspicious: score >= 0.35, score, signals: matched.map(([, name]) => name) };
 }
 
+function escapeUntrustedContent(content: string): string {
+  return content
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function isolateUntrustedContent(content: string): string {
-  return `<untrusted-content>\n${content}\n</untrusted-content>`;
+  return `<untrusted-content encoding="xml-escaped">\n${escapeUntrustedContent(content)}\n</untrusted-content>`;
 }
