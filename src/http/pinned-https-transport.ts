@@ -41,6 +41,10 @@ export async function pinnedHttpsFetch(
   approvedAddresses: readonly string[],
 ): Promise<Response> {
   if (url.protocol !== "https:") throw new Error("Pinned provider transport requires HTTPS");
+  const method = init.method.toUpperCase();
+  if (method === "CONNECT" || method === "TRACE" || method === "TRACK") {
+    throw new Error(`Pinned provider transport forbids HTTP method ${method}`);
+  }
   const pinned = selectPinnedAddress(approvedAddresses);
 
   const agent = new Agent({
