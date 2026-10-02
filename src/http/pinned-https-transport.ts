@@ -49,9 +49,10 @@ export async function pinnedHttpsFetch(
   if (method === "CONNECT" || method === "TRACE" || method === "TRACK") {
     throw new Error(`Pinned provider transport forbids HTTP method ${method}`);
   }
+  const forbiddenRequestHeaders = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade"]);
   for (const name of Object.keys(init.headers)) {
-    if (name.toLowerCase() === "host") {
-      throw new Error("Pinned provider transport forbids overriding the HTTP Host header");
+    if (forbiddenRequestHeaders.has(name.toLowerCase())) {
+      throw new Error(`Pinned provider transport forbids caller-controlled HTTP header ${name}`);
     }
   }
   const pinned = selectPinnedAddress(approvedAddresses);
