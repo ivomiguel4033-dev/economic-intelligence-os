@@ -81,7 +81,7 @@ assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?approvedAddress
 assert.match(transportSource, /lookup:\s*\(_hostname, options, callback\)\s*=>/, "pinned transport must override DNS lookup at connection time");
 assert.match(transportSource, /assertSafeProviderAddress\(address\)/, "pinned transport must independently reject unsafe approved addresses");
 assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport must preserve TLS SNI and hostname certificate verification");
-assert.match(transportSource, /minVersion:\s*["\']TLSv1\\.2["\']/, "pinned transport must reject legacy TLS versions");
+assert.match(transportSource, /minVersion:\s*["\']TLSv1\.2["\']/, "pinned transport must reject legacy TLS versions");
 assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
 assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport must expose the live response stream without buffering it internally");
 assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\)/, "pinned transport must not destroy the agent before the streamed response body reaches EOF");
