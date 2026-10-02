@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { assertSafeProviderAddress } from "@/security/provider-url-policy";
 
 const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 * 1024;
+const MAX_PROVIDER_RESPONSE_HEADERS = 128;
 
 export interface PinnedHttpsRequestInit {
   method: string;
@@ -118,6 +119,11 @@ export async function pinnedHttpsFetch(
     // parser and does not enter the normal response callback. Providers are
     // never allowed to upgrade protocols, so fail closed and release the
     // pinned socket immediately instead of leaving the request unresolved.
+    // Bound response header cardinality as well as aggregate bytes. This keeps
+    // a malicious upstream from creating excessive header entries within the
+    // byte budget.
+    request.maxHeadersCount = MAX_PROVIDER_RESPONSE_HEADERS;
+
     request.once("upgrade", (_response, socket) => {
       socket.destroy();
       reject(new Error("AI provider protocol upgrades are not supported"));

@@ -90,6 +90,8 @@ assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\
 assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
 assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 \* 1024;/, "pinned transport must retain a bounded provider response header budget");
 assert.match(transportSource, /maxHeaderSize:\s*MAX_PROVIDER_RESPONSE_HEADER_BYTES/, "pinned transport must enforce the provider response header budget at the Node HTTPS parser boundary");
+assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADERS = 128;/, "pinned transport must retain a bounded provider response header count");
+assert.match(transportSource, /request\.maxHeadersCount = MAX_PROVIDER_RESPONSE_HEADERS;/, "pinned transport must bound provider response header cardinality");
 assert.match(transportSource, /request\.once\(["']upgrade["'][\s\S]*?socket\.destroy\(\)[\s\S]*?reject\(new Error\(["']AI provider protocol upgrades are not supported["']\)\)/, "pinned transport must reject HTTP 101 upgrades and destroy the upgraded socket");
 assert.match(transportSource, /request\.once\(["']connect["'][\s\S]*?socket\.destroy\(\)[\s\S]*?reject\(new Error\(["']AI provider CONNECT tunnels are not supported["']\)\)/, "pinned transport must reject CONNECT tunnels and destroy the detached socket");
 assert.match(transportSource, /method === ["']CONNECT["'] \|\| method === ["']TRACE["'] \|\| method === ["']TRACK["'][\s\S]*?throw new Error\(`Pinned provider transport forbids HTTP method \$\{method\}`\)/, "pinned transport must reject tunneling and request-reflection methods before network work");
