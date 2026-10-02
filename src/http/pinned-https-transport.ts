@@ -78,6 +78,11 @@ export async function pinnedHttpsFetch(
         }
       }
       const status = response.statusCode ?? 502;
+      if (status < 200 || status > 599) {
+        response.destroy();
+        reject(new Error(`AI provider returned invalid HTTP status ${status}`));
+        return;
+      }
       const mayHaveBody = responseMayHaveBody(init.method, status);
       const body = mayHaveBody
         ? Readable.toWeb(response) as ReadableStream<Uint8Array>
