@@ -80,6 +80,7 @@ assert.ok(transportIndex > dnsRevalidationIndex, "provider must complete DNS rev
 assert.match(providerSource, /pinnedHttpsFetch\(endpoint,[\s\S]*?approvedAddresses\)/, "provider must pass only the approved DNS set to pinned transport");
 assert.match(transportSource, /lookup:\s*\(_hostname, options, callback\)\s*=>/, "pinned transport must override DNS lookup at connection time");
 assert.match(transportSource, /assertSafeProviderAddress\(address\)/, "pinned transport must independently reject unsafe approved addresses");
+assert.match(transportSource, /url\.username \|\| url\.password \|\| url\.hash[\s\S]*?throw new Error\(["']Pinned provider transport forbids URL credentials and fragments["']\)/, "pinned transport must independently reject URL credentials and fragments before network work");
 assert.match(transportSource, /servername:\s*url\.hostname/, "pinned transport must preserve TLS SNI and hostname certificate verification");
 assert.match(transportSource, /rejectUnauthorized:\s*true/, "pinned transport must fail closed on untrusted provider TLS certificates");
 assert.match(transportSource, /minVersion:\s*["\']TLSv1\.2["\']/, "pinned transport must reject legacy TLS versions");
