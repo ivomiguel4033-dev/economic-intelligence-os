@@ -70,7 +70,15 @@ export class OpenAICompatibleProvider implements ModelProvider {
   constructor(private readonly config: OpenAICompatibleConfig) { this.name = config.name; }
 
   async generate(request: ModelRequest): Promise<ModelResponse> {
+    if (request.signal?.aborted) {
+      throw request.signal.reason ?? new Error("AI provider request aborted");
+    }
+
     const controller = new AbortController();
+    const callerAbortHandler = () => {
+      controller.abort(request.signal?.reason ?? new Error("AI provider request aborted"));
+    };
+    request.signal?.addEventListener("abort", callerAbortHandler, { once: true });
     const timeout = setTimeout(() => controller.abort(), resolveTimeoutMs(this.config.timeoutMs));
     const started = Date.now();
     try {
@@ -176,6 +184,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
         throw error;
       }
       return { provider: this.name, model: this.config.model, content, inputTokens, outputTokens, latencyMs: Date.now() - started };
-    } finally { clearTimeout(timeout); }
+    } finally {
+      clearTimeout(timeout);
+      request.signal?.removeEventListener("abort", callerAbortHandler);
+    }
   }
 }
