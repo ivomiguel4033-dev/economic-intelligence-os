@@ -89,6 +89,8 @@ jobs:
         run: node scripts/execution-reliability-regression.mjs
       - name: AI Board output validation regression checks
         run: node scripts/ai-output-validation-regression.mjs
+      - name: AI Board prompt-injection boundary regression checks
+        run: node scripts/prompt-injection-regression.mjs
       - name: AI provider failover regression checks
         run: node scripts/ai-failover-regression.mjs
       - name: Circuit breaker regression checks
