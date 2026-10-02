@@ -93,9 +93,11 @@ export async function pinnedHttpsFetch(
       // pinned socket and agent resources hanging until timeout.
       if (!mayHaveBody) response.resume();
 
+      // Do not forward the upstream reason phrase into the Fetch Response.
+      // It is not used by provider logic and keeping parser-controlled text
+      // out of the Web Response avoids an unnecessary constructor boundary.
       resolve(new Response(body, {
         status,
-        statusText: response.statusMessage,
         headers,
       }));
     });

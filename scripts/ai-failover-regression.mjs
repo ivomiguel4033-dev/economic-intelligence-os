@@ -93,6 +93,7 @@ assert.match(transportSource, /request\.once\(["']upgrade["'][\s\S]*?socket\.des
 assert.match(transportSource, /request\.once\(["']connect["'][\s\S]*?socket\.destroy\(\)[\s\S]*?reject\(new Error\(["']AI provider CONNECT tunnels are not supported["']\)\)/, "pinned transport must reject CONNECT tunnels and destroy the detached socket");
 assert.match(transportSource, /if \(status < 200 \|\| status > 599\) \{[\s\S]*?response\.destroy\(\);[\s\S]*?reject\(new Error\(`AI provider returned invalid HTTP status \$\{status\}`\)\);[\s\S]*?return;/, "pinned transport must fail closed on invalid upstream HTTP status codes");
 assert.match(transportSource, /if\s*\(!mayHaveBody\)\s*response\.resume\(\)/, "bodyless responses must be drained so pinned sockets cannot remain hung until timeout");
+assert.doesNotMatch(transportSource, /statusText:\s*response\.statusMessage/, "pinned transport must not forward untrusted upstream reason phrases into Fetch Response construction");
 assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
 assert.match(providerUrlPolicySource, /const PROVIDER_DNS_TIMEOUT_MS = 5_000;/, "provider DNS resolution must have a short bounded timeout");
 assert.match(providerUrlPolicySource, /Promise\.race\(\[[\s\S]*?lookup\(host, \{ all: true, verbatim: true \}\)[\s\S]*?PROVIDER_DNS_TIMEOUT_MS[\s\S]*?\]\)/, "provider DNS lookup must race against the bounded timeout");
