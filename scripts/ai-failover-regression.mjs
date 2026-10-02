@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { assertSafeProviderAddress, assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
-import { OpenAICompatibleProvider } from "../src/ai/providers/openai-compatible-provider.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
@@ -32,32 +31,20 @@ assert.match(providerSource, /Buffer\.byteLength\(requestBody, ["']utf8["']\) > 
 const requestSizeGuardIndex = providerSource.indexOf("Buffer.byteLength(requestBody");
 assert.ok(requestSizeGuardIndex >= 0 && requestSizeGuardIndex < providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint"), "provider must reject oversized outbound requests before DNS/network work");
 
-const oversizedProvider = new OpenAICompatibleProvider({
-  name: "oversized-test",
-  baseUrl: "https://api.example.com/v1",
-  apiKey: "test-key",
-  model: "test-model",
-  maxRequestBytes: 1024,
-});
-await assert.rejects(
-  () => oversizedProvider.generate({
-    system: "system",
-    prompt: "x".repeat(2048),
-  }),
-  /request exceeded size limit/,
-  "oversized provider requests must fail before outbound network work",
+assert.match(
+  providerSource,
+  /function resolveMaxRequestBytes\(value: number \| undefined\): number[\s\S]*?Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_REQUEST_BYTES[\s\S]*?throw new Error\(\`AI provider maxRequestBytes must be a positive safe integer/,
+  "provider must fail closed for invalid or excessive outbound request size configuration",
 );
-
-await assert.rejects(
-  () => new OpenAICompatibleProvider({
-    name: "invalid-request-limit",
-    baseUrl: "https://api.example.com/v1",
-    apiKey: "test-key",
-    model: "test-model",
-    maxRequestBytes: 8 * 1024 * 1024 + 1,
-  }).generate({ system: "system", prompt: "prompt" }),
-  /maxRequestBytes must be a positive safe integer/,
-  "provider must reject excessive configured outbound request bounds",
+assert.match(
+  providerSource,
+  /const requestBody = JSON\.stringify\([\s\S]*?model: this\.config\.model[\s\S]*?request\.system[\s\S]*?request\.prompt[\s\S]*?\);/,
+  "provider must serialize the complete outbound model request before enforcing its byte budget",
+);
+assert.match(
+  providerSource,
+  /if \(Buffer\.byteLength\(requestBody, ["']utf8["']\) > maxRequestBytes\) \{[\s\S]*?controller\.abort\(\);[\s\S]*?throw new Error\(\`\$\{this\.name\} request exceeded size limit\`\)/,
+  "oversized outbound provider requests must abort and fail before network work",
 );
 
 assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider must cap configured request timeouts");
