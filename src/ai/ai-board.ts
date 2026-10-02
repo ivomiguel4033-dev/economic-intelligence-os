@@ -1,5 +1,6 @@
 import type { ModelRouter } from "@/ai/model-provider";
 import type { Decision } from "@/domain/decision/types";
+import { validateBoardOpinion, validateBoardSynthesis, validateBoardVerdict } from "@/security/ai-output-validation";
 
 export type BoardRole = "strategist" | "risk" | "finance" | "operator" | "critic";
 
@@ -35,8 +36,7 @@ export class AIBoard {
           temperature: role === "critic" ? 0.4 : 0.2,
           metadata: { decisionId: decision.id, boardRole: role },
         });
-        const parsed = JSON.parse(response.content) as Omit<BoardOpinion, "role">;
-        return { role, ...parsed };
+        return validateBoardOpinion(JSON.parse(response.content) as unknown, role);
       }),
     );
 
@@ -47,8 +47,15 @@ export class AIBoard {
       temperature: 0.1,
       metadata: { decisionId: decision.id, boardRole: "chair" },
     });
-    const synthesis = JSON.parse(synthesisResponse.content) as Pick<BoardVerdict, "synthesis" | "dissent" | "confidence">;
+    const synthesis = validateBoardSynthesis(JSON.parse(synthesisResponse.content) as unknown);
 
-    return { decisionId: decision.id, opinions, ...synthesis, generatedAt: new Date().toISOString() };
+    return validateBoardVerdict({
+      decisionId: decision.id,
+      opinions,
+      synthesis: synthesis.synthesis,
+      dissent: synthesis.dissent,
+      confidence: synthesis.confidence,
+      generatedAt: new Date().toISOString(),
+    });
   }
 }
