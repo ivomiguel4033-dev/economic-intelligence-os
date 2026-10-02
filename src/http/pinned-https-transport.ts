@@ -64,6 +64,7 @@ export async function pinnedHttpsFetch(
       agent,
       signal: init.signal,
       servername: url.hostname,
+      rejectUnauthorized: true,
       minVersion: "TLSv1.2",
       maxHeaderSize: MAX_PROVIDER_RESPONSE_HEADER_BYTES,
     }, (response) => {
