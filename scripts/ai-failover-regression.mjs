@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { assertSafeProviderAddress, assertSafeProviderUrl } from "../src/security/provider-url-policy.ts";
+import { OpenAICompatibleProvider } from "../src/ai/providers/openai-compatible-provider.ts";
 
 const source = await readFile(new URL("../src/ai/failover-provider.ts", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/ai/providers/openai-compatible-provider.ts", import.meta.url), "utf8");
@@ -25,6 +26,40 @@ assert.match(source, /failures\.push\(`\$\{provider\.name\}:/, "failover diagnos
 assert.match(source, /All AI providers failed: \$\{failures\.join\(["'][^"']+["']\)\}/, "terminal failure must aggregate provider diagnostics");
 
 assert.match(providerSource, /const DEFAULT_TIMEOUT_MS = 45_000;/, "provider must retain a bounded default request timeout");
+assert.match(providerSource, /const DEFAULT_MAX_REQUEST_BYTES = 1 \* 1024 \* 1024;/, "provider must retain a bounded default outbound request size");
+assert.match(providerSource, /const MAX_REQUEST_BYTES = 8 \* 1024 \* 1024;/, "provider must cap configured outbound request sizes");
+assert.match(providerSource, /Buffer\.byteLength\(requestBody, ["']utf8["']\) > maxRequestBytes/, "provider must enforce outbound request bytes before transport");
+const requestSizeGuardIndex = providerSource.indexOf("Buffer.byteLength(requestBody");
+assert.ok(requestSizeGuardIndex >= 0 && requestSizeGuardIndex < providerSource.indexOf("await assertSafeProviderDnsResolution(endpoint"), "provider must reject oversized outbound requests before DNS/network work");
+
+const oversizedProvider = new OpenAICompatibleProvider({
+  name: "oversized-test",
+  baseUrl: "https://api.example.com/v1",
+  apiKey: "test-key",
+  model: "test-model",
+  maxRequestBytes: 1024,
+});
+await assert.rejects(
+  () => oversizedProvider.generate({
+    system: "system",
+    prompt: "x".repeat(2048),
+  }),
+  /request exceeded size limit/,
+  "oversized provider requests must fail before outbound network work",
+);
+
+await assert.rejects(
+  () => new OpenAICompatibleProvider({
+    name: "invalid-request-limit",
+    baseUrl: "https://api.example.com/v1",
+    apiKey: "test-key",
+    model: "test-model",
+    maxRequestBytes: 8 * 1024 * 1024 + 1,
+  }).generate({ system: "system", prompt: "prompt" }),
+  /maxRequestBytes must be a positive safe integer/,
+  "provider must reject excessive configured outbound request bounds",
+);
+
 assert.match(providerSource, /const MAX_TIMEOUT_MS = 5 \* 60_000;/, "provider must cap configured request timeouts");
 assert.match(providerSource, /Number\.isSafeInteger\(value\)[\s\S]*?value <= 0[\s\S]*?value > MAX_TIMEOUT_MS/, "provider timeout configuration must fail closed for invalid or excessive values");
 assert.match(providerSource, /setTimeout\(\(\) => controller\.abort\(\), resolveTimeoutMs\(this\.config\.timeoutMs\)\)/, "provider fetch timeout must use validated configuration");
