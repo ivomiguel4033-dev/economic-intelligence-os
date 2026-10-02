@@ -25,21 +25,47 @@ export class FailoverProvider implements ModelProvider {
     const failures: string[] = [];
 
     for (const provider of this.providers) {
+      if (request.signal?.aborted) {
+        throw request.signal.reason ?? new Error("AI request aborted");
+      }
+
       let timeout: ReturnType<typeof setTimeout> | undefined;
+      let callerAbortHandler: (() => void) | undefined;
+      const attemptController = new AbortController();
 
       try {
+        const timeoutError = new Error(`${provider.name} timed out`);
         const timeoutPromise = new Promise<never>((_, reject) => {
-          timeout = setTimeout(
-            () => reject(new Error(`${provider.name} timed out`)),
-            this.timeoutMs,
-          );
+          timeout = setTimeout(() => {
+            attemptController.abort(timeoutError);
+            reject(timeoutError);
+          }, this.timeoutMs);
+        });
+        const callerAbortPromise = new Promise<never>((_resolve, reject) => {
+          if (!request.signal) return;
+          callerAbortHandler = () => {
+            const reason = request.signal?.reason ?? new Error("AI request aborted");
+            attemptController.abort(reason);
+            reject(reason);
+          };
+          request.signal.addEventListener("abort", callerAbortHandler, { once: true });
         });
 
-        return await Promise.race([provider.generate(request), timeoutPromise]);
+        return await Promise.race([
+          provider.generate({ ...request, signal: attemptController.signal }),
+          timeoutPromise,
+          callerAbortPromise,
+        ]);
       } catch (error) {
+        if (request.signal?.aborted) {
+          throw request.signal.reason ?? error;
+        }
         failures.push(`${provider.name}: ${error instanceof Error ? error.message : "unknown error"}`);
       } finally {
         if (timeout !== undefined) clearTimeout(timeout);
+        if (request.signal && callerAbortHandler) {
+          request.signal.removeEventListener("abort", callerAbortHandler);
+        }
       }
     }
 
