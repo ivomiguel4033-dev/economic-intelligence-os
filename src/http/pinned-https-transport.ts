@@ -90,6 +90,7 @@ export async function pinnedHttpsFetch(
         "keep-alive",
         "proxy-authenticate",
         "proxy-authorization",
+        "proxy-connection",
         "te",
         "trailer",
         "transfer-encoding",
