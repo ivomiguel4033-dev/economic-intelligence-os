@@ -82,9 +82,27 @@ export async function pinnedHttpsFetch(
       minVersion: "TLSv1.2",
       maxHeaderSize: MAX_PROVIDER_RESPONSE_HEADER_BYTES,
     }, (response) => {
+      // Never expose hop-by-hop response metadata beyond this transport. In
+      // addition to the standard names, Connection may nominate arbitrary
+      // headers that apply only to this single pinned connection.
+      const forbiddenResponseHeaders = new Set([
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+      ]);
+      for (const token of response.headers.connection?.split(",") ?? []) {
+        const name = token.trim().toLowerCase();
+        if (name) forbiddenResponseHeaders.add(name);
+      }
+
       const headers = new Headers();
       for (const [name, value] of Object.entries(response.headers)) {
-        if (value === undefined) continue;
+        if (value === undefined || forbiddenResponseHeaders.has(name.toLowerCase())) continue;
         if (Array.isArray(value)) {
           for (const item of value) headers.append(name, item);
         } else {
