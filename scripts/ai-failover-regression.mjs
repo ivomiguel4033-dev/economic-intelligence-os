@@ -152,4 +152,11 @@ for (const unsafeUrl of [
   assert.throws(() => assertSafeProviderUrl(unsafeUrl), undefined, `provider URL must reject ${unsafeUrl}`);
 }
 
+assert.ok(
+  transportSource.includes("const validHeaderName =") &&
+    transportSource.includes("!validHeaderName.test(name)") &&
+    transportSource.includes("/[\\r\\n\\0]/.test(value)"),
+  "pinned transport must reject malformed outbound header names and control characters before network work",
+);
+
 console.log("AI failover, telemetry resilience, and provider URL regression checks passed");

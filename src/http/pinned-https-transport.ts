@@ -63,7 +63,11 @@ export async function pinnedHttpsFetch(
     throw new Error("Pinned provider transport request headers exceed size limit");
   }
   const forbiddenRequestHeaders = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te", "trailer"]);
-  for (const [name] of requestHeaderEntries) {
+  const validHeaderName = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+  for (const [name, value] of requestHeaderEntries) {
+    if (!validHeaderName.test(name) || /[\r\n\0]/.test(value)) {
+      throw new Error(`Pinned provider transport rejects invalid HTTP header ${name}`);
+    }
     if (forbiddenRequestHeaders.has(name.toLowerCase())) {
       throw new Error(`Pinned provider transport forbids caller-controlled HTTP header ${name}`);
     }
