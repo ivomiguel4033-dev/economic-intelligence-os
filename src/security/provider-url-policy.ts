@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 const PROVIDER_DNS_TIMEOUT_MS = 5_000;
+const MAX_PROVIDER_DNS_ADDRESSES = 32;
 
 function normalizedHostname(url: URL): string {
   const rawHost = url.hostname.toLowerCase();
@@ -85,6 +86,9 @@ async function resolvePublicProviderAddresses(url: URL, signal?: AbortSignal): P
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? error;
     throw new Error("AI provider hostname could not be resolved safely");
+  }
+  if (addresses.length > MAX_PROVIDER_DNS_ADDRESSES) {
+    throw new Error("AI provider hostname resolved to too many addresses");
   }
   if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
     throw new Error("AI provider hostname resolved to a non-public address");

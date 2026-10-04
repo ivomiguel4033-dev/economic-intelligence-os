@@ -108,6 +108,8 @@ assert.match(transportSource, /if\s*\(!mayHaveBody\)\s*response\.resume\(\)/, "b
 assert.doesNotMatch(transportSource, /statusText:\s*response\.statusMessage/, "pinned transport must not forward untrusted upstream reason phrases into Fetch Response construction");
 assert.doesNotMatch(transportSource, /response\.headers\.location|statusCode\s*>?=\s*300[\s\S]*?httpsRequest/, "pinned transport must not implement automatic redirect following");
 assert.match(providerUrlPolicySource, /const PROVIDER_DNS_TIMEOUT_MS = 5_000;/, "provider DNS resolution must have a short bounded timeout");
+assert.match(providerUrlPolicySource, /const MAX_PROVIDER_DNS_ADDRESSES = 32;/, "provider DNS resolution must retain a bounded address count");
+assert.match(providerUrlPolicySource, /addresses\.length > MAX_PROVIDER_DNS_ADDRESSES[\s\S]*?resolved to too many addresses/, "provider DNS resolution must reject excessive address cardinality before canonicalization");
 assert.match(providerUrlPolicySource, /Promise\.race\(\[[\s\S]*?lookup\(host, \{ all: true, verbatim: true \}\)[\s\S]*?PROVIDER_DNS_TIMEOUT_MS[\s\S]*?\]\)/, "provider DNS lookup must race against the bounded timeout");
 assert.match(providerUrlPolicySource, /finally\s*\{[\s\S]*?clearTimeout\(timeout\)/, "provider DNS timeout timer must be cleared after resolution settles");
 assert.match(providerUrlPolicySource, /lookupWithTimeout\(host: string, signal\?: AbortSignal\)/, "provider DNS lookup must accept cancellation from the request budget");
