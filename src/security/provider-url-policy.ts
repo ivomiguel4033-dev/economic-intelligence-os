@@ -90,7 +90,7 @@ async function resolvePublicProviderAddresses(url: URL, signal?: AbortSignal): P
   if (addresses.length > MAX_PROVIDER_DNS_ADDRESSES) {
     throw new Error("AI provider hostname resolved to too many addresses");
   }
-  if (addresses.length === 0 || addresses.some(({ address }) => isUnsafeResolvedAddress(address))) {
+  if (addresses.length === 0 || addresses.some(({ address }) => isIP(address) === 0 || isUnsafeResolvedAddress(address))) {
     throw new Error("AI provider hostname resolved to a non-public address");
   }
   return canonicalAddressSet(addresses);
