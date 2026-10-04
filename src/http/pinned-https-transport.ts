@@ -48,7 +48,8 @@ export async function pinnedHttpsFetch(
     throw new Error("Pinned provider transport forbids URL credentials and fragments");
   }
   const method = init.method.toUpperCase();
-  if (method === "CONNECT" || method === "TRACE" || method === "TRACK") {
+  const allowedMethods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+  if (!allowedMethods.has(method)) {
     throw new Error(`Pinned provider transport forbids HTTP method ${method}`);
   }
   const requestHeaderEntries = Object.entries(init.headers);

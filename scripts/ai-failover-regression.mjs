@@ -159,4 +159,10 @@ assert.ok(
   "pinned transport must reject malformed outbound header names and control characters before network work",
 );
 
+assert.ok(
+  transportSource.includes('const allowedMethods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])') &&
+    transportSource.includes("!allowedMethods.has(method)"),
+  "pinned transport must allowlist outbound HTTP methods before network work",
+);
+
 console.log("AI failover, telemetry resilience, and provider URL regression checks passed");
