@@ -7,6 +7,7 @@ const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_HEADERS = 128;
 const MAX_PROVIDER_REQUEST_HEADERS = 64;
 const MAX_PROVIDER_REQUEST_HEADER_BYTES = 16 * 1024;
+const MAX_APPROVED_PROVIDER_ADDRESSES = 32;
 
 export interface PinnedHttpsRequestInit {
   method: string;
@@ -16,6 +17,9 @@ export interface PinnedHttpsRequestInit {
 }
 
 function selectPinnedAddress(approvedAddresses: readonly string[]): { address: string; family: 4 | 6 } {
+  if (approvedAddresses.length > MAX_APPROVED_PROVIDER_ADDRESSES) {
+    throw new Error("AI provider DNS approval set exceeds address limit");
+  }
   for (const address of approvedAddresses) {
     const family = isIP(address);
     if (family !== 4 && family !== 6) continue;
