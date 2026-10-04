@@ -5,6 +5,8 @@ import { assertSafeProviderAddress } from "@/security/provider-url-policy";
 
 const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_HEADERS = 128;
+const MAX_PROVIDER_REQUEST_HEADERS = 64;
+const MAX_PROVIDER_REQUEST_HEADER_BYTES = 16 * 1024;
 
 export interface PinnedHttpsRequestInit {
   method: string;
@@ -49,8 +51,19 @@ export async function pinnedHttpsFetch(
   if (method === "CONNECT" || method === "TRACE" || method === "TRACK") {
     throw new Error(`Pinned provider transport forbids HTTP method ${method}`);
   }
+  const requestHeaderEntries = Object.entries(init.headers);
+  if (requestHeaderEntries.length > MAX_PROVIDER_REQUEST_HEADERS) {
+    throw new Error("Pinned provider transport request header count exceeds limit");
+  }
+  const requestHeaderBytes = requestHeaderEntries.reduce(
+    (total, [name, value]) => total + Buffer.byteLength(name, "utf8") + Buffer.byteLength(value, "utf8") + 4,
+    0,
+  );
+  if (requestHeaderBytes > MAX_PROVIDER_REQUEST_HEADER_BYTES) {
+    throw new Error("Pinned provider transport request headers exceed size limit");
+  }
   const forbiddenRequestHeaders = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te", "trailer"]);
-  for (const name of Object.keys(init.headers)) {
+  for (const [name] of requestHeaderEntries) {
     if (forbiddenRequestHeaders.has(name.toLowerCase())) {
       throw new Error(`Pinned provider transport forbids caller-controlled HTTP header ${name}`);
     }

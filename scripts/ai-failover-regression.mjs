@@ -89,6 +89,10 @@ assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport m
 assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\)/, "pinned transport must not destroy the agent before the streamed response body reaches EOF");
 assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
 assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 \* 1024;/, "pinned transport must retain a bounded provider response header budget");
+assert.match(transportSource, /const MAX_PROVIDER_REQUEST_HEADERS = 64;/, "pinned transport must retain a bounded outbound request header count");
+assert.match(transportSource, /const MAX_PROVIDER_REQUEST_HEADER_BYTES = 16 \* 1024;/, "pinned transport must retain a bounded outbound request header byte budget");
+assert.match(transportSource, /requestHeaderEntries\.length > MAX_PROVIDER_REQUEST_HEADERS[\s\S]*?request header count exceeds limit/, "pinned transport must reject excessive outbound request header cardinality before network work");
+assert.match(transportSource, /Buffer\.byteLength\(name, ["\']utf8["\']\)[\s\S]*?Buffer\.byteLength\(value, ["\']utf8["\']\)[\s\S]*?requestHeaderBytes > MAX_PROVIDER_REQUEST_HEADER_BYTES/, "pinned transport must reject excessive outbound request header bytes before network work");
 assert.match(transportSource, /maxHeaderSize:\s*MAX_PROVIDER_RESPONSE_HEADER_BYTES/, "pinned transport must enforce the provider response header budget at the Node HTTPS parser boundary");
 assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADERS = 128;/, "pinned transport must retain a bounded provider response header count");
 assert.match(transportSource, /request\.maxHeadersCount = MAX_PROVIDER_RESPONSE_HEADERS;/, "pinned transport must bound provider response header cardinality");
