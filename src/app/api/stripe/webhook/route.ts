@@ -146,6 +146,11 @@ export async function POST(request: NextRequest) {
     return json({ error: "Unsupported media type" }, 415);
   }
 
+  const contentEncoding = request.headers.get("content-encoding")?.trim().toLowerCase();
+  if (contentEncoding && contentEncoding !== "identity") {
+    return json({ error: "Unsupported content encoding" }, 415);
+  }
+
   if (declaredPayloadTooLarge(request)) {
     return json({ error: "Stripe event payload too large" }, 413);
   }

@@ -93,6 +93,20 @@ async function runServer(extraEnv, assertions) {
 }
 
 await runServer({ STRIPE_LIVEMODE: "false" }, async ({ baseUrl, port }) => {
+  const compressed = await fetch(`${baseUrl}/api/stripe/webhook`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+      "stripe-signature": "invalid",
+    },
+    body: "{}",
+  });
+  assert(compressed.status === 415, `Expected compressed Stripe payload 415, got ${compressed.status}`);
+  assert(compressed.headers.get("cache-control") === "no-store", "Compressed Stripe response must disable caching");
+  const compressedBody = await compressed.json();
+  assert(compressedBody.error === "Unsupported content encoding", "Compressed Stripe payload must use the content-encoding error");
+
   const declared = await fetch(`${baseUrl}/api/stripe/webhook`, {
     method: "POST",
     headers: {
