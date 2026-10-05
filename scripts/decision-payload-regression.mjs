@@ -110,6 +110,19 @@ try {
     assert(unsupportedOversized.headers.get("cache-control") === "no-store", "Unsupported declared oversized decision response must disable caching");
   }
 
+  const encoded = await fetch(`${baseUrl}/api/decisions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+    },
+    body: "{}",
+  });
+  assert(encoded.status === 415, `Expected encoded decision payload 415, got ${encoded.status}`);
+  assert(encoded.headers.get("cache-control") === "no-store", "Unsupported decision content encoding response must disable caching");
+  const encodedBody = await encoded.json();
+  assert(encodedBody.error === "Unsupported content encoding", "Unsupported decision content encoding must return a client-safe error");
+
   const malformed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
     headers: { "content-type": "application/json" },

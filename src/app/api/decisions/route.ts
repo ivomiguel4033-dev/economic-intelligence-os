@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const contentEncoding = request.headers.get("content-encoding")?.trim().toLowerCase();
+    if (contentEncoding && contentEncoding !== "identity") {
+      return decisionError("Unsupported content encoding", 415);
+    }
+
     const mediaType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     const isJsonMediaType = mediaType === "application/json"
       || (mediaType?.startsWith("application/") === true && mediaType.endsWith("+json"));
