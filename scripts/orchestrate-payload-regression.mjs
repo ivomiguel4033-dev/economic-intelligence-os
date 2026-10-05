@@ -64,7 +64,7 @@ try {
 
   const declared = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
-    headers: { "content-length": String(maxBytes + 1) },
+    headers: { "content-type": "application/json", "content-length": String(maxBytes + 1) },
     body: "x",
   }).catch(() => null);
   if (declared) {
@@ -88,6 +88,7 @@ try {
   });
   const streamed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
+    headers: { "content-type": "application/json" },
     body: stream,
     duplex: "half",
   });
