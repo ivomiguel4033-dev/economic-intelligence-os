@@ -133,6 +133,14 @@ try {
   const unsupportedBody = await unsupported.json();
   assert(unsupportedBody.error === "Unsupported media type", "Unsupported orchestration media type must return a generic client-safe error");
 
+  const invalidOrganization = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: 42, decisionId: "decision_test" }),
+  });
+  assert(invalidOrganization.status === 400, `Expected non-string orchestration organizationId 400, got ${invalidOrganization.status}`);
+  assert((await invalidOrganization.json()).error === "Invalid orchestration request", "Invalid orchestration organizationId must fail before tenant resolution");
+
   const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },

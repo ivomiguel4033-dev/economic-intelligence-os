@@ -69,9 +69,13 @@ export async function POST(request: NextRequest) {
       return decisionError("Invalid decision request", 400);
     }
 
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim())) {
+      return decisionError("Invalid decision request", 400);
+    }
+
     const context = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
-      typeof body.organizationId === "string" ? body.organizationId : undefined,
+      body.organizationId as string | undefined,
     );
     const decision = await service.create({
       organizationId: context.organizationId,

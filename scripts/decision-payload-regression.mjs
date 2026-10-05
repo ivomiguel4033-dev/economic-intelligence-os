@@ -123,6 +123,14 @@ try {
   const encodedBody = await encoded.json();
   assert(encodedBody.error === "Unsupported content encoding", "Unsupported decision content encoding must return a client-safe error");
 
+  const invalidOrganization = await fetch(`${baseUrl}/api/decisions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: 42, title: "Test", objective: "Test objective" }),
+  });
+  assert(invalidOrganization.status === 400, `Expected non-string decision organizationId 400, got ${invalidOrganization.status}`);
+  assert((await invalidOrganization.json()).error === "Invalid decision request", "Invalid decision organizationId must fail before tenant resolution");
+
   const malformed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
     headers: { "content-type": "application/json" },

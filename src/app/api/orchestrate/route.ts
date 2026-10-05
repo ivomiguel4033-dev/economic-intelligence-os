@@ -84,9 +84,13 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim())) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
-      body.organizationId ? String(body.organizationId) : undefined,
+      body.organizationId as string | undefined,
     );
     const organizationId = access.organizationId;
     requireAuthorization(access, { organizationId, resourceType: "decision" }, "execute");
