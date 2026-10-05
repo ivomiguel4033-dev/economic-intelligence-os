@@ -1,5 +1,5 @@
-import type { RiskTier } from "@/security/risk-policy";
-import { policyForRisk } from "@/security/risk-policy";
+import type { RiskTier } from "../security/risk-policy.ts";
+import { policyForRisk } from "../security/risk-policy.ts";
 
 export interface ProposedAction {
   id: string;
