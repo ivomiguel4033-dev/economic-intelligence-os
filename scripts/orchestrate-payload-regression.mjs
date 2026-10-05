@@ -110,6 +110,19 @@ try {
     assert(unsupportedOversized.headers.get("cache-control") === "no-store", "Unsupported declared oversized orchestration response must disable caching");
   }
 
+  const unsupportedEncoding = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+    },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision_test" }),
+  });
+  assert(unsupportedEncoding.status === 415, `Expected compressed orchestration payload 415, got ${unsupportedEncoding.status}`);
+  assert(unsupportedEncoding.headers.get("cache-control") === "no-store", "Unsupported orchestration content encoding response must disable caching");
+  const unsupportedEncodingBody = await unsupportedEncoding.json();
+  assert(unsupportedEncodingBody.error === "Unsupported content encoding", "Unsupported orchestration content encoding must return a client-safe error");
+
   const unsupported = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "text/plain" },

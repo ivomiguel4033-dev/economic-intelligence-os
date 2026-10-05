@@ -51,6 +51,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const contentEncoding = request.headers.get("content-encoding")?.trim().toLowerCase();
+    if (contentEncoding && contentEncoding !== "identity") {
+      return orchestrationError("Unsupported content encoding", 415);
+    }
+
     if (!hasJsonMediaType(request)) {
       return orchestrationError("Unsupported media type", 415);
     }
