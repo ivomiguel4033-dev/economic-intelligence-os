@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { executionIdempotencyKey } from "../src/execution/idempotency.ts";
 import { isRetryableStatus, retryDelay } from "../src/execution/retry-policy.ts";
+import { evaluateExecution } from "../src/execution/execution-policy.ts";
 
 function evaluateReexecution(result) {
   if (result.status === "confirmed_succeeded") return { mayReexecute: false };
@@ -37,6 +38,32 @@ for (const status of [99, 200, 400, 499, 600, 500.5, Number.NaN, Number.POSITIVE
 assert.equal(evaluateReexecution({ status: "confirmed_succeeded" }).mayReexecute, false);
 assert.equal(evaluateReexecution({ status: "still_uncertain" }).mayReexecute, false);
 assert.equal(evaluateReexecution({ status: "confirmed_failed" }).mayReexecute, true);
+
+const validAction = {
+  id: "action-1",
+  organizationId: "org-a",
+  actionType: "analysis",
+  reversible: true,
+  externalSideEffect: false,
+  riskTier: "low",
+  confidence: 0.9,
+  evidenceCount: 1,
+};
+assert.equal(evaluateExecution(validAction).execute, true);
+for (const confidence of [Number.NaN, Number.POSITIVE_INFINITY, -0.1, 1.1]) {
+  const decision = evaluateExecution({ ...validAction, confidence });
+  assert.equal(decision.execute, false, `invalid confidence ${String(confidence)} must fail closed`);
+  assert.equal(decision.approvalRequired, true);
+  assert.ok(decision.reasons.includes("Invalid confidence"));
+}
+for (const evidenceCount of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
+  const decision = evaluateExecution({ ...validAction, evidenceCount });
+  assert.equal(decision.execute, false, `invalid evidence count ${String(evidenceCount)} must fail closed`);
+  assert.ok(decision.reasons.includes("Invalid evidence count"));
+}
+const invalidRisk = evaluateExecution({ ...validAction, riskTier: "unknown" });
+assert.equal(invalidRisk.execute, false, "unknown runtime risk tiers must fail closed");
+assert.ok(invalidRisk.reasons.includes("Invalid risk tier"));
 const breaker = new CircuitBreaker();
 breaker.failure(); breaker.failure();
 assert.equal(breaker.canExecute(), true);
