@@ -64,7 +64,7 @@ try {
 
   const declared = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
-    headers: { "content-length": String(maxBytes + 1) },
+    headers: { "content-type": "application/json", "content-length": String(maxBytes + 1) },
     body: "x",
   }).catch(() => null);
   if (declared) {
@@ -88,6 +88,7 @@ try {
   });
   const streamed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
+    headers: { "content-type": "application/json" },
     body: stream,
     duplex: "half",
   });
@@ -95,6 +96,19 @@ try {
   assert(streamed.headers.get("cache-control") === "no-store", "Chunked oversized decision response must disable caching");
   const streamedBody = await streamed.json();
   assert(streamedBody.error === "Decision request payload too large", "Oversized decision response must use the bounded-payload error");
+
+  const unsupportedOversized = await fetch(`${baseUrl}/api/decisions`, {
+    method: "POST",
+    headers: {
+      "content-type": "text/plain",
+      "content-length": String(maxBytes + 1),
+    },
+    body: "x",
+  }).catch(() => null);
+  if (unsupportedOversized) {
+    assert(unsupportedOversized.status === 415, `Expected unsupported declared oversized decision media type 415, got ${unsupportedOversized.status}`);
+    assert(unsupportedOversized.headers.get("cache-control") === "no-store", "Unsupported declared oversized decision response must disable caching");
+  }
 
   const malformed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
