@@ -77,6 +77,9 @@ export async function pinnedHttpsFetch(
       throw new Error(`Pinned provider transport forbids caller-controlled HTTP header ${name}`);
     }
   }
+  if (init.signal?.aborted) {
+    throw init.signal.reason ?? new Error("AI provider request aborted");
+  }
   const pinned = selectPinnedAddress(approvedAddresses);
 
   const agent = new Agent({

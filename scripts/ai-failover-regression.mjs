@@ -89,6 +89,7 @@ assert.match(transportSource, /minVersion:\s*["\']TLSv1\.2["\']/, "pinned transp
 assert.match(transportSource, /keepAlive:\s*false/, "pinned transport must not reuse connections across approval sets");
 assert.match(transportSource, /Readable\.toWeb\(response\)/, "pinned transport must expose the live response stream without buffering it internally");
 assert.doesNotMatch(transportSource, /\.finally\(\(\)\s*=>\s*agent\.destroy\(\)\)/, "pinned transport must not destroy the agent before the streamed response body reaches EOF");
+assert.match(transportSource, /if \(init\.signal\?\.aborted\)[\s\S]*?throw init\.signal\.reason \?\? new Error\(["\']AI provider request aborted["\']\)/, "pinned transport must reject an already-aborted request before allocating network resources");
 assert.match(transportSource, /signal:\s*init\.signal/, "pinned transport must propagate the provider AbortSignal into the HTTPS request");
 assert.match(transportSource, /const MAX_PROVIDER_RESPONSE_HEADER_BYTES = 32 \* 1024;/, "pinned transport must retain a bounded provider response header budget");
 assert.match(transportSource, /const MAX_PROVIDER_REQUEST_HEADERS = 64;/, "pinned transport must retain a bounded outbound request header count");
