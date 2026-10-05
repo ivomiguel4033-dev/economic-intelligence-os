@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!hasJsonMediaType(request)) {
+      return orchestrationError("Unsupported media type", 415);
+    }
+
     if (declaredPayloadTooLarge(request, MAX_ORCHESTRATION_REQUEST_BYTES)) {
       return orchestrationError("Orchestration request payload too large", 413);
     }
@@ -66,10 +70,6 @@ export async function POST(request: NextRequest) {
     if (payload.status === "timeout") {
       return orchestrationError("Orchestration request payload read timed out", 408);
     }
-    if (!hasJsonMediaType(request)) {
-      return orchestrationError("Unsupported media type", 415);
-    }
-
     let body: Record<string, any>;
     try {
       const parsed = JSON.parse(payload.payload) as unknown;

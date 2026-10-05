@@ -96,6 +96,19 @@ try {
   const streamedBody = await streamed.json();
   assert(streamedBody.error === "Orchestration request payload too large", "Oversized orchestration response must use the bounded-payload error");
 
+  const unsupportedOversized = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: {
+      "content-type": "text/plain",
+      "content-length": String(maxBytes + 1),
+    },
+    body: "x",
+  }).catch(() => null);
+  if (unsupportedOversized) {
+    assert(unsupportedOversized.status === 415, `Expected unsupported declared oversized orchestration media type 415, got ${unsupportedOversized.status}`);
+    assert(unsupportedOversized.headers.get("cache-control") === "no-store", "Unsupported declared oversized orchestration response must disable caching");
+  }
+
   const unsupported = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "text/plain" },
