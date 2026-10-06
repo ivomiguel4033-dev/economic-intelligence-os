@@ -96,6 +96,22 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    if (
+      body.claims !== undefined
+      && (
+        !Array.isArray(body.claims)
+        || body.claims.some(
+          (claim: unknown) =>
+            !claim
+            || typeof claim !== "object"
+            || Array.isArray(claim)
+            || !Array.isArray((claim as Record<string, unknown>).evidence),
+        )
+      )
+    ) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       body.organizationId as string | undefined,

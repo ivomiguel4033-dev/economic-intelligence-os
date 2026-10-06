@@ -165,6 +165,18 @@ try {
   assert(invalidAction.status === 400, `Expected non-object orchestration action 400, got ${invalidAction.status}`);
   assert((await invalidAction.json()).error === "Invalid orchestration request", "Invalid orchestration action must fail before authentication");
 
+  const invalidClaims = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      organizationId: "org_test",
+      decisionId: "decision_test",
+      claims: [{ claim: "test", evidence: null, confidence: 0.5, status: "insufficient" }],
+    }),
+  });
+  assert(invalidClaims.status === 400, `Expected malformed orchestration claims 400, got ${invalidClaims.status}`);
+  assert((await invalidClaims.json()).error === "Invalid orchestration request", "Malformed orchestration claims must fail before authentication");
+
   const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
