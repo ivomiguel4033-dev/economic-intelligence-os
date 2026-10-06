@@ -88,6 +88,10 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    if (typeof body.decisionId !== "string" || !body.decisionId.trim()) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       body.organizationId as string | undefined,
@@ -121,8 +125,7 @@ export async function POST(request: NextRequest) {
     tenantConcurrencyHeartbeat = setInterval(renewTenantConcurrencyLease, TENANT_CONCURRENCY_HEARTBEAT_MS);
     tenantConcurrencyHeartbeat.unref?.();
 
-    const decisionId = String(body.decisionId ?? "");
-    if (!decisionId) throw new Error("decisionId is required");
+    const decisionId = body.decisionId;
 
     const decisions = new PostgresDecisionRepository();
     const decision = await decisions.findById(decisionId);

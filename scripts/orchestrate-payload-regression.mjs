@@ -141,6 +141,22 @@ try {
   assert(invalidOrganization.status === 400, `Expected non-string orchestration organizationId 400, got ${invalidOrganization.status}`);
   assert((await invalidOrganization.json()).error === "Invalid orchestration request", "Invalid orchestration organizationId must fail before tenant resolution");
 
+  const invalidDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: { value: "decision_test" } }),
+  });
+  assert(invalidDecisionId.status === 400, `Expected non-string orchestration decisionId 400, got ${invalidDecisionId.status}`);
+  assert((await invalidDecisionId.json()).error === "Invalid orchestration request", "Invalid orchestration decisionId must fail before authentication");
+
+  const emptyDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "   " }),
+  });
+  assert(emptyDecisionId.status === 400, `Expected blank orchestration decisionId 400, got ${emptyDecisionId.status}`);
+  assert((await emptyDecisionId.json()).error === "Invalid orchestration request", "Blank orchestration decisionId must fail before authentication");
+
   const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
