@@ -96,6 +96,22 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    const requestedAction = body.action as Record<string, unknown> | undefined;
+    if (
+      requestedAction
+      && (
+        (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim()))
+        || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim()))
+        || (requestedAction.reversible !== undefined && typeof requestedAction.reversible !== "boolean")
+        || (requestedAction.externalSideEffect !== undefined && typeof requestedAction.externalSideEffect !== "boolean")
+        || (requestedAction.riskTier !== undefined && typeof requestedAction.riskTier !== "string")
+        || (requestedAction.confidence !== undefined && (typeof requestedAction.confidence !== "number" || !Number.isFinite(requestedAction.confidence)))
+        || (requestedAction.evidenceCount !== undefined && (typeof requestedAction.evidenceCount !== "number" || !Number.isFinite(requestedAction.evidenceCount)))
+      )
+    ) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
     if (
       body.claims !== undefined
       && (
