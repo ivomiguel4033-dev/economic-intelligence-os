@@ -18,6 +18,11 @@ const MAX_ORCHESTRATION_REQUEST_BYTES = 1_000_000;
 const ORCHESTRATION_REQUEST_READ_TIMEOUT_MS = 15_000;
 const MAX_ORCHESTRATION_CLAIMS = 256;
 const MAX_EVIDENCE_PER_CLAIM = 256;
+const MAX_IDENTIFIER_CHARS = 256;
+const MAX_ACTION_TYPE_CHARS = 128;
+const MAX_CLAIM_CHARS = 16_000;
+const MAX_EVIDENCE_SOURCE_ID_CHARS = 512;
+const MAX_EVIDENCE_TITLE_CHARS = 4_000;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function orchestrationError(error: string, status: number, headers: Record<string, string> = {}) {
@@ -86,11 +91,11 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
-    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim())) {
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId.length > MAX_IDENTIFIER_CHARS)) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
-    if (typeof body.decisionId !== "string" || !body.decisionId.trim()) {
+    if (typeof body.decisionId !== "string" || !body.decisionId.trim() || body.decisionId.length > MAX_IDENTIFIER_CHARS) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
@@ -102,8 +107,8 @@ export async function POST(request: NextRequest) {
     if (
       requestedAction
       && (
-        (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim()))
-        || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim()))
+        (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim() || requestedAction.id.length > MAX_IDENTIFIER_CHARS))
+        || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim() || requestedAction.actionType.length > MAX_ACTION_TYPE_CHARS))
         || (requestedAction.reversible !== undefined && typeof requestedAction.reversible !== "boolean")
         || (requestedAction.externalSideEffect !== undefined && typeof requestedAction.externalSideEffect !== "boolean")
         || (requestedAction.riskTier !== undefined && (typeof requestedAction.riskTier !== "string" || !["low", "medium", "high", "critical"].includes(requestedAction.riskTier)))
@@ -125,6 +130,7 @@ export async function POST(request: NextRequest) {
           if (
             typeof candidate.claim !== "string"
             || !candidate.claim.trim()
+            || candidate.claim.length > MAX_CLAIM_CHARS
             || typeof candidate.confidence !== "number"
             || !Number.isFinite(candidate.confidence)
             || candidate.confidence < 0
@@ -138,8 +144,10 @@ export async function POST(request: NextRequest) {
             const reference = evidence as Record<string, unknown>;
             return typeof reference.sourceId !== "string"
               || !reference.sourceId.trim()
+              || reference.sourceId.length > MAX_EVIDENCE_SOURCE_ID_CHARS
               || typeof reference.title !== "string"
-              || !reference.title.trim();
+              || !reference.title.trim()
+              || reference.title.length > MAX_EVIDENCE_TITLE_CHARS;
           });
         })
       )
