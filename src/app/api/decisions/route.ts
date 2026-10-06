@@ -72,6 +72,11 @@ export async function POST(request: NextRequest) {
     if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim())) {
       return decisionError("Invalid decision request", 400);
     }
+    if (typeof body.title !== "string" || !body.title.trim()
+      || typeof body.objective !== "string" || !body.objective.trim()
+      || (body.context !== undefined && typeof body.context !== "string")) {
+      return decisionError("Invalid decision request", 400);
+    }
 
     const context = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
@@ -79,9 +84,9 @@ export async function POST(request: NextRequest) {
     );
     const decision = await service.create({
       organizationId: context.organizationId,
-      title: String(body.title ?? ""),
-      objective: String(body.objective ?? ""),
-      context: String(body.context ?? ""),
+      title: body.title,
+      objective: body.objective,
+      context: body.context ?? "",
     });
     return NextResponse.json(decision, { status: 201, headers: NO_STORE_HEADERS });
   } catch (error) {

@@ -131,6 +131,14 @@ try {
   assert(invalidOrganization.status === 400, `Expected non-string decision organizationId 400, got ${invalidOrganization.status}`);
   assert((await invalidOrganization.json()).error === "Invalid decision request", "Invalid decision organizationId must fail before tenant resolution");
 
+  const invalidFields = await fetch(`${baseUrl}/api/decisions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", title: ["Test"], objective: { value: "objective" } }),
+  });
+  assert(invalidFields.status === 400, `Expected non-string decision fields 400, got ${invalidFields.status}`);
+  assert((await invalidFields.json()).error === "Invalid decision request", "Non-string decision fields must fail before authentication and provider work");
+
   const malformed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
