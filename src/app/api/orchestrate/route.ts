@@ -92,6 +92,10 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    if (body.action !== undefined && (!body.action || typeof body.action !== "object" || Array.isArray(body.action))) {
+      return orchestrationError("Invalid orchestration request", 400);
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       body.organizationId as string | undefined,
