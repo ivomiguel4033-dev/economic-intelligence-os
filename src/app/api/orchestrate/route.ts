@@ -104,9 +104,9 @@ export async function POST(request: NextRequest) {
         || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim()))
         || (requestedAction.reversible !== undefined && typeof requestedAction.reversible !== "boolean")
         || (requestedAction.externalSideEffect !== undefined && typeof requestedAction.externalSideEffect !== "boolean")
-        || (requestedAction.riskTier !== undefined && typeof requestedAction.riskTier !== "string")
-        || (requestedAction.confidence !== undefined && (typeof requestedAction.confidence !== "number" || !Number.isFinite(requestedAction.confidence)))
-        || (requestedAction.evidenceCount !== undefined && (typeof requestedAction.evidenceCount !== "number" || !Number.isFinite(requestedAction.evidenceCount)))
+        || (requestedAction.riskTier !== undefined && (typeof requestedAction.riskTier !== "string" || !["low", "medium", "high", "critical"].includes(requestedAction.riskTier)))
+        || (requestedAction.confidence !== undefined && (typeof requestedAction.confidence !== "number" || !Number.isFinite(requestedAction.confidence) || requestedAction.confidence < 0 || requestedAction.confidence > 1))
+        || (requestedAction.evidenceCount !== undefined && (typeof requestedAction.evidenceCount !== "number" || !Number.isSafeInteger(requestedAction.evidenceCount) || requestedAction.evidenceCount < 0))
       )
     ) {
       return orchestrationError("Invalid orchestration request", 400);

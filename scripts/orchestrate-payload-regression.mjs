@@ -177,6 +177,14 @@ try {
   assert(invalidActionTypes.status === 400, `Expected invalid orchestration action field types 400, got ${invalidActionTypes.status}`);
   assert((await invalidActionTypes.json()).error === "Invalid orchestration request", "Invalid orchestration action field types must fail before authentication");
 
+  const invalidActionValues = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision_test", action: { riskTier: "extreme", confidence: 1.1, evidenceCount: -1 } }),
+  });
+  assert(invalidActionValues.status === 400, `Expected out-of-range orchestration action values 400, got ${invalidActionValues.status}`);
+  assert((await invalidActionValues.json()).error === "Invalid orchestration request", "Out-of-range orchestration action values must fail before authentication");
+
   const invalidClaims = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
