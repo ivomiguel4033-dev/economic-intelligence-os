@@ -116,13 +116,28 @@ export async function POST(request: NextRequest) {
       body.claims !== undefined
       && (
         !Array.isArray(body.claims)
-        || body.claims.some(
-          (claim: unknown) =>
-            !claim
-            || typeof claim !== "object"
-            || Array.isArray(claim)
-            || !Array.isArray((claim as Record<string, unknown>).evidence),
-        )
+        || body.claims.some((claim: unknown) => {
+          if (!claim || typeof claim !== "object" || Array.isArray(claim)) return true;
+          const candidate = claim as Record<string, unknown>;
+          if (
+            typeof candidate.claim !== "string"
+            || !candidate.claim.trim()
+            || typeof candidate.confidence !== "number"
+            || !Number.isFinite(candidate.confidence)
+            || candidate.confidence < 0
+            || candidate.confidence > 1
+            || !["supported", "conflicted", "insufficient"].includes(candidate.status as string)
+            || !Array.isArray(candidate.evidence)
+          ) return true;
+          return candidate.evidence.some((evidence: unknown) => {
+            if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return true;
+            const reference = evidence as Record<string, unknown>;
+            return typeof reference.sourceId !== "string"
+              || !reference.sourceId.trim()
+              || typeof reference.title !== "string"
+              || !reference.title.trim();
+          });
+        })
       )
     ) {
       return orchestrationError("Invalid orchestration request", 400);
