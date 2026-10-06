@@ -16,6 +16,8 @@ import type { ProposedAction } from "@/execution/execution-policy";
 const TENANT_CONCURRENCY_HEARTBEAT_MS = 30_000;
 const MAX_ORCHESTRATION_REQUEST_BYTES = 1_000_000;
 const ORCHESTRATION_REQUEST_READ_TIMEOUT_MS = 15_000;
+const MAX_ORCHESTRATION_CLAIMS = 256;
+const MAX_EVIDENCE_PER_CLAIM = 256;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function orchestrationError(error: string, status: number, headers: Record<string, string> = {}) {
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
       body.claims !== undefined
       && (
         !Array.isArray(body.claims)
+        || body.claims.length > MAX_ORCHESTRATION_CLAIMS
         || body.claims.some((claim: unknown) => {
           if (!claim || typeof claim !== "object" || Array.isArray(claim)) return true;
           const candidate = claim as Record<string, unknown>;
@@ -128,6 +131,7 @@ export async function POST(request: NextRequest) {
             || candidate.confidence > 1
             || !["supported", "conflicted", "insufficient"].includes(candidate.status as string)
             || !Array.isArray(candidate.evidence)
+            || candidate.evidence.length > MAX_EVIDENCE_PER_CLAIM
           ) return true;
           return candidate.evidence.some((evidence: unknown) => {
             if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return true;

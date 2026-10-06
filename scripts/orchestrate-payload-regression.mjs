@@ -209,6 +209,30 @@ try {
   assert(invalidClaimFields.status === 400, `Expected invalid orchestration claim fields 400, got ${invalidClaimFields.status}`);
   assert((await invalidClaimFields.json()).error === "Invalid orchestration request", "Invalid orchestration claim fields must fail before authentication");
 
+  const excessiveClaims = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      organizationId: "org_test",
+      decisionId: "decision_test",
+      claims: Array.from({ length: 257 }, (_, index) => ({ claim: `claim-${index}`, evidence: [], confidence: 0.5, status: "insufficient" })),
+    }),
+  });
+  assert(excessiveClaims.status === 400, `Expected excessive orchestration claims 400, got ${excessiveClaims.status}`);
+  assert((await excessiveClaims.json()).error === "Invalid orchestration request", "Excessive orchestration claims must fail before authentication");
+
+  const excessiveEvidence = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      organizationId: "org_test",
+      decisionId: "decision_test",
+      claims: [{ claim: "test", confidence: 0.5, status: "supported", evidence: Array.from({ length: 257 }, (_, index) => ({ sourceId: `source-${index}`, title: "source" })) }],
+    }),
+  });
+  assert(excessiveEvidence.status === 400, `Expected excessive orchestration evidence 400, got ${excessiveEvidence.status}`);
+  assert((await excessiveEvidence.json()).error === "Invalid orchestration request", "Excessive orchestration evidence must fail before authentication");
+
   const malformed = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
