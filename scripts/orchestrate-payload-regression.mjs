@@ -165,6 +165,14 @@ try {
   assert(nonCanonicalDecisionId.status === 400, `Expected non-canonical orchestration decisionId 400, got ${nonCanonicalDecisionId.status}`);
   assert((await nonCanonicalDecisionId.json()).error === "Invalid orchestration request", "Non-canonical orchestration decisionId must fail before authentication");
 
+  const controlCharacterDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision\\u0000test" }),
+  });
+  assert(controlCharacterDecisionId.status === 400, `Expected control-character orchestration decisionId 400, got ${controlCharacterDecisionId.status}`);
+  assert((await controlCharacterDecisionId.json()).error === "Invalid orchestration request", "Control-character orchestration decisionId must fail before authentication");
+
   const oversizedDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },

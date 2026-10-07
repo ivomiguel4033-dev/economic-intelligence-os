@@ -23,6 +23,7 @@ const MAX_ACTION_TYPE_CHARS = 128;
 const MAX_CLAIM_CHARS = 16_000;
 const MAX_EVIDENCE_SOURCE_ID_CHARS = 512;
 const MAX_EVIDENCE_TITLE_CHARS = 4_000;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function orchestrationError(error: string, status: number, headers: Record<string, string> = {}) {
@@ -91,11 +92,11 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
-    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || body.organizationId.length > MAX_IDENTIFIER_CHARS)) {
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || CONTROL_CHARACTERS.test(body.organizationId) || body.organizationId.length > MAX_IDENTIFIER_CHARS)) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
-    if (typeof body.decisionId !== "string" || !body.decisionId.trim() || body.decisionId !== body.decisionId.trim() || body.decisionId.length > MAX_IDENTIFIER_CHARS) {
+    if (typeof body.decisionId !== "string" || !body.decisionId.trim() || body.decisionId !== body.decisionId.trim() || CONTROL_CHARACTERS.test(body.decisionId) || body.decisionId.length > MAX_IDENTIFIER_CHARS) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
     if (
       requestedAction
       && (
-        (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim() || requestedAction.id !== requestedAction.id.trim() || requestedAction.id.length > MAX_IDENTIFIER_CHARS))
+        (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim() || requestedAction.id !== requestedAction.id.trim() || CONTROL_CHARACTERS.test(requestedAction.id) || requestedAction.id.length > MAX_IDENTIFIER_CHARS))
         || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim() || requestedAction.actionType.length > MAX_ACTION_TYPE_CHARS))
         || (requestedAction.reversible !== undefined && typeof requestedAction.reversible !== "boolean")
         || (requestedAction.externalSideEffect !== undefined && typeof requestedAction.externalSideEffect !== "boolean")
