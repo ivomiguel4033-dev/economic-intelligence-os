@@ -168,7 +168,7 @@ try {
   const controlCharacterDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ organizationId: "org_test", decisionId: "decision\\u0000test" }),
+    body: JSON.stringify({ organizationId: "org_test", decisionId: `decision${String.fromCharCode(0)}test` }),
   });
   assert(controlCharacterDecisionId.status === 400, `Expected control-character orchestration decisionId 400, got ${controlCharacterDecisionId.status}`);
   assert((await controlCharacterDecisionId.json()).error === "Invalid orchestration request", "Control-character orchestration decisionId must fail before authentication");
