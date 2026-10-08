@@ -138,4 +138,6 @@ assert.match(dispatcherSource, /error instanceof OutboxClaimLostError \|\| error
 assert.match(dispatcherSource, /catch \(ackError\)[\s\S]*ackError instanceof OutboxClaimOwnershipError[\s\S]*recordClaimLost\(message\)[\s\S]*throw ackError/);
 assert.match(dispatcherSource, /outbox_claim_lost_total/);
 
+await import("./orchestration-gate-regression.mjs");
+
 console.log("Execution reliability regression checks passed.");

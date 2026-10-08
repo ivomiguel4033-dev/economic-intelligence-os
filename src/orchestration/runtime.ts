@@ -1,8 +1,8 @@
 import type { Decision } from "@/domain/decision/types";
 import type { AIBoard, BoardVerdict } from "@/ai/ai-board";
 import type { SupportedClaim } from "@/trust/provenance";
-import { evaluateDecisionGate } from "@/trust/decision-gate";
-import { evaluateExecution, type ProposedAction } from "@/execution/execution-policy";
+import { evaluateDecisionGate } from "../trust/decision-gate.ts";
+import { evaluateExecution, type ProposedAction } from "../execution/execution-policy.ts";
 
 export type OrchestrationStatus = "blocked" | "approval-required" | "ready-to-execute";
 
@@ -31,9 +31,9 @@ export class OrchestrationRuntime {
     }
 
     const execution = evaluateExecution(action);
-    const status: OrchestrationStatus = execution.execute
-      ? "ready-to-execute"
-      : "approval-required";
+    const status: OrchestrationStatus = gate.requiresHumanApproval || execution.approvalRequired
+      ? "approval-required"
+      : "ready-to-execute";
 
     return {
       decisionId: decision.id,
