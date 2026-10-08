@@ -32,7 +32,7 @@ assert.match(
 );
 
 assert.match(guard, /if \(!\/\^\\d\+\$\/\.test\(raw\)\) return 2;/, "tenant limit configuration must reject ambiguous numeric strings");
-assert.match(guard, /Number\.isSafeInteger\(parsed\) && parsed > 0 \? parsed : 2/, "tenant limit configuration must accept only positive safe integers");
+assert.match(guard, /Number\.isSafeInteger\(parsed\) && parsed > 0 \? Math\.min\(parsed, 64\) : 2/, "tenant limit configuration must bound positive safe integers to 64");
 assert.doesNotMatch(guard, /parseInt\(/, "tenant limit configuration must not use permissive parseInt parsing");
 
 const configuredLimitMatch = guard.match(/function configuredLimit\(\): number \{[\s\S]*?\n\}/);
@@ -46,6 +46,8 @@ for (const [raw, expected] of [
   [undefined, 2],
   ["1", 1],
   ["25", 25],
+  ["64", 64],
+  ["65", 64],
   ["0", 2],
   ["-1", 2],
   ["2.5", 2],
@@ -54,7 +56,7 @@ for (const [raw, expected] of [
   ["2 ", 2],
   ["+2", 2],
   ["Infinity", 2],
-  [String(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER],
+  [String(Number.MAX_SAFE_INTEGER), 64],
   [String(Number.MAX_SAFE_INTEGER + 1), 2],
 ]) {
   assert.equal(

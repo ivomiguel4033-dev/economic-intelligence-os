@@ -12,7 +12,7 @@ function configuredLimit(): number {
   const raw = process.env.ORCHESTRATION_MAX_CONCURRENCY_PER_TENANT ?? "2";
   if (!/^\d+$/.test(raw)) return 2;
   const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 2;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, 64) : 2;
 }
 
 function boundedTtlSeconds(ttlSeconds: number): number {
