@@ -131,7 +131,7 @@ try {
   assert(invalidOrganization.status === 400, `Expected non-string decision organizationId 400, got ${invalidOrganization.status}`);
   assert((await invalidOrganization.json()).error === "Invalid decision request", "Invalid decision organizationId must fail before tenant resolution");
 
-  for (const organizationId of [" org_test ", "o".repeat(257)]) {
+  for (const organizationId of [" org_test ", "o".repeat(257), "org_\u0000test", "org_\u001ftest", "org_\u007ftest", "org_\u0085test"]) {
     const response = await fetch(`${baseUrl}/api/decisions`, {
       method: "POST",
       headers: { "content-type": "application/json" },

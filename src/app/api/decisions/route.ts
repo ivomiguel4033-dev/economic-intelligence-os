@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return decisionError("Invalid decision request", 400);
     }
 
-    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || body.organizationId.length > MAX_ORGANIZATION_ID_CHARS)) {
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || body.organizationId.length > MAX_ORGANIZATION_ID_CHARS || /[\u0000-\u001f\u007f-\u009f]/u.test(body.organizationId))) {
       return decisionError("Invalid decision request", 400);
     }
     if (typeof body.title !== "string" || !body.title.trim()
