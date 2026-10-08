@@ -8,6 +8,9 @@ import { declaredPayloadTooLarge, readBoundedPayload } from "@/http/bounded-requ
 
 const MAX_DECISION_PAYLOAD_BYTES = 1_000_000;
 const MAX_ORGANIZATION_ID_CHARS = 256;
+const MAX_DECISION_TITLE_CHARS = 512;
+const MAX_DECISION_OBJECTIVE_CHARS = 16_000;
+const MAX_DECISION_CONTEXT_CHARS = 64_000;
 const DECISION_PAYLOAD_TIMEOUT_MS = 5_000;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
@@ -73,9 +76,9 @@ export async function POST(request: NextRequest) {
     if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || body.organizationId.length > MAX_ORGANIZATION_ID_CHARS || /[\u0000-\u001f\u007f-\u009f]/u.test(body.organizationId))) {
       return decisionError("Invalid decision request", 400);
     }
-    if (typeof body.title !== "string" || !body.title.trim()
-      || typeof body.objective !== "string" || !body.objective.trim()
-      || (body.context !== undefined && typeof body.context !== "string")) {
+    if (typeof body.title !== "string" || !body.title.trim() || body.title.length > MAX_DECISION_TITLE_CHARS
+      || typeof body.objective !== "string" || !body.objective.trim() || body.objective.length > MAX_DECISION_OBJECTIVE_CHARS
+      || (body.context !== undefined && (typeof body.context !== "string" || body.context.length > MAX_DECISION_CONTEXT_CHARS))) {
       return decisionError("Invalid decision request", 400);
     }
 

@@ -149,6 +149,35 @@ try {
   assert(invalidFields.status === 400, `Expected non-string decision fields 400, got ${invalidFields.status}`);
   assert((await invalidFields.json()).error === "Invalid decision request", "Non-string decision fields must fail before authentication and provider work");
 
+  for (const [field, length] of [["title", 513], ["objective", 16_001], ["context", 64_001]]) {
+    const response = await fetch(`${baseUrl}/api/decisions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        title: "Test",
+        objective: "Test objective",
+        context: "",
+        [field]: "x".repeat(length),
+      }),
+    });
+    assert(response.status === 400, `Expected oversized decision ${field} 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", `Oversized decision ${field} error must disable caching`);
+    assert((await response.json()).error === "Invalid decision request", `Oversized decision ${field} must return a generic validation error`);
+  }
+
+  const boundaryFields = await fetch(`${baseUrl}/api/decisions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      organizationId: "org_test",
+      title: "t".repeat(512),
+      objective: "o".repeat(16_000),
+      context: "c".repeat(64_000),
+    }),
+  });
+  assert(boundaryFields.status === 401, `Expected decision fields at length limits to reach authentication, got ${boundaryFields.status}`);
+
   const malformed = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
