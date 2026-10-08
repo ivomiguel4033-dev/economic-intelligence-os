@@ -173,6 +173,22 @@ try {
   assert(controlCharacterDecisionId.status === 400, `Expected control-character orchestration decisionId 400, got ${controlCharacterDecisionId.status}`);
   assert((await controlCharacterDecisionId.json()).error === "Invalid orchestration request", "Control-character orchestration decisionId must fail before authentication");
 
+  for (const [description, fields] of [
+    ["organizationId", { organizationId: `org${String.fromCharCode(0x85)}test`, decisionId: "decision_test" }],
+    ["decisionId", { organizationId: "org_test", decisionId: `decision${String.fromCharCode(0x85)}test` }],
+    ["action.id", { organizationId: "org_test", decisionId: "decision_test", action: { id: `action${String.fromCharCode(0x85)}test` } }],
+    ["action.actionType", { organizationId: "org_test", decisionId: "decision_test", action: { actionType: `anal${String.fromCharCode(0x85)}ysis` } }],
+  ]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    assert(response.status === 400, `Expected C1 control in ${description} to return 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", `C1 control in ${description} must disable caching`);
+    assert((await response.json()).error === "Invalid orchestration request", `C1 control in ${description} must return a generic validation error`);
+  }
+
   const oversizedDecisionId = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },

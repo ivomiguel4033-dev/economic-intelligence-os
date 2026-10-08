@@ -23,7 +23,7 @@ const MAX_ACTION_TYPE_CHARS = 128;
 const MAX_CLAIM_CHARS = 16_000;
 const MAX_EVIDENCE_SOURCE_ID_CHARS = 512;
 const MAX_EVIDENCE_TITLE_CHARS = 4_000;
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f\u0080-\u009f]/;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function orchestrationError(error: string, status: number, headers: Record<string, string> = {}) {
