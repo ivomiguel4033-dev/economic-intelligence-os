@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       requestedAction
       && (
         (requestedAction.id !== undefined && (typeof requestedAction.id !== "string" || !requestedAction.id.trim() || requestedAction.id !== requestedAction.id.trim() || CONTROL_CHARACTERS.test(requestedAction.id) || requestedAction.id.length > MAX_IDENTIFIER_CHARS))
-        || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim() || requestedAction.actionType.length > MAX_ACTION_TYPE_CHARS))
+        || (requestedAction.actionType !== undefined && (typeof requestedAction.actionType !== "string" || !requestedAction.actionType.trim() || requestedAction.actionType !== requestedAction.actionType.trim() || CONTROL_CHARACTERS.test(requestedAction.actionType) || requestedAction.actionType.length > MAX_ACTION_TYPE_CHARS))
         || (requestedAction.reversible !== undefined && typeof requestedAction.reversible !== "boolean")
         || (requestedAction.externalSideEffect !== undefined && typeof requestedAction.externalSideEffect !== "boolean")
         || (requestedAction.riskTier !== undefined && (typeof requestedAction.riskTier !== "string" || !["low", "medium", "high", "critical"].includes(requestedAction.riskTier)))

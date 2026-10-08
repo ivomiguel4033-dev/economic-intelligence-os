@@ -201,6 +201,24 @@ try {
   assert(invalidActionTypes.status === 400, `Expected invalid orchestration action field types 400, got ${invalidActionTypes.status}`);
   assert((await invalidActionTypes.json()).error === "Invalid orchestration request", "Invalid orchestration action field types must fail before authentication");
 
+  for (const [description, actionType] of [
+    ["non-canonical", " analysis "],
+    ["control-character", `anal${String.fromCharCode(0)}ysis`],
+  ]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        action: { actionType },
+      }),
+    });
+    assert(response.status === 400, `Expected ${description} actionType 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", `${description} actionType error must disable caching`);
+    assert((await response.json()).error === "Invalid orchestration request", `${description} actionType must return a generic validation error`);
+  }
+
   const invalidActionValues = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
