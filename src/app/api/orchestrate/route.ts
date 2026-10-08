@@ -145,6 +145,8 @@ export async function POST(request: NextRequest) {
             const reference = evidence as Record<string, unknown>;
             return typeof reference.sourceId !== "string"
               || !reference.sourceId.trim()
+              || reference.sourceId !== reference.sourceId.trim()
+              || CONTROL_CHARACTERS.test(reference.sourceId)
               || reference.sourceId.length > MAX_EVIDENCE_SOURCE_ID_CHARS
               || typeof reference.title !== "string"
               || !reference.title.trim()

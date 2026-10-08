@@ -243,6 +243,25 @@ try {
   assert(invalidActionValues.status === 400, `Expected out-of-range orchestration action values 400, got ${invalidActionValues.status}`);
   assert((await invalidActionValues.json()).error === "Invalid orchestration request", "Out-of-range orchestration action values must fail before authentication");
 
+  for (const [description, sourceId] of [
+    ["leading whitespace", " source-1"],
+    ["C0 control", `source${String.fromCharCode(0)}-1`],
+    ["C1 control", `source${String.fromCharCode(0x85)}-1`],
+  ]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        claims: [{ claim: "test", confidence: 0.8, status: "supported", evidence: [{ sourceId, title: "Source" }] }],
+      }),
+    });
+    assert(response.status === 400, `Expected ${description} evidence sourceId to return 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", "Invalid evidence sourceId must disable caching");
+    assert((await response.json()).error === "Invalid orchestration request", "Invalid evidence sourceId must return a generic validation error");
+  }
+
   for (const authorityScore of ["0.8", -0.1, 1.1]) {
     const response = await fetch(`${baseUrl}/api/orchestrate`, {
       method: "POST",
