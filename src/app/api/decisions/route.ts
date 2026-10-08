@@ -7,6 +7,7 @@ import { tryBeginTrackedWork } from "@/operations/drain-state";
 import { declaredPayloadTooLarge, readBoundedPayload } from "@/http/bounded-request-body";
 
 const MAX_DECISION_PAYLOAD_BYTES = 1_000_000;
+const MAX_ORGANIZATION_ID_CHARS = 256;
 const DECISION_PAYLOAD_TIMEOUT_MS = 5_000;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
       return decisionError("Invalid decision request", 400);
     }
 
-    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim())) {
+    if (body.organizationId !== undefined && (typeof body.organizationId !== "string" || !body.organizationId.trim() || body.organizationId !== body.organizationId.trim() || body.organizationId.length > MAX_ORGANIZATION_ID_CHARS)) {
       return decisionError("Invalid decision request", 400);
     }
     if (typeof body.title !== "string" || !body.title.trim()

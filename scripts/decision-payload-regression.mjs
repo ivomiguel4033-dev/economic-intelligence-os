@@ -131,6 +131,16 @@ try {
   assert(invalidOrganization.status === 400, `Expected non-string decision organizationId 400, got ${invalidOrganization.status}`);
   assert((await invalidOrganization.json()).error === "Invalid decision request", "Invalid decision organizationId must fail before tenant resolution");
 
+  for (const organizationId of [" org_test ", "o".repeat(257)]) {
+    const response = await fetch(`${baseUrl}/api/decisions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ organizationId, title: "Test", objective: "Test objective" }),
+    });
+    assert(response.status === 400, `Expected non-canonical decision organizationId 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", "Invalid decision organizationId error must disable caching");
+    assert((await response.json()).error === "Invalid decision request", "Invalid decision organizationId must return a generic validation error");
+  }
   const invalidFields = await fetch(`${baseUrl}/api/decisions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
