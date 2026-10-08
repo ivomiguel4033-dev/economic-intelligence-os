@@ -163,6 +163,17 @@ export async function POST(request: NextRequest) {
       return orchestrationError("Invalid orchestration request", 400);
     }
 
+    // Client-provided evidence counts must never exceed the evidence actually supplied.
+    // Otherwise an action could satisfy the execution gate using invented evidence.
+    if (typeof requestedAction?.evidenceCount === "number") {
+      const suppliedEvidenceCount = Array.isArray(body.claims)
+        ? body.claims.reduce((total: number, claim: SupportedClaim) => total + claim.evidence.length, 0)
+        : 0;
+      if (requestedAction.evidenceCount > suppliedEvidenceCount) {
+        return orchestrationError("Invalid orchestration request", 400);
+      }
+    }
+
     const access = await resolveAuthenticatedContext(
       request.headers.get("authorization"),
       body.organizationId as string | undefined,

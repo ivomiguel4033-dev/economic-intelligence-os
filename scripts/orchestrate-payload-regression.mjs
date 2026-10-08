@@ -235,6 +235,46 @@ try {
     assert((await response.json()).error === "Invalid orchestration request", `${description} actionType must return a generic validation error`);
   }
 
+  const singleEvidenceClaim = {
+    claim: "test",
+    confidence: 0.8,
+    status: "supported",
+    evidence: [{ sourceId: "source-1", title: "Source" }],
+  };
+  for (const [description, claims, evidenceCount] of [
+    ["missing claims", undefined, 1],
+    ["empty evidence", [{ ...singleEvidenceClaim, evidence: [] }], 1],
+    ["inflated evidence count", [singleEvidenceClaim], 2],
+  ]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        ...(claims ? { claims } : {}),
+        action: { evidenceCount },
+      }),
+    });
+    assert(response.status === 400, `Expected ${description} evidence count 400 before authentication, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", "Inflated evidence count error must disable caching");
+    assert((await response.json()).error === "Invalid orchestration request", "Inflated evidence count must fail before authentication");
+  }
+
+  for (const evidenceCount of [0, 1]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        claims: [singleEvidenceClaim],
+        action: { evidenceCount },
+      }),
+    });
+    assert(response.status === 401, `Expected evidenceCount ${evidenceCount} with one source to reach authentication, got ${response.status}`);
+  }
+
   const invalidActionValues = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
