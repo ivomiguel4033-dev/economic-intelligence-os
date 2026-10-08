@@ -16,7 +16,11 @@ export interface OrchestrationResult {
 }
 
 export class OrchestrationRuntime {
-  constructor(private readonly board: AIBoard) {}
+  private readonly board: AIBoard;
+
+  constructor(board: AIBoard) {
+    this.board = board;
+  }
 
   async run(decision: Decision, claims: SupportedClaim[], action: ProposedAction): Promise<OrchestrationResult> {
     const board = await this.board.deliberate(decision);
