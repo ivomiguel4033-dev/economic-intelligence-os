@@ -148,7 +148,12 @@ export async function POST(request: NextRequest) {
               || reference.sourceId.length > MAX_EVIDENCE_SOURCE_ID_CHARS
               || typeof reference.title !== "string"
               || !reference.title.trim()
-              || reference.title.length > MAX_EVIDENCE_TITLE_CHARS;
+              || reference.title.length > MAX_EVIDENCE_TITLE_CHARS
+              || (reference.authorityScore !== undefined
+                && (typeof reference.authorityScore !== "number"
+                  || !Number.isFinite(reference.authorityScore)
+                  || reference.authorityScore < 0
+                  || reference.authorityScore > 1));
           });
         })
       )

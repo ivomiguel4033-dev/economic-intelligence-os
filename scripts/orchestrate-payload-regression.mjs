@@ -243,6 +243,44 @@ try {
   assert(invalidActionValues.status === 400, `Expected out-of-range orchestration action values 400, got ${invalidActionValues.status}`);
   assert((await invalidActionValues.json()).error === "Invalid orchestration request", "Out-of-range orchestration action values must fail before authentication");
 
+  for (const authorityScore of ["0.8", -0.1, 1.1]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        claims: [{
+          claim: "test",
+          confidence: 0.8,
+          status: "supported",
+          evidence: [{ sourceId: "source-1", title: "Source", authorityScore }],
+        }],
+      }),
+    });
+    assert(response.status === 400, `Expected invalid evidence authorityScore ${authorityScore} to return 400, got ${response.status}`);
+    assert(response.headers.get("cache-control") === "no-store", "Invalid evidence authorityScore must disable caching");
+    assert((await response.json()).error === "Invalid orchestration request", "Invalid evidence authorityScore must fail before authentication");
+  }
+
+  for (const authorityScore of [0, 1]) {
+    const response = await fetch(`${baseUrl}/api/orchestrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationId: "org_test",
+        decisionId: "decision_test",
+        claims: [{
+          claim: "test",
+          confidence: 0.8,
+          status: "supported",
+          evidence: [{ sourceId: "source-1", title: "Source", authorityScore }],
+        }],
+      }),
+    });
+    assert(response.status === 401, `Expected valid evidence authorityScore ${authorityScore} to reach authentication, got ${response.status}`);
+  }
+
   const invalidClaims = await fetch(`${baseUrl}/api/orchestrate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
