@@ -15,6 +15,7 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }), { ready: true });
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
   { ready: true },
@@ -37,6 +38,13 @@ for (const [name, env, expected] of [
   })(), "AI_PRIMARY provider is required in production"],
   ["partial secondary", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1" }, "AI_SECONDARY provider configuration is incomplete"],
   ["insecure provider", { ...base, AI_PRIMARY_BASE_URL: "http://api.example.com/v1" }, "AI_PRIMARY_BASE_URL must use HTTPS"],
+  ["provider leading whitespace", { ...base, AI_PRIMARY_BASE_URL: " https://api.example.com/v1" }, "AI_PRIMARY_BASE_URL must not contain surrounding whitespace"],
+  ["provider key trailing whitespace", { ...base, AI_PRIMARY_API_KEY: "fixture-key " }, "AI_PRIMARY_API_KEY must not contain surrounding whitespace"],
+  ["provider blank model", { ...base, AI_PRIMARY_MODEL: "   " }, "AI_PRIMARY_MODEL must not be blank"],
+  ["provider query", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1?token=unsafe" }, "AI_PRIMARY_BASE_URL must not include query parameters"],
+  ["primary localhost", { ...base, AI_PRIMARY_BASE_URL: "https://localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["primary localhost subdomain", { ...base, AI_PRIMARY_BASE_URL: "https://ai.localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["secondary local domain", { ...base, AI_SECONDARY_BASE_URL: "https://model.internal.local/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
 ]) {
   assert.throws(
     () => validateProductionPreflight(env),
