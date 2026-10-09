@@ -45,6 +45,14 @@ function validateSecurityBaseline(env) {
     if (!env[key]?.trim()) fail(`${key} is required`);
   }
 
+  // URL parsing silently normalizes surrounding whitespace and embedded
+  // control characters, while OIDC issuer/audience matching uses exact values.
+  for (const key of ["OIDC_ISSUER", "OIDC_AUDIENCE", "OIDC_JWKS_URL"]) {
+    const value = env[key];
+    if (value !== value.trim()) fail(`${key} must not contain surrounding whitespace`);
+    if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${key} must not contain control characters`);
+  }
+
   validateDatabaseUrl(env.DATABASE_URL);
   validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
   validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
