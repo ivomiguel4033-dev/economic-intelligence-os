@@ -68,8 +68,9 @@ function requireProductionMode(env) {
 
 function validateProvider(env, prefix, required = false) {
   const keys = [`${prefix}_BASE_URL`, `${prefix}_API_KEY`, `${prefix}_MODEL`];
-  const values = keys.map((key) => env[key]?.trim() ?? "");
-  const configured = values.filter(Boolean).length;
+  // Preserve raw values so preflight and the runtime reject the same inputs.
+  const values = keys.map((key) => env[key] ?? "");
+  const configured = values.filter((value) => value.length > 0).length;
 
   if (required && configured === 0) {
     fail(`${prefix} provider is required in production`);
@@ -78,7 +79,14 @@ function validateProvider(env, prefix, required = false) {
     fail(`${prefix} provider configuration is incomplete`);
   }
   if (configured === keys.length) {
-    validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
+    for (let index = 0; index < keys.length; index++) {
+      if (!values[index].trim()) fail(`${keys[index]} must not be blank`);
+      if (values[index] !== values[index].trim()) {
+        fail(`${keys[index]} must not contain surrounding whitespace`);
+      }
+    }
+    const url = validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
+    if (url.search) fail(`${prefix}_BASE_URL must not include query parameters`);
   }
 }
 
