@@ -15,6 +15,22 @@ function validateHttpsUrl(value, label) {
   return url;
 }
 
+function validateDatabaseUrl(value) {
+  if (value !== value.trim()) fail("DATABASE_URL must not contain surrounding whitespace");
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    fail("DATABASE_URL must be a valid URL");
+  }
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    fail("DATABASE_URL must use postgres:// or postgresql://");
+  }
+  if (!url.hostname) fail("DATABASE_URL must include a hostname");
+  if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
+  if (url.hash) fail("DATABASE_URL must not include a fragment");
+}
+
 function validateSecurityBaseline(env) {
   const required = [
     "DATABASE_URL",
@@ -29,6 +45,7 @@ function validateSecurityBaseline(env) {
     if (!env[key]?.trim()) fail(`${key} is required`);
   }
 
+  validateDatabaseUrl(env.DATABASE_URL);
   validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
   validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
 
