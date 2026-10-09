@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { db } from "../src/infrastructure/database/postgres.ts";
 import { resolveAccessContext } from "../src/security/access-context.ts";
 import { resolveOrganizationForActor } from "../src/security/organization-selection.ts";
+import { bearerToken } from "../src/security/request-auth.ts";
+
+assert.equal(bearerToken("Bearer eyJhbGciOiJSUzI1NiJ9.payload.signature"), "eyJhbGciOiJSUzI1NiJ9.payload.signature");
+for (const value of ["Bearer token ", "Bearer to ken", "Bearer token\\nextra", "Bearer token,other", "Bearer " + "a".repeat(8_193)]) {
+  assert.throws(() => bearerToken(value), /Invalid bearer token/);
+}
+
 
 const originalQuery = db.query;
 
