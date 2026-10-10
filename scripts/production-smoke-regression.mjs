@@ -42,6 +42,12 @@ try {
   healthStatus = 200;
   cacheControl = "public, max-age=60";
   assert.equal(await run(), false, "Cacheable health responses must block promotion");
+  cacheControl = "public, x-no-store";
+  assert.equal(await run(), false, "Misleading cache directive must block promotion");
+  cacheControl = "no-store=false";
+  assert.equal(await run(), false, "Parameterized no-store must block promotion");
+  cacheControl = "private, NO-STORE";
+  assert.equal(await run(), true, "Case-insensitive no-store directive must pass");
   cacheControl = "no-store";
   service = "unexpected-service";
   assert.equal(await run(), false, "Unexpected service identity must block promotion");

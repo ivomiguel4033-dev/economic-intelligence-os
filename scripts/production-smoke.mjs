@@ -26,7 +26,9 @@ try {
     if (!response.headers.get("content-type")?.includes("application/json")) {
       throw new Error(`${path} did not return JSON`);
     }
-    if (!response.headers.get("cache-control")?.includes("no-store")) {
+    const cacheDirectives = response.headers.get("cache-control")?.split(",")
+      .map((directive) => directive.trim().toLowerCase()) ?? [];
+    if (!cacheDirectives.includes("no-store")) {
       throw new Error(`${path} must disable caching`);
     }
     const body = await response.json();
