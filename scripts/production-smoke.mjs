@@ -34,7 +34,8 @@ try {
       throw new Error(`${path} returned an unexpected service or status`);
     }
     if (dependency && (body.dependencies?.database?.status !== "ok" ||
-        !Number.isFinite(body.dependencies.database.latencyMs))) {
+        !Number.isFinite(body.dependencies.database.latencyMs) ||
+        body.dependencies.database.latencyMs < 0)) {
       throw new Error("/api/ready did not confirm database readiness");
     }
     if (!dependency && body.checks?.application !== "ok") {

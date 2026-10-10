@@ -51,6 +51,10 @@ try {
   databaseStatus = "ok";
   latencyMs = null;
   assert.equal(await run(), false, "Missing database latency must block promotion");
+  latencyMs = -1;
+  assert.equal(await run(), false, "Negative database latency must block promotion");
+  latencyMs = 0;
+  assert.equal(await run(), true, "Zero database latency is valid");
   console.log("Post-deploy smoke probe regression checks passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
