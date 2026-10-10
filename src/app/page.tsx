@@ -16,8 +16,8 @@ export default function Home() {
           strategic decisions and measurable execution.
         </p>
         <div className="actions">
-          <button>Open Command Center</button>
-          <button className="secondary">View Intelligence</button>
+          <a href="/api/health">Check Service Health</a>
+          <a className="secondary" href="/api/ready">Check Service Readiness</a>
         </div>
       </header>
 
