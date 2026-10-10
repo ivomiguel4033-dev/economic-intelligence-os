@@ -9,13 +9,14 @@ const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url))
 let healthStatus = 200;
 let readyStatus = 200;
 let cacheControl = "no-store";
+let contentType = "application/json";
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
 let latencyMs = 1;
 const server = createServer((request, response) => {
   const health = request.url === "/api/health";
   response.writeHead(health ? healthStatus : readyStatus, {
-    "content-type": "application/json",
+    "content-type": contentType,
     "cache-control": cacheControl,
   });
   response.end(JSON.stringify(health
@@ -34,6 +35,13 @@ async function run() {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  contentType = "text/plain; note=application/json";
+  assert.equal(await run(), false, "Misleading JSON content type must block promotion");
+  contentType = "application/json-malicious";
+  assert.equal(await run(), false, "JSON media type suffix must block promotion");
+  contentType = "APPLICATION/JSON; charset=utf-8";
+  assert.equal(await run(), true, "JSON media type with charset and mixed case must pass");
+  contentType = "application/json";
   readyStatus = 503;
   assert.equal(await run(), false, "Database outage must block promotion");
   readyStatus = 200;

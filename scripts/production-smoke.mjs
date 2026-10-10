@@ -23,7 +23,8 @@ try {
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) throw new Error(`${path} returned HTTP ${response.status}`);
-    if (!response.headers.get("content-type")?.includes("application/json")) {
+    const mediaType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    if (mediaType !== "application/json") {
       throw new Error(`${path} did not return JSON`);
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
