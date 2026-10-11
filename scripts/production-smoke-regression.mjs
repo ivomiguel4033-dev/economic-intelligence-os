@@ -9,6 +9,7 @@ const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url))
 let healthStatus = 200;
 let readyStatus = 200;
 let healthBodyStatus = "ok";
+let applicationStatus = "ok";
 let readyBodyStatus = "ready";
 let cacheControl = "no-store";
 let contentType = "application/json";
@@ -22,7 +23,7 @@ const server = createServer((request, response) => {
     "cache-control": cacheControl,
   });
   response.end(JSON.stringify(health
-    ? { status: healthBodyStatus, service, checks: { application: "ok" } }
+    ? { status: healthBodyStatus, service, checks: { application: applicationStatus } }
     : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } } }));
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -40,6 +41,9 @@ try {
   healthBodyStatus = "degraded";
   assert.equal(await run(), false, "Degraded liveness body must block promotion even with HTTP 200");
   healthBodyStatus = "ok";
+  applicationStatus = "degraded";
+  assert.equal(await run(), false, "Degraded application check must block promotion");
+  applicationStatus = "ok";
   readyBodyStatus = "not_ready";
   assert.equal(await run(), false, "Incorrect readiness body must block promotion even with HTTP 200");
   readyBodyStatus = "ready";
