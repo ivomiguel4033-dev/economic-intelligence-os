@@ -8,6 +8,8 @@ const exec = promisify(execFile);
 const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url));
 let healthStatus = 200;
 let readyStatus = 200;
+let healthBodyStatus = "ok";
+let readyBodyStatus = "ready";
 let cacheControl = "no-store";
 let contentType = "application/json";
 let service = "economic-intelligence-os";
@@ -20,8 +22,8 @@ const server = createServer((request, response) => {
     "cache-control": cacheControl,
   });
   response.end(JSON.stringify(health
-    ? { status: "ok", service, checks: { application: "ok" } }
-    : { status: "ready", service, dependencies: { database: { status: databaseStatus, latencyMs } } }));
+    ? { status: healthBodyStatus, service, checks: { application: "ok" } }
+    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } } }));
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -35,6 +37,12 @@ async function run() {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  healthBodyStatus = "degraded";
+  assert.equal(await run(), false, "Degraded liveness body must block promotion even with HTTP 200");
+  healthBodyStatus = "ok";
+  readyBodyStatus = "not_ready";
+  assert.equal(await run(), false, "Incorrect readiness body must block promotion even with HTTP 200");
+  readyBodyStatus = "ready";
   contentType = "text/plain; note=application/json";
   assert.equal(await run(), false, "Misleading JSON content type must block promotion");
   contentType = "application/json-malicious";
