@@ -12,6 +12,7 @@ let healthBodyStatus = "ok";
 let applicationStatus = "ok";
 let readyBodyStatus = "ready";
 let cacheControl = "no-store";
+let readyCacheControl = "no-store";
 let contentType = "application/json";
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
@@ -20,7 +21,7 @@ const server = createServer((request, response) => {
   const health = request.url === "/api/health";
   response.writeHead(health ? healthStatus : readyStatus, {
     "content-type": contentType,
-    "cache-control": cacheControl,
+    "cache-control": health ? cacheControl : readyCacheControl,
   });
   response.end(JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus } }
@@ -69,6 +70,11 @@ try {
   cacheControl = "private, NO-STORE";
   assert.equal(await run(), true, "Case-insensitive no-store directive must pass");
   cacheControl = "no-store";
+  readyCacheControl = "public, max-age=60";
+  assert.equal(await run(), false, "Cacheable readiness must block promotion even when liveness is healthy");
+  readyCacheControl = "no-store=false";
+  assert.equal(await run(), false, "Misleading readiness cache directive must block promotion");
+  readyCacheControl = "no-store";
   service = "unexpected-service";
   assert.equal(await run(), false, "Unexpected service identity must block promotion");
   service = "economic-intelligence-os";
