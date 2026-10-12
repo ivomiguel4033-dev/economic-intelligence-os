@@ -17,6 +17,8 @@ let contentType = "application/json";
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
 let latencyMs = 1;
+let healthPadding = 0;
+let readyPadding = 0;
 const server = createServer((request, response) => {
   const health = request.url === "/api/health";
   response.writeHead(health ? healthStatus : readyStatus, {
@@ -24,8 +26,8 @@ const server = createServer((request, response) => {
     "cache-control": health ? cacheControl : readyCacheControl,
   });
   response.end(JSON.stringify(health
-    ? { status: healthBodyStatus, service, checks: { application: applicationStatus } }
-    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } } }));
+    ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
+    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) }));
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -93,6 +95,16 @@ try {
   assert.equal(await run(), false, "Object database latency must block promotion");
   latencyMs = 0;
   assert.equal(await run(), true, "Zero database latency is valid");
+  healthPadding = 60_000;
+  assert.equal(await run(), true, "Bounded liveness payload must pass below 64 KiB");
+  healthPadding = 70_000;
+  assert.equal(await run(), false, "Oversized liveness payload must block promotion");
+  healthPadding = 0;
+  readyPadding = 60_000;
+  assert.equal(await run(), true, "Bounded readiness payload must pass below 64 KiB");
+  readyPadding = 70_000;
+  assert.equal(await run(), false, "Oversized readiness payload must block promotion");
+  readyPadding = 0;
   console.log("Post-deploy smoke probe regression checks passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));

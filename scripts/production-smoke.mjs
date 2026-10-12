@@ -32,7 +32,19 @@ try {
     if (!cacheDirectives.includes("no-store")) {
       throw new Error(`${path} must disable caching`);
     }
-    const body = await response.json();
+    // Bound memory use when an unhealthy origin returns an oversized response.
+    const maxResponseBytes = 64 * 1024;
+    const chunks = [];
+    let totalBytes = 0;
+    if (!response.body) throw new Error(`${path} returned an empty response`);
+    for await (const chunk of response.body) {
+      totalBytes += chunk.byteLength;
+      if (totalBytes > maxResponseBytes) {
+        throw new Error(`${path} response exceeded ${maxResponseBytes} bytes`);
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     if (body.service !== "economic-intelligence-os" || body.status !== status) {
       throw new Error(`${path} returned an unexpected service or status`);
     }
