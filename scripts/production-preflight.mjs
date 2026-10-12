@@ -18,6 +18,8 @@ function validateHttpsUrl(value, label) {
 }
 
 function validateDatabaseUrl(value) {
+  // WHATWG URL removes embedded tab/newline bytes before parsing; fail closed.
+  if (/[\u0000-\u001f\u007f]/.test(value)) fail("DATABASE_URL must not contain control characters");
   if (value !== value.trim()) fail("DATABASE_URL must not contain surrounding whitespace");
   let url;
   try {

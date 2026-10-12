@@ -29,6 +29,11 @@ for (const [name, env, expected] of [
   ["database URL missing database", { ...base, DATABASE_URL: "postgresql://db.internal" }, "DATABASE_URL must include a database name"],
   ["database URL fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#fragment" }, "DATABASE_URL must not include a fragment"],
   ["database URL whitespace", { ...base, DATABASE_URL: " postgresql://db.internal/app" }, "DATABASE_URL must not contain surrounding whitespace"],
+  ["database URL embedded tab", { ...base, DATABASE_URL: "postgresql://db.internal/\tapp" }, "DATABASE_URL must not contain control characters"],
+  ["database URL embedded newline", { ...base, DATABASE_URL: "postgresql://db.internal/\napp" }, "DATABASE_URL must not contain control characters"],
+  ["database URL embedded carriage return", { ...base, DATABASE_URL: "postgresql://db.internal/\rapp" }, "DATABASE_URL must not contain control characters"],
+  ["database URL DEL control", { ...base, DATABASE_URL: "postgresql://db.internal/\u007fapp" }, "DATABASE_URL must not contain control characters"],
+  ["database URL NUL control", { ...base, DATABASE_URL: "postgresql://db.internal/\u0000app" }, "DATABASE_URL must not contain control characters"],
   ["missing primary", (() => {
     const copy = { ...base };
     delete copy.AI_PRIMARY_BASE_URL;
