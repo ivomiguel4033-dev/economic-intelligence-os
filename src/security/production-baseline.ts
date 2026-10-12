@@ -24,7 +24,16 @@ export function validateProductionSecurityBaseline(env: NodeJS.ProcessEnv = proc
     "SECURITY_EVENT_HASH_PEPPER",
     "METRICS_TOKEN",
   ];
-  for (const key of required) if (!env[key]) failures.push(`${key} is required`);
+  for (const key of required) if (!env[key]?.trim()) failures.push(`${key} is required`);
+
+  // URL parsing normalizes whitespace and control characters, while JWT
+  // issuer/audience comparisons use exact values. Match the deployment preflight.
+  for (const key of ["OIDC_ISSUER", "OIDC_AUDIENCE", "OIDC_JWKS_URL"]) {
+    const value = env[key];
+    if (!value) continue;
+    if (value !== value.trim()) failures.push(`${key} must not contain surrounding whitespace`);
+    if (/[\u0000-\u001f\u007f]/.test(value)) failures.push(`${key} must not contain control characters`);
+  }
 
   if (env.OIDC_ISSUER) validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER", failures);
   if (env.OIDC_JWKS_URL) validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL", failures);
