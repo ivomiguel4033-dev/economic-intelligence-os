@@ -3,6 +3,8 @@ function fail(message) {
 }
 
 function validateHttpsUrl(value, label) {
+  // WHATWG URL silently removes embedded tabs and newlines; reject raw control bytes first.
+  if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${label} must not contain control characters`);
   let url;
   try {
     url = new URL(value);
