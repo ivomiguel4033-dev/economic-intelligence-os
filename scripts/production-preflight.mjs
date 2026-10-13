@@ -110,7 +110,9 @@ function validateProvider(env, prefix, required = false) {
     const url = validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
     if (values[0].includes("?")) fail(`${prefix}_BASE_URL must not include query parameters`);
     const host = url.hostname.toLowerCase().replace(/\.+$/, "");
-    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+    // Loopback IPs cannot be used as production AI provider endpoints.
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
+        /^127\./.test(host) || host === "[::1]") {
       fail(`${prefix}_BASE_URL must not use a local hostname`);
     }
   }

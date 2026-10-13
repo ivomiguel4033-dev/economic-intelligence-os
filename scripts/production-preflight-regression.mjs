@@ -68,6 +68,9 @@ for (const [name, env, expected] of [
   ["provider query", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1?token=unsafe" }, "AI_PRIMARY_BASE_URL must not include query parameters"],
   ["primary localhost", { ...base, AI_PRIMARY_BASE_URL: "https://localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
   ["primary localhost subdomain", { ...base, AI_PRIMARY_BASE_URL: "https://ai.localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["primary loopback IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://127.0.0.1/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["secondary loopback IPv4", { ...base, AI_SECONDARY_BASE_URL: "https://127.0.0.2/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
+  ["tertiary loopback IPv6", { ...base, AI_TERTIARY_BASE_URL: "https://[::1]/v1", AI_TERTIARY_API_KEY: "backup-key", AI_TERTIARY_MODEL: "backup-model" }, "AI_TERTIARY_BASE_URL must not use a local hostname"],
   ["secondary local domain", { ...base, AI_SECONDARY_BASE_URL: "https://model.internal.local/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
 ]) {
   assert.throws(
