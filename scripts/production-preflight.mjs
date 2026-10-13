@@ -93,6 +93,9 @@ function validateProvider(env, prefix, required = false) {
   if (configured === keys.length) {
     for (let index = 0; index < keys.length; index++) {
       if (!values[index].trim()) fail(`${keys[index]} must not be blank`);
+      if (/[\u0000-\u001f\u007f]/.test(values[index])) {
+        fail(`${keys[index]} must not contain control characters`);
+      }
       if (values[index] !== values[index].trim()) {
         fail(`${keys[index]} must not contain surrounding whitespace`);
       }
