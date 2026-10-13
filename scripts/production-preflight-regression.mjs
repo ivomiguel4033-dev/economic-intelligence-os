@@ -34,6 +34,8 @@ for (const [name, env, expected] of [
   ["database URL embedded carriage return", { ...base, DATABASE_URL: "postgresql://db.internal/\rapp" }, "DATABASE_URL must not contain control characters"],
   ["database URL DEL control", { ...base, DATABASE_URL: "postgresql://db.internal/\u007fapp" }, "DATABASE_URL must not contain control characters"],
   ["database URL NUL control", { ...base, DATABASE_URL: "postgresql://db.internal/\u0000app" }, "DATABASE_URL must not contain control characters"],
+  ["database URL backslash in path", { ...base, DATABASE_URL: "postgresql://db.internal/app\\\\other" }, "DATABASE_URL must not contain backslashes"],
+  ["database URL backslash in authority", { ...base, DATABASE_URL: "postgresql://db.internal\\\\@evil.example/app" }, "DATABASE_URL must not contain backslashes"],
   ["missing primary", (() => {
     const copy = { ...base };
     delete copy.AI_PRIMARY_BASE_URL;
