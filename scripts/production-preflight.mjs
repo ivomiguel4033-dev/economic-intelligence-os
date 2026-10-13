@@ -15,7 +15,8 @@ function validateHttpsUrl(value, label) {
   }
   if (url.protocol !== "https:") fail(`${label} must use HTTPS`);
   if (url.username || url.password) fail(`${label} must not contain credentials`);
-  if (url.hash) fail(`${label} must not include a fragment`);
+  // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
+  if (value.includes("#")) fail(`${label} must not include a fragment`);
   return url;
 }
 
@@ -34,7 +35,7 @@ function validateDatabaseUrl(value) {
   }
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
-  if (url.hash) fail("DATABASE_URL must not include a fragment");
+  if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
 }
 
 function validateSecurityBaseline(env) {
