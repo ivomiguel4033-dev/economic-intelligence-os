@@ -20,6 +20,25 @@ function validateHttpsUrl(value, label) {
   return url;
 }
 
+// Mirror the runtime provider URL policy's non-public IPv4 ranges at preflight.
+function isNonPublicIpv4(host) {
+  const parts = host.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return false;
+  const octets = parts.map(Number);
+  if (octets.some((octet) => octet > 255)) return false;
+  const [first, second, third] = octets;
+  return first === 0 || first === 10 || first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0 && third === 0) ||
+    (first === 192 && second === 0 && third === 2) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) || first >= 224;
+}
+
 function validateDatabaseUrl(value) {
   // WHATWG URL removes embedded tab/newline bytes before parsing; fail closed.
   if (/[\u0000-\u001f\u007f]/.test(value)) fail("DATABASE_URL must not contain control characters");
@@ -112,7 +131,7 @@ function validateProvider(env, prefix, required = false) {
     const host = url.hostname.toLowerCase().replace(/\.+$/, "");
     // Loopback IPs cannot be used as production AI provider endpoints.
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
-        /^127\./.test(host) || host === "[::1]") {
+        isNonPublicIpv4(host) || host === "[::1]") {
       fail(`${prefix}_BASE_URL must not use a local hostname`);
     }
   }

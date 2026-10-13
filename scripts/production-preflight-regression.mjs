@@ -15,6 +15,7 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }), { ready: true });
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
@@ -71,6 +72,11 @@ for (const [name, env, expected] of [
   ["primary loopback IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://127.0.0.1/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
   ["secondary loopback IPv4", { ...base, AI_SECONDARY_BASE_URL: "https://127.0.0.2/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
   ["tertiary loopback IPv6", { ...base, AI_TERTIARY_BASE_URL: "https://[::1]/v1", AI_TERTIARY_API_KEY: "backup-key", AI_TERTIARY_MODEL: "backup-model" }, "AI_TERTIARY_BASE_URL must not use a local hostname"],
+  ["primary private IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://10.0.0.1/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["primary cloud metadata IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://169.254.169.254/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
+  ["secondary private IPv4", { ...base, AI_SECONDARY_BASE_URL: "https://192.168.1.10/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
+  ["tertiary carrier-grade NAT IPv4", { ...base, AI_TERTIARY_BASE_URL: "https://100.64.0.1/v1", AI_TERTIARY_API_KEY: "backup-key", AI_TERTIARY_MODEL: "backup-model" }, "AI_TERTIARY_BASE_URL must not use a local hostname"],
+  ["primary documentation IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://203.0.113.7/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
   ["secondary local domain", { ...base, AI_SECONDARY_BASE_URL: "https://model.internal.local/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not use a local hostname"],
 ]) {
   assert.throws(
