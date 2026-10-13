@@ -15,7 +15,7 @@ try {
   const origin = new URL(input);
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
   if ((origin.protocol !== "https:" && !(local && origin.protocol === "http:")) ||
-      origin.username || origin.password || origin.search || origin.hash ||
+      origin.username || origin.password || input.includes("?") || input.includes("#") || origin.search || origin.hash ||
       origin.pathname !== "/") {
     throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
   }

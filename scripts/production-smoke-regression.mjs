@@ -44,6 +44,10 @@ try {
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");
   assert.equal(await run(origin.replace("://", ":\\")), false, "Scheme backslash must not be normalized into a valid origin");
   assert.equal(await run(origin + "\n"), false, "Trailing newline must not be normalized into a valid origin");
+  assert.equal(await run(origin + "?"), false, "Empty query delimiter must not be accepted as an origin");
+  assert.equal(await run(origin + "#"), false, "Empty fragment delimiter must not be accepted as an origin");
+  assert.equal(await run(origin + "?debug=true"), false, "Query parameters must not be accepted as an origin");
+  assert.equal(await run(origin + "#fragment"), false, "Fragments must not be accepted as an origin");
   healthBodyStatus = "degraded";
   assert.equal(await run(), false, "Degraded liveness body must block promotion even with HTTP 200");
   healthBodyStatus = "ok";
