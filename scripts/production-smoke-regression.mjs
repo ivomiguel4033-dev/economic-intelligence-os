@@ -31,9 +31,9 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-async function run() {
+async function run(candidateOrigin = origin) {
   try {
-    await exec(process.execPath, [script, origin], { timeout: 10_000 });
+    await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
     return true;
   } catch {
     return false;
@@ -41,6 +41,9 @@ async function run() {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");
+  assert.equal(await run(origin.replace("://", ":\\")), false, "Scheme backslash must not be normalized into a valid origin");
+  assert.equal(await run(origin + "\n"), false, "Trailing newline must not be normalized into a valid origin");
   healthBodyStatus = "degraded";
   assert.equal(await run(), false, "Degraded liveness body must block promotion even with HTTP 200");
   healthBodyStatus = "ok";

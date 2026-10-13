@@ -9,8 +9,8 @@ if (process.argv.length !== 3) {
 }
 try {
   // URL parsing silently removes tabs and newlines; reject the raw input.
-  if (/[\u0000-\u001f\u007f]/.test(input) || input !== input.trim()) {
-    throw new Error("Origin must not contain whitespace or control characters");
+  if (/[\u0000-\u001f\u007f]/.test(input) || input !== input.trim() || input.includes("\\")) {
+    throw new Error("Origin must not contain whitespace, control characters or backslashes");
   }
   const origin = new URL(input);
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
