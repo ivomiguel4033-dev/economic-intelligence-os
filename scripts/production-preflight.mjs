@@ -61,6 +61,8 @@ function validateSecurityBaseline(env) {
 
   validateDatabaseUrl(env.DATABASE_URL);
   validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
+  // OpenID Connect issuer identifiers must not include query components.
+  if (env.OIDC_ISSUER.includes("?")) fail("OIDC_ISSUER must not include query parameters");
   validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
 
   if (env.ALLOW_INSECURE_AUTH === "true") {
