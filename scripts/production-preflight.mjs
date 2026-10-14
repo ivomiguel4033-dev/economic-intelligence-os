@@ -39,10 +39,27 @@ function isNonPublicIpv4(host) {
     (first === 203 && second === 0 && third === 113) || first >= 224;
 }
 
+// Match the runtime AI provider policy for non-public IPv6 literal endpoints.
+function isNonPublicIpv6(host) {
+  const ipv6 = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+  if (ipv6 === "::" || ipv6 === "::1") return true;
+  return /^f[cd][0-9a-f]{2}:/i.test(ipv6) ||
+    /^fe[89ab][0-9a-f]:/i.test(ipv6) ||
+    /^100:0*:/i.test(ipv6) ||
+    /^2001:0*2:/i.test(ipv6) ||
+    /^2001:db8:/i.test(ipv6) ||
+    /^3fff:/i.test(ipv6) ||
+    /^ff[0-9a-f]{2}:/i.test(ipv6) ||
+    /^64:ff9b::/i.test(ipv6) ||
+    /^64:ff9b:0:0:0:0:/i.test(ipv6) ||
+    /^64:ff9b:1:/i.test(ipv6) ||
+    /^::ffff:/i.test(ipv6);
+}
+
 function isUnsafeEndpointHostname(hostname) {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
   return host === "localhost" || host.endsWith(".localhost") ||
-    host.endsWith(".local") || isNonPublicIpv4(host) || host === "[::1]";
+    host.endsWith(".local") || isNonPublicIpv4(host) || isNonPublicIpv6(host);
 }
 
 function validateDatabaseUrl(value) {
