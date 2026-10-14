@@ -88,7 +88,11 @@ function validateSecurityBaseline(env) {
   }
 
   validateDatabaseUrl(env.DATABASE_URL);
-  validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
+  const issuerUrl = validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
+  // Production token issuers must not point to local or non-public literal endpoints.
+  if (isUnsafeEndpointHostname(issuerUrl.hostname)) {
+    fail("OIDC_ISSUER must not use a local hostname");
+  }
   // OpenID Connect issuer identifiers must not include query components.
   if (env.OIDC_ISSUER.includes("?")) fail("OIDC_ISSUER must not include query parameters");
   const jwksUrl = validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");

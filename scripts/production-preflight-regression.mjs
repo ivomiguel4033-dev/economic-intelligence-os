@@ -17,6 +17,7 @@ const base = {
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://8.8.8.8/keys" }), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_ISSUER: "https://8.8.8.8/tenant" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }), { ready: true });
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
@@ -62,6 +63,12 @@ for (const [name, env, expected] of [
   ["database empty fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#" }, "DATABASE_URL must not include a fragment"],
   ["OIDC issuer empty query", { ...base, OIDC_ISSUER: "https://identity.example.com/tenant?" }, "OIDC_ISSUER must not include query parameters"],
   ["OIDC issuer query", { ...base, OIDC_ISSUER: "https://identity.example.com/tenant?debug=true" }, "OIDC_ISSUER must not include query parameters"],
+  ["OIDC issuer localhost", { ...base, OIDC_ISSUER: "https://localhost/tenant" }, "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC issuer loopback IPv4", { ...base, OIDC_ISSUER: "https://127.0.0.1/tenant" }, "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC issuer cloud metadata IPv4", { ...base, OIDC_ISSUER: "https://169.254.169.254/tenant" }, "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC issuer private IPv4", { ...base, OIDC_ISSUER: "https://10.0.0.1/tenant" }, "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC issuer loopback IPv6", { ...base, OIDC_ISSUER: "https://[::1]/tenant" }, "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC issuer local domain", { ...base, OIDC_ISSUER: "https://identity.internal.local/tenant" }, "OIDC_ISSUER must not use a local hostname"],
   ["OIDC issuer empty fragment", { ...base, OIDC_ISSUER: "https://identity.example.com/tenant#" }, "OIDC_ISSUER must not include a fragment"],
   ["OIDC JWKS empty fragment", { ...base, OIDC_JWKS_URL: "https://identity.example.com/.well-known/jwks.json#" }, "OIDC_JWKS_URL must not include a fragment"],
   ["provider empty query", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1?" }, "AI_PRIMARY_BASE_URL must not include query parameters"],
