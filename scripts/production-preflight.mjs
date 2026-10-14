@@ -39,6 +39,12 @@ function isNonPublicIpv4(host) {
     (first === 203 && second === 0 && third === 113) || first >= 224;
 }
 
+function isUnsafeEndpointHostname(hostname) {
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
+  return host === "localhost" || host.endsWith(".localhost") ||
+    host.endsWith(".local") || isNonPublicIpv4(host) || host === "[::1]";
+}
+
 function validateDatabaseUrl(value) {
   // WHATWG URL removes embedded tab/newline bytes before parsing; fail closed.
   if (/[\u0000-\u001f\u007f]/.test(value)) fail("DATABASE_URL must not contain control characters");
@@ -85,7 +91,11 @@ function validateSecurityBaseline(env) {
   validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
   // OpenID Connect issuer identifiers must not include query components.
   if (env.OIDC_ISSUER.includes("?")) fail("OIDC_ISSUER must not include query parameters");
-  validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
+  const jwksUrl = validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL");
+  // Never fetch JWKS from loopback, link-local, or other non-public IPv4 endpoints.
+  if (isUnsafeEndpointHostname(jwksUrl.hostname)) {
+    fail("OIDC_JWKS_URL must not use a local hostname");
+  }
 
   if (env.ALLOW_INSECURE_AUTH === "true") {
     fail("Insecure authentication override is forbidden in production");
@@ -128,10 +138,8 @@ function validateProvider(env, prefix, required = false) {
     }
     const url = validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
     if (values[0].includes("?")) fail(`${prefix}_BASE_URL must not include query parameters`);
-    const host = url.hostname.toLowerCase().replace(/\.+$/, "");
-    // Loopback IPs cannot be used as production AI provider endpoints.
-    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
-        isNonPublicIpv4(host) || host === "[::1]") {
+    // Keep AI provider and JWKS endpoint restrictions aligned.
+    if (isUnsafeEndpointHostname(url.hostname)) {
       fail(`${prefix}_BASE_URL must not use a local hostname`);
     }
   }

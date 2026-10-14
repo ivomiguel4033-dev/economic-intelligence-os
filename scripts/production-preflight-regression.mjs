@@ -16,6 +16,7 @@ const base = {
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://8.8.8.8/keys" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }), { ready: true });
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
@@ -67,6 +68,12 @@ for (const [name, env, expected] of [
   ["provider empty fragment", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1#" }, "AI_PRIMARY_BASE_URL must not include a fragment"],
   ["secondary provider empty fragment", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1#", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not include a fragment"],
   ["provider query", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1?token=unsafe" }, "AI_PRIMARY_BASE_URL must not include query parameters"],
+  ["JWKS localhost", { ...base, OIDC_JWKS_URL: "https://localhost/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
+  ["JWKS loopback IPv4", { ...base, OIDC_JWKS_URL: "https://127.0.0.1/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
+  ["JWKS cloud metadata IPv4", { ...base, OIDC_JWKS_URL: "https://169.254.169.254/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
+  ["JWKS private IPv4", { ...base, OIDC_JWKS_URL: "https://10.0.0.1/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
+  ["JWKS loopback IPv6", { ...base, OIDC_JWKS_URL: "https://[::1]/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
+  ["JWKS local domain", { ...base, OIDC_JWKS_URL: "https://identity.internal.local/keys" }, "OIDC_JWKS_URL must not use a local hostname"],
   ["primary localhost", { ...base, AI_PRIMARY_BASE_URL: "https://localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
   ["primary localhost subdomain", { ...base, AI_PRIMARY_BASE_URL: "https://ai.localhost/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
   ["primary loopback IPv4", { ...base, AI_PRIMARY_BASE_URL: "https://127.0.0.1/v1" }, "AI_PRIMARY_BASE_URL must not use a local hostname"],
