@@ -28,6 +28,9 @@ function verify(record) {
   if (typeof record.railwayDeploymentId !== "string" || !record.railwayDeploymentId.trim()) {
     throw new Error("Railway deployment ID is required");
   }
+  if (typeof record.firstLaunch !== "boolean") {
+    throw new Error("firstLaunch must be explicitly true or false");
+  }
   if (record.firstLaunch === true) {
     if (record.rollbackDeploymentId) {
       throw new Error("First launch cannot claim an existing rollback target");
@@ -51,6 +54,9 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, [check]: false }), /Missing or failed release gate/);
   }
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
+  for (const invalid of [undefined, null, 0, 1, "true", "false", {}]) {
+    assert.throws(() => verify({ ...valid, firstLaunch: invalid }), /firstLaunch must be explicitly/);
+  }
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), true);
   console.log("Release evidence validation self-test passed");
