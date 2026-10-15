@@ -37,6 +37,13 @@ try {
     check(withoutGate, 1, `Missing ${gate} gate`);
   }
   check({ ...valid, commitSha: "abc" }, 1, "Short commit SHA");
+  check({ ...valid, commitSha: "g".repeat(40) }, 1, "Non-hex commit SHA");
+  check({ ...valid, commitSha: "a".repeat(39) + " " }, 1, "Whitespace in commit SHA");
+  check({ ...valid, ciRunUrl: valid.ciRunUrl + "?check=true" }, 1, "CI URL with query parameters");
+  check({ ...valid, ciRunUrl: valid.ciRunUrl.replace("/123", "/") }, 1, "CI URL without run ID");
+  for (const invalid of [null, 0, 1, "true", "false", {}]) {
+    check({ ...valid, firstLaunch: invalid }, 1, "Non-boolean firstLaunch");
+  }
   check({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }, 1, "Foreign CI URL");
   check({ ...valid, railwayDeploymentId: " " }, 1, "Blank deployment ID");
   check({ ...valid, rollbackDeploymentId: "previous" }, 1, "First launch with rollback target");
