@@ -38,6 +38,9 @@ function verify(record) {
   } else if (typeof record.rollbackDeploymentId !== "string" || !record.rollbackDeploymentId.trim()) {
     throw new Error("Upgrades require a recorded rollback deployment ID");
   }
+  if (record.firstLaunch === false && record.rollbackDeploymentId.trim() === record.railwayDeploymentId.trim()) {
+    throw new Error("Rollback deployment must differ from the current Railway deployment");
+  }
   return true;
 }
 
@@ -62,6 +65,7 @@ if (process.argv[2] === "--self-test") {
   }
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), true);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "deployment-example" }), /Rollback deployment must differ/);
   console.log("Release evidence validation self-test passed");
 } else {
   if (process.argv.length !== 3) {
