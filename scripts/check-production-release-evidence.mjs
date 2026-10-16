@@ -14,7 +14,7 @@ function verify(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) {
     throw new Error("Release evidence must be a JSON object");
   }
-  if (!/^[a-f0-9]{40}$/i.test(record.commitSha ?? "")) {
+  if (typeof record.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(record.commitSha)) {
     throw new Error("A full 40-character release commit SHA is required");
   }
   const expected = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
@@ -53,6 +53,7 @@ if (process.argv[2] === "--self-test") {
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
   };
   assert.equal(verify(valid), true);
+  assert.throws(() => verify({ ...valid, commitSha: ["a".repeat(40)] }), /full 40-character release commit SHA/);
   for (const check of requiredChecks) {
     assert.throws(() => verify({ ...valid, [check]: false }), /Missing or failed release gate/);
   }
