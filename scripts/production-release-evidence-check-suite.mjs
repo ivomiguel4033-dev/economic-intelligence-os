@@ -7,6 +7,7 @@ const checks = [
   "check-production-release-evidence.mjs",
   "production-release-evidence-draft.mjs",
   "production-release-evidence-draft-regression.mjs",
+  "production-release-evidence-regression.mjs",
 ];
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
