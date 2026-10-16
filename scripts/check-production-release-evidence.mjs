@@ -4,6 +4,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
+
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
   "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
@@ -17,9 +19,8 @@ function verify(record) {
   if (typeof record.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(record.commitSha)) {
     throw new Error("A full 40-character release commit SHA is required");
   }
-  const expected = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
   if (typeof record.ciRunUrl !== "string" ||
-      !new RegExp("^" + expected.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&") + "[1-9][0-9]*$").test(record.ciRunUrl)) {
+      !new RegExp("^" + ciRunPrefix.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&") + "[1-9][0-9]*$").test(record.ciRunUrl)) {
     throw new Error("CI evidence must link to a run in this repository");
   }
   for (const check of requiredChecks) {
@@ -58,7 +59,7 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, [check]: false }), /Missing or failed release gate/);
   }
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
-  for (const invalidUrl of [expected + "0", expected + "000", expected + "0123"]) {
+  for (const invalidUrl of [ciRunPrefix + "0", ciRunPrefix + "000", ciRunPrefix + "0123"]) {
     assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
   }
   for (const invalid of [undefined, null, 0, 1, "true", "false", {}]) {
