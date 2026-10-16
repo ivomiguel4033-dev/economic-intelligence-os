@@ -19,7 +19,7 @@ function verify(record) {
   }
   const expected = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
   if (typeof record.ciRunUrl !== "string" ||
-      !new RegExp("^" + expected.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&") + "[0-9]+$").test(record.ciRunUrl)) {
+      !new RegExp("^" + expected.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&") + "[1-9][0-9]*$").test(record.ciRunUrl)) {
     throw new Error("CI evidence must link to a run in this repository");
   }
   for (const check of requiredChecks) {
@@ -58,6 +58,9 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, [check]: false }), /Missing or failed release gate/);
   }
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
+  for (const invalidUrl of [expected + "0", expected + "000", expected + "0123"]) {
+    assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
+  }
   for (const invalid of [undefined, null, 0, 1, "true", "false", {}]) {
     assert.throws(() => verify({ ...valid, firstLaunch: invalid }), /firstLaunch must be explicitly/);
   }
