@@ -32,7 +32,7 @@ function verify(record) {
     throw new Error("firstLaunch must be explicitly true or false");
   }
   if (record.firstLaunch === true) {
-    if (record.rollbackDeploymentId) {
+    if (record.rollbackDeploymentId !== undefined && record.rollbackDeploymentId !== "") {
       throw new Error("First launch cannot claim an existing rollback target");
     }
   } else if (typeof record.rollbackDeploymentId !== "string" || !record.rollbackDeploymentId.trim()) {
@@ -56,6 +56,9 @@ if (process.argv[2] === "--self-test") {
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
   for (const invalid of [undefined, null, 0, 1, "true", "false", {}]) {
     assert.throws(() => verify({ ...valid, firstLaunch: invalid }), /firstLaunch must be explicitly/);
+  }
+  for (const invalid of [null, 0, false, " ", "previous-deployment"]) {
+    assert.throws(() => verify({ ...valid, rollbackDeploymentId: invalid }), /First launch cannot claim/);
   }
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), true);
