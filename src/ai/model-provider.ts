@@ -3,6 +3,7 @@ export interface ModelRequest {
   prompt: string;
   temperature?: number;
   metadata?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 export interface ModelResponse {
