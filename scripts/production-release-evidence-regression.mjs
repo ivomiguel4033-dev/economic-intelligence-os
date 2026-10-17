@@ -36,6 +36,11 @@ try {
     delete withoutGate[gate];
     check(withoutGate, 1, `Missing ${gate} gate`);
   }
+  for (const gate of ["oidcVerified", "aiVerified", "smokePassed", "backupVerified"]) {
+    for (const value of ["true", 1, {}, []]) {
+      check({ ...valid, [gate]: value }, 1, `${gate} must be boolean true, not a truthy impostor`);
+    }
+  }
   check({ ...valid, commitSha: "abc" }, 1, "Short commit SHA");
   check({ ...valid, commitSha: "g".repeat(40) }, 1, "Non-hex commit SHA");
   check({ ...valid, commitSha: "a".repeat(39) + " " }, 1, "Whitespace in commit SHA");
