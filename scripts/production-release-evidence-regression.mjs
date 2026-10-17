@@ -49,6 +49,8 @@ try {
   check({ ...valid, rollbackDeploymentId: "previous" }, 1, "First launch with rollback target");
   check({ ...valid, firstLaunch: false }, 1, "Upgrade without rollback target");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous" }, 0, "Upgrade with rollback target");
+  check({ ...valid, firstLaunch: false, rollbackDeploymentId: "candidate-deployment" }, 1, "Upgrade cannot roll back to current deployment");
+  check({ ...valid, firstLaunch: false, rollbackDeploymentId: " candidate-deployment " }, 1, "Rollback ID whitespace cannot bypass self-rollback rejection");
   const missingArgument = spawnSync(process.execPath, [validator], { encoding: "utf8", timeout: 5000 });
   assert.equal(missingArgument.status, 2, "Missing CLI argument must exit with usage error");
   console.log("Production release evidence CLI regression checks passed.");
