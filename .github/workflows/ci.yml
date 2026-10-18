@@ -107,6 +107,9 @@ jobs:
         run: node scripts/distributed-tenant-concurrency-regression.mjs
       - name: Production smoke gate regression checks
         run: node scripts/production-smoke-regression.mjs
+      - name: Production release evidence regression gate
+        timeout-minutes: 2
+        run: node scripts/production-release-evidence-check-suite.mjs
       - name: Typecheck
         timeout-minutes: 3
         run: npm run typecheck
