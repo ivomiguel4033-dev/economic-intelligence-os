@@ -90,6 +90,10 @@ try {
   assert.equal(await run(), false, "Misleading cache directive must block promotion");
   cacheControl = "no-store=false";
   assert.equal(await run(), false, "Parameterized no-store must block promotion");
+  cacheControl = "no-store, public";
+  assert.equal(await run(), false, "Contradictory public liveness caching must block promotion");
+  cacheControl = "public, NO-STORE";
+  assert.equal(await run(), false, "Public liveness caching must fail regardless of directive order");
   cacheControl = "private, NO-STORE";
   assert.equal(await run(), true, "Case-insensitive no-store directive must pass");
   cacheControl = "no-store";
@@ -97,6 +101,8 @@ try {
   assert.equal(await run(), false, "Cacheable readiness must block promotion even when liveness is healthy");
   readyCacheControl = "no-store=false";
   assert.equal(await run(), false, "Misleading readiness cache directive must block promotion");
+  readyCacheControl = "no-store, public";
+  assert.equal(await run(), false, "Contradictory public readiness caching must block promotion");
   readyCacheControl = "no-store";
   service = "unexpected-service";
   assert.equal(await run(), false, "Unexpected service identity must block promotion");

@@ -33,7 +33,7 @@ try {
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
-    if (!cacheDirectives.includes("no-store")) {
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public")) {
       throw new Error(`${path} must disable caching`);
     }
     // Bound memory use when an unhealthy origin returns an oversized response.
