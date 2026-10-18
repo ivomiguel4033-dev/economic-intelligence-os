@@ -2,7 +2,7 @@
 // Validate the completeness of a post-deployment release evidence record.
 // This is a documentation/evidence gate, not proof that an external service is healthy.
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 
 const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
 
@@ -50,6 +50,28 @@ function verify(record) {
   return true;
 }
 
+// Bound evidence input to 64 KiB before JSON parsing. A size-limited read
+// avoids loading untrusted or accidentally huge evidence files into memory.
+const maxEvidenceBytes = 64 * 1024;
+async function readEvidence(path) {
+  const handle = await open(path, "r");
+  try {
+    const buffer = Buffer.alloc(maxEvidenceBytes + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > maxEvidenceBytes) {
+      throw new Error("Release evidence file exceeds 65536 bytes");
+    }
+    return JSON.parse(buffer.subarray(0, offset).toString("utf8"));
+  } finally {
+    await handle.close();
+  }
+}
+
 if (process.argv[2] === "--self-test") {
   const valid = {
     commitSha: "a".repeat(40),
@@ -90,7 +112,7 @@ if (process.argv[2] === "--self-test") {
     process.exitCode = 2;
   } else {
     try {
-      verify(JSON.parse(await readFile(process.argv[2], "utf8")));
+      verify(await readEvidence(process.argv[2]));
       console.log("Release evidence fields complete (external evidence still requires independent verification)");
     } catch (error) {
       console.error("Release evidence gate FAILED: " + error.message);
