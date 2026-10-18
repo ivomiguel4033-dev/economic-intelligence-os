@@ -8,6 +8,8 @@ const exec = promisify(execFile);
 const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url));
 let healthStatus = 200;
 let readyStatus = 200;
+let healthRedirect = false;
+let readyRedirect = false;
 let healthBodyStatus = "ok";
 let applicationStatus = "ok";
 let readyBodyStatus = "ready";
@@ -20,7 +22,13 @@ let latencyMs = 1;
 let healthPadding = 0;
 let readyPadding = 0;
 const server = createServer((request, response) => {
-  const health = request.url === "/api/health";
+  const health = request.url === "/api/health" || request.url === "/api/health-redirected";
+  if ((request.url === "/api/health" && healthRedirect) ||
+      (request.url === "/api/ready" && readyRedirect)) {
+    response.writeHead(302, { location: health ? "/api/health-redirected" : "/api/ready-redirected" });
+    response.end();
+    return;
+  }
   response.writeHead(health ? healthStatus : readyStatus, {
     "content-type": contentType,
     "cache-control": health ? cacheControl : readyCacheControl,
@@ -41,6 +49,12 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  healthRedirect = true;
+  assert.equal(await run(), false, "Redirected liveness must not pass even if the target is healthy");
+  healthRedirect = false;
+  readyRedirect = true;
+  assert.equal(await run(), false, "Redirected readiness must not pass even if the target is healthy");
+  readyRedirect = false;
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");
   assert.equal(await run(origin.replace("://", ":\\")), false, "Scheme backslash must not be normalized into a valid origin");
   assert.equal(await run(origin + "\n"), false, "Trailing newline must not be normalized into a valid origin");
