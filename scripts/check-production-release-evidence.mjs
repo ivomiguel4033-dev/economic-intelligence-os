@@ -6,6 +6,10 @@ import { readFile } from "node:fs/promises";
 
 const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
 
+// Railway deployment IDs are opaque identifiers, not free-form labels.
+// Reject whitespace and control characters to keep release/rollback evidence unambiguous.
+const validDeploymentId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
   "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
@@ -26,7 +30,7 @@ function verify(record) {
   for (const check of requiredChecks) {
     if (record[check] !== true) throw new Error("Missing or failed release gate: " + check);
   }
-  if (typeof record.railwayDeploymentId !== "string" || !record.railwayDeploymentId.trim()) {
+  if (!validDeploymentId(record.railwayDeploymentId)) {
     throw new Error("Railway deployment ID is required");
   }
   if (typeof record.firstLaunch !== "boolean") {
@@ -36,10 +40,10 @@ function verify(record) {
     if (record.rollbackDeploymentId !== undefined && record.rollbackDeploymentId !== "") {
       throw new Error("First launch cannot claim an existing rollback target");
     }
-  } else if (typeof record.rollbackDeploymentId !== "string" || !record.rollbackDeploymentId.trim()) {
+  } else if (!validDeploymentId(record.rollbackDeploymentId)) {
     throw new Error("Upgrades require a recorded rollback deployment ID");
   }
-  if (record.firstLaunch === false && record.rollbackDeploymentId.trim() === record.railwayDeploymentId.trim()) {
+  if (record.firstLaunch === false && record.rollbackDeploymentId === record.railwayDeploymentId) {
     throw new Error("Rollback deployment must differ from the current Railway deployment");
   }
   return true;
@@ -67,6 +71,10 @@ if (process.argv[2] === "--self-test") {
   }
   for (const invalid of [null, 0, false, " ", "previous-deployment"]) {
     assert.throws(() => verify({ ...valid, rollbackDeploymentId: invalid }), /First launch cannot claim/);
+  }
+  for (const invalidId of [" candidate", "candidate ", "candidate deployment", "candidate\nnext", "candidate\t", "candidate/next", "é", ""]) {
+    assert.throws(() => verify({ ...valid, railwayDeploymentId: invalidId }), /Railway deployment ID/);
+    assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: invalidId }), /rollback deployment ID/);
   }
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), true);
