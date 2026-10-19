@@ -37,11 +37,25 @@ assert.ok(
   "Railway healthcheck timeout must be a bounded 60-300 seconds",
 );
 
-const drainingSeconds = Number.parseInt(railway.deploy?.drainingSeconds ?? "", 10);
-assert.ok(
-  Number.isInteger(drainingSeconds) && drainingSeconds >= 25 && drainingSeconds <= 60,
-  "Railway draining window must preserve the application's bounded shutdown drain",
+// Railway stores drainingSeconds as a decimal string. parseInt() would silently
+// accept malformed values such as "30s" or "30.5", hiding config drift in CI.
+function parseDrainSeconds(value) {
+  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) return null;
+  const seconds = Number(value);
+  return Number.isSafeInteger(seconds) && seconds >= 25 && seconds <= 60 ? seconds : null;
+}
+
+assert.notEqual(
+  parseDrainSeconds(railway.deploy?.drainingSeconds),
+  null,
+  "Railway draining window must be an exact decimal string between 25 and 60 seconds",
 );
+for (const [value, expected] of [["25", 25], ["30", 30], ["60", 60]]) {
+  assert.equal(parseDrainSeconds(value), expected, "Valid draining window must be accepted");
+}
+for (const invalid of ["24", "61", "30s", "30.5", "30e0", " 30", "30 ", "030", "-30", 30, null]) {
+  assert.equal(parseDrainSeconds(invalid), null, "Invalid draining window must fail closed: " + String(invalid));
+}
 
 assert.equal(
   railway.deploy?.restartPolicyType,
