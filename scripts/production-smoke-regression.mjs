@@ -17,6 +17,10 @@ let cacheControl = "no-store";
 let readyCacheControl = "no-store";
 let healthAge = null;
 let readyAge = null;
+let healthXCache = null;
+let readyXCache = null;
+let healthCfCacheStatus = null;
+let readyCfCacheStatus = null;
 let contentType = "application/json";
 let readyContentType = "application/json";
 let service = "economic-intelligence-os";
@@ -40,6 +44,10 @@ const server = createServer((request, response) => {
   };
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
+  const xCache = health ? healthXCache : readyXCache;
+  if (xCache !== null) headers["x-cache"] = xCache;
+  const cfCacheStatus = health ? healthCfCacheStatus : readyCfCacheStatus;
+  if (cfCacheStatus !== null) headers["cf-cache-status"] = cfCacheStatus;
   response.writeHead(health ? healthStatus : readyStatus, headers);
   const body = JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
@@ -83,6 +91,22 @@ try {
   readyAge = "0";
   assert.equal(await run(), true, "Zero-age readiness response is fresh");
   readyAge = null;
+  healthXCache = "HIT from CDN";
+  assert.equal(await run(), false, "Liveness cache HIT must block promotion even with zero or absent Age");
+  healthXCache = "MISS from CDN";
+  assert.equal(await run(), true, "Liveness cache MISS must not block promotion");
+  healthXCache = null;
+  readyXCache = "HIT";
+  assert.equal(await run(), false, "Readiness cache HIT must block promotion");
+  readyXCache = null;
+  healthCfCacheStatus = "HIT";
+  assert.equal(await run(), false, "Cloudflare liveness cache HIT must block promotion");
+  healthCfCacheStatus = null;
+  readyCfCacheStatus = "STALE";
+  assert.equal(await run(), false, "Cloudflare stale readiness must block promotion");
+  readyCfCacheStatus = "DYNAMIC";
+  assert.equal(await run(), true, "Cloudflare dynamic readiness must pass");
+  readyCfCacheStatus = null;
   healthRedirect = true;
   assert.equal(await run(), false, "Redirected liveness must not pass even if the target is healthy");
   healthRedirect = false;

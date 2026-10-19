@@ -49,6 +49,17 @@ try {
     if (age !== null && age.trim() !== "0") {
       throw new Error(`${path} returned a cached or invalid Age header`);
     }
+    // A proxy may report a cache hit even when Age is zero or absent.
+    const cacheSignals = [
+      ["x-cache", /\bhit\b/i],
+      ["cf-cache-status", /^(?:hit|stale|updating|revalidated)$/i],
+    ];
+    for (const [header, cached] of cacheSignals) {
+      const value = response.headers.get(header);
+      if (value !== null && cached.test(value.trim())) {
+        throw new Error(`${path} returned a cached response (${header})`);
+      }
+    }
     // Bound memory use when an unhealthy origin returns an oversized response.
     const maxResponseBytes = 64 * 1024;
     const chunks = [];
