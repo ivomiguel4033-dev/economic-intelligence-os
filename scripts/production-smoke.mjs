@@ -36,6 +36,11 @@ try {
     if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public")) {
       throw new Error(`${path} must disable caching`);
     }
+    // A nonzero or malformed Age header means a proxy may have served stale health data.
+    const age = response.headers.get("age");
+    if (age !== null && age.trim() !== "0") {
+      throw new Error(`${path} returned a cached or invalid Age header`);
+    }
     // Bound memory use when an unhealthy origin returns an oversized response.
     const maxResponseBytes = 64 * 1024;
     const chunks = [];

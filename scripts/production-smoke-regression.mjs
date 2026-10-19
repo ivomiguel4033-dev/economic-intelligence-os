@@ -15,6 +15,8 @@ let applicationStatus = "ok";
 let readyBodyStatus = "ready";
 let cacheControl = "no-store";
 let readyCacheControl = "no-store";
+let healthAge = null;
+let readyAge = null;
 let contentType = "application/json";
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
@@ -29,10 +31,13 @@ const server = createServer((request, response) => {
     response.end();
     return;
   }
-  response.writeHead(health ? healthStatus : readyStatus, {
+  const headers = {
     "content-type": contentType,
     "cache-control": health ? cacheControl : readyCacheControl,
-  });
+  };
+  const age = health ? healthAge : readyAge;
+  if (age !== null) headers.age = age;
+  response.writeHead(health ? healthStatus : readyStatus, headers);
   response.end(JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
     : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) }));
@@ -49,6 +54,18 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  healthAge = "12";
+  assert.equal(await run(), false, "Cached liveness must block promotion even with no-store");
+  healthAge = "0";
+  assert.equal(await run(), true, "Zero-age liveness response is fresh");
+  healthAge = null;
+  readyAge = "8";
+  assert.equal(await run(), false, "Cached readiness must block promotion even with no-store");
+  readyAge = "-1";
+  assert.equal(await run(), false, "Malformed readiness Age header must block promotion");
+  readyAge = "0";
+  assert.equal(await run(), true, "Zero-age readiness response is fresh");
+  readyAge = null;
   healthRedirect = true;
   assert.equal(await run(), false, "Redirected liveness must not pass even if the target is healthy");
   healthRedirect = false;
