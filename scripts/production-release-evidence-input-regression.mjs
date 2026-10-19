@@ -32,6 +32,11 @@ try {
     writeFileSync(path, body);
     expectRejected(path, name);
   }
+  const invalidUtf8 = join(directory, "invalid-utf8.json");
+  writeFileSync(invalidUtf8, Buffer.concat([
+    Buffer.from('{"note":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}'),
+  ]));
+  expectRejected(invalidUtf8, "Malformed UTF-8 evidence", /encoded as valid UTF-8/);
   const oversized = join(directory, "oversized.json");
   writeFileSync(oversized, JSON.stringify({ note: "x".repeat(70_000) }));
   expectRejected(oversized, "Oversized evidence file", /Release evidence file exceeds 65536 bytes/);

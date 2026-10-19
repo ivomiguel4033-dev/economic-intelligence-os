@@ -3,6 +3,7 @@
 // This is a documentation/evidence gate, not proof that an external service is healthy.
 import assert from "node:assert/strict";
 import { open } from "node:fs/promises";
+import { TextDecoder } from "node:util";
 
 const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
 
@@ -66,7 +67,14 @@ async function readEvidence(path) {
     if (offset > maxEvidenceBytes) {
       throw new Error("Release evidence file exceeds 65536 bytes");
     }
-    return JSON.parse(buffer.subarray(0, offset).toString("utf8"));
+    // Decode strictly: Buffer.toString("utf8") silently replaces malformed bytes.
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, offset));
+    } catch {
+      throw new Error("Release evidence must be encoded as valid UTF-8");
+    }
+    return JSON.parse(text);
   } finally {
     await handle.close();
   }
