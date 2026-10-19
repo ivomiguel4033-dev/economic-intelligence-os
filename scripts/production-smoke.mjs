@@ -51,8 +51,8 @@ try {
     }
     // A proxy may report a cache hit even when Age is zero or absent.
     const cacheSignals = [
-      ["x-cache", /\bhit\b/i],
-      ["cf-cache-status", /^(?:hit|stale|updating|revalidated)$/i],
+      ["x-cache", /(?:^|[^a-z0-9])(?:hit|tcp_(?:mem_|refresh_|ims_)?hit)(?=$|[^a-z0-9])/i],
+      ["cf-cache-status", /(?:^|,)\s*(?:hit|stale|updating|revalidated)\s*(?=,|$)/i],
     ];
     for (const [header, cached] of cacheSignals) {
       const value = response.headers.get(header);
