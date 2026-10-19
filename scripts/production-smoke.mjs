@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Post-deploy gate: liveness is not sufficient without database readiness.
 import process from "node:process";
+import { TextDecoder } from "node:util";
 
 const input = process.argv[2];
 if (process.argv.length !== 3) {
@@ -53,7 +54,8 @@ try {
       }
       chunks.push(Buffer.from(chunk));
     }
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    // Malformed UTF-8 must not be silently replaced in deployment health evidence.
+    const body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
     if (body.service !== "economic-intelligence-os" || body.status !== status) {
       throw new Error(`${path} returned an unexpected service or status`);
     }

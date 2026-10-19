@@ -23,6 +23,8 @@ let databaseStatus = "ok";
 let latencyMs = 1;
 let healthPadding = 0;
 let readyPadding = 0;
+let invalidHealthUtf8 = false;
+let invalidReadyUtf8 = false;
 const server = createServer((request, response) => {
   const health = request.url === "/api/health" || request.url === "/api/health-redirected";
   if ((request.url === "/api/health" && healthRedirect) ||
@@ -38,9 +40,17 @@ const server = createServer((request, response) => {
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   response.writeHead(health ? healthStatus : readyStatus, headers);
-  response.end(JSON.stringify(health
+  const body = JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
-    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) }));
+    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) });
+  if (health ? invalidHealthUtf8 : invalidReadyUtf8) {
+    // Invalid byte inside an otherwise valid JSON string: lossy UTF-8 decoding would pass.
+    const marker = '"padding":"';
+    const offset = body.indexOf(marker) + marker.length;
+    response.end(Buffer.concat([Buffer.from(body.slice(0, offset)), Buffer.from([0xff]), Buffer.from(body.slice(offset))]));
+  } else {
+    response.end(body);
+  }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -54,6 +64,12 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  invalidHealthUtf8 = true;
+  assert.equal(await run(), false, "Malformed UTF-8 liveness JSON must block promotion");
+  invalidHealthUtf8 = false;
+  invalidReadyUtf8 = true;
+  assert.equal(await run(), false, "Malformed UTF-8 readiness JSON must block promotion");
+  invalidReadyUtf8 = false;
   healthAge = "12";
   assert.equal(await run(), false, "Cached liveness must block promotion even with no-store");
   healthAge = "0";
