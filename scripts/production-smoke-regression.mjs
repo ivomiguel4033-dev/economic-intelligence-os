@@ -18,6 +18,7 @@ let readyCacheControl = "no-store";
 let healthAge = null;
 let readyAge = null;
 let contentType = "application/json";
+let readyContentType = "application/json";
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
 let latencyMs = 1;
@@ -34,7 +35,7 @@ const server = createServer((request, response) => {
     return;
   }
   const headers = {
-    "content-type": contentType,
+    "content-type": health ? contentType : readyContentType,
     "cache-control": health ? cacheControl : readyCacheControl,
   };
   const age = health ? healthAge : readyAge;
@@ -110,7 +111,20 @@ try {
   assert.equal(await run(), false, "JSON media type suffix must block promotion");
   contentType = "APPLICATION/JSON; charset=utf-8";
   assert.equal(await run(), true, "JSON media type with charset and mixed case must pass");
+  contentType = 'application/json; charset="UTF-8"';
+  assert.equal(await run(), true, "Quoted UTF-8 charset must pass");
+  contentType = "application/json; charset=iso-8859-1";
+  assert.equal(await run(), false, "Non-UTF-8 liveness charset must block promotion");
+  contentType = "application/json; charset=utf-8; charset=latin1";
+  assert.equal(await run(), false, "Conflicting liveness charsets must block promotion");
+  contentType = "application/json; charset";
+  assert.equal(await run(), false, "Malformed liveness charset must block promotion");
   contentType = "application/json";
+  readyContentType = "application/json; charset=latin1";
+  assert.equal(await run(), false, "Non-UTF-8 readiness charset must block promotion");
+  readyContentType = "application/json; charset=utf-8; charset=utf-8";
+  assert.equal(await run(), false, "Duplicate readiness charsets must block promotion");
+  readyContentType = "application/json";
   readyStatus = 503;
   assert.equal(await run(), false, "Database outage must block promotion");
   readyStatus = 200;

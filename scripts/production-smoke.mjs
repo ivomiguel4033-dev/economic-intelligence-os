@@ -28,9 +28,16 @@ try {
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) throw new Error(`${path} returned HTTP ${response.status}`);
-    const mediaType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
-    if (mediaType !== "application/json") {
+    const contentType = response.headers.get("content-type") ?? "";
+    const [rawMediaType, ...parameters] = contentType.split(";");
+    if (rawMediaType.trim().toLowerCase() !== "application/json") {
       throw new Error(`${path} did not return JSON`);
+    }
+    // JSON is UTF-8 on the wire; contradictory charset metadata must fail closed.
+    const charsets = parameters.filter((part) => /^\s*charset(?:\s|=|$)/i.test(part));
+    if (charsets.length > 1 ||
+        charsets.some((part) => !/^\s*charset\s*=\s*(?:"utf-8"|utf-8)\s*$/i.test(part))) {
+      throw new Error(`${path} declared an invalid or conflicting JSON charset`);
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
