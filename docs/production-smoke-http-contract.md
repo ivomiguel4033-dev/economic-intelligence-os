@@ -13,7 +13,7 @@ The release gate `node scripts/production-smoke.mjs https://<service-origin>` pr
 ## Operator verification
 
 1. Record the exact candidate commit and successful CI run for that commit.
-2. Run `node scripts/production-smoke-regression.mjs` against the checked-out candidate before promotion; it uses a local test server and needs no production credentials.
+2. Run `npm run test:production-smoke` against the checked-out candidate before promotion; this executes both the HTTP contract regression suite and the byte-exact 64 KiB boundary suite against local test servers, without production credentials. Confirm both suites passed.
 3. Run `node scripts/production-smoke.mjs https://<service-origin>` after the controlled deployment. Capture the exit code and timestamp, not response bodies or secrets.
 4. Treat any failure as **NO-GO**; follow `docs/PRODUCTION_ROLLBACK_DRILL.md` and `docs/production-readiness-gates.md`. On first launch, use traffic-disable recovery rather than claiming a previous deployment exists.
 
