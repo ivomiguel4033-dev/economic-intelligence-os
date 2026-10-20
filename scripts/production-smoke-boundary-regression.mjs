@@ -38,6 +38,8 @@ async function probe(expectOversize) {
 }
 try {
   for (const path of Object.keys(targets)) {
+    targets[path] = limit - 1;
+    await probe(false);
     targets[path] = limit;
     await probe(false);
     targets[path] = limit + 1;
