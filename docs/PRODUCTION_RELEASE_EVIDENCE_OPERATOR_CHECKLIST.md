@@ -15,7 +15,7 @@ node scripts/production-release-evidence-check-suite.mjs
 node scripts/production-release-evidence-regression.mjs
 ```
 
-These checks are local only until explicitly added to the CI workflow.
+The full evidence check suite, including the regression script above, already runs in `.github/workflows/ci.yml`. Confirm that its CI step passed for the exact candidate commit SHA. A green CI result validates the evidence checker; it does **not** verify live Railway, OIDC, AI, backup, smoke, or rollback evidence.
 
 ## Record actual deployment evidence
 
