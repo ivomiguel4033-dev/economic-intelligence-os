@@ -53,6 +53,8 @@ try {
   // Verify the cap counts UTF-8 bytes rather than JavaScript characters.
   multibytePadding = true;
   for (const path of Object.keys(targets)) {
+    targets[path] = limit - 1;
+    await probe(false);
     targets[path] = limit;
     await probe(false);
     targets[path] = limit + 1;
