@@ -9,6 +9,7 @@ const exec = promisify(execFile);
 const smoke = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url));
 const limit = 65_536;
 const targets = { "/api/health": 0, "/api/ready": 0 };
+let multibytePadding = false;
 const server = createServer((request, response) => {
   const path = request.url;
   if (!(path in targets)) {
@@ -21,7 +22,10 @@ const server = createServer((request, response) => {
     ? { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, padding: "" }
     : { service: "economic-intelligence-os", status: "ready", dependencies: { database: { status: "ok", latencyMs: 1 } }, padding: "" };
   const baseBytes = Buffer.byteLength(JSON.stringify(body));
-  body.padding = "x".repeat(Math.max(0, targets[path] - baseBytes));
+  const paddingBytes = Math.max(0, targets[path] - baseBytes);
+  body.padding = multibytePadding
+    ? "é".repeat(Math.floor(paddingBytes / 2)) + "x".repeat(paddingBytes % 2)
+    : "x".repeat(paddingBytes);
   response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
   response.end(JSON.stringify(body));
 });
@@ -46,7 +50,16 @@ try {
     await probe(true);
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB production smoke boundaries passed");
+  // Verify the cap counts UTF-8 bytes rather than JavaScript characters.
+  multibytePadding = true;
+  for (const path of Object.keys(targets)) {
+    targets[path] = limit;
+    await probe(false);
+    targets[path] = limit + 1;
+    await probe(true);
+    targets[path] = 0;
+  }
+  console.log("Exact 64 KiB ASCII and UTF-8 production smoke boundaries passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
