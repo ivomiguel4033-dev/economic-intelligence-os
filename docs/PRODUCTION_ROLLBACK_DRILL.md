@@ -8,6 +8,7 @@ Use this checklist **before** approving the first production promotion in PR #11
 - Confirm the target Railway project, environment, web service, and database by their identifiers. Review each staged Railway change; do not apply the legacy staged patch wholesale.
 - Verify that the web service has the intended OIDC issuer, audience, JWKS URL and primary AI provider settings **without copying secret values** into tickets, logs or evidence files.
 - Confirm a tested, restorable PostgreSQL backup and migration compatibility with the previous application image. A database rollback must not be assumed possible.
+- Confirm the legacy Railway worker remains disabled until a reviewed current worker entrypoint exists; do not reactivate an obsolete worker as part of rollback.
 - For an upgrade, record the previous known-good Railway deployment ID. For a first launch, explicitly record that no previous deployment exists and define a traffic-disable plan instead.
 
 ## Rehearsal in an isolated environment
