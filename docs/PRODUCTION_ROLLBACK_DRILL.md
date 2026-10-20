@@ -22,7 +22,7 @@ Use this checklist **before** approving the first production promotion in PR #11
 
 ## Evidence and decision
 
-- Run `node scripts/production-release-evidence-check-suite.mjs` locally to exercise the evidence regression checks. Until this command is wired into CI, a green CI run alone does not prove it ran.
+- Run `node scripts/production-release-evidence-check-suite.mjs` locally to exercise the evidence regression checks. The same suite runs in `.github/workflows/ci.yml`; confirm the evidence regression gate succeeded for the exact candidate SHA. A green CI run validates the checker, not the truth of external release evidence.
 - Generate a new draft using `node scripts/production-release-evidence-draft.mjs <new-file.json>`; existing evidence files must never be overwritten.
 - Complete only gates backed by actual evidence and validate with `node scripts/check-production-release-evidence.mjs <file.json>`. The validator checks fields, **not** the truth of external evidence.
 - Do not set `smokePassed`, `oidcVerified`, `aiVerified`, `backupVerified` or `postReleaseObservationPassed` to true based solely on a staging rehearsal. Those production gates require independent production verification.
