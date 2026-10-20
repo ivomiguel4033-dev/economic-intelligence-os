@@ -30,6 +30,8 @@ let healthPadding = 0;
 let readyPadding = 0;
 let invalidHealthUtf8 = false;
 let invalidReadyUtf8 = false;
+let invalidHealthJson = false;
+let invalidReadyJson = false;
 const server = createServer((request, response) => {
   const health = request.url === "/api/health" || request.url === "/api/health-redirected";
   if ((request.url === "/api/health" && healthRedirect) ||
@@ -52,7 +54,9 @@ const server = createServer((request, response) => {
   const body = JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
     : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) });
-  if (health ? invalidHealthUtf8 : invalidReadyUtf8) {
+  if (health ? invalidHealthJson : invalidReadyJson) {
+    response.end('{"status":');
+  } else if (health ? invalidHealthUtf8 : invalidReadyUtf8) {
     // Invalid byte inside an otherwise valid JSON string: lossy UTF-8 decoding would pass.
     const marker = '"padding":"';
     const offset = body.indexOf(marker) + marker.length;
@@ -73,6 +77,12 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  invalidHealthJson = true;
+  assert.equal(await run(), false, "Malformed liveness JSON must block promotion");
+  invalidHealthJson = false;
+  invalidReadyJson = true;
+  assert.equal(await run(), false, "Malformed readiness JSON must block promotion");
+  invalidReadyJson = false;
   invalidHealthUtf8 = true;
   assert.equal(await run(), false, "Malformed UTF-8 liveness JSON must block promotion");
   invalidHealthUtf8 = false;
