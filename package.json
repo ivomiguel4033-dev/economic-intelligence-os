@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "migrate": "node scripts/migrate.mjs"
+    "migrate": "node scripts/migrate.mjs",
+    "test:production-smoke": "node scripts/production-smoke-regression.mjs && node scripts/production-smoke-boundary-regression.mjs"
   },
   "dependencies": {
     "jose": "^6.0.0",
