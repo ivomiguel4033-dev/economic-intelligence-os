@@ -1,6 +1,7 @@
 // Independent byte-exact regression for the post-deploy smoke response cap.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { gzipSync } from "node:zlib";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ const smoke = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url));
 const limit = 65_536;
 const targets = { "/api/health": 0, "/api/ready": 0 };
 let multibytePadding = false;
+let gzipResponse = false;
 const server = createServer((request, response) => {
   const path = request.url;
   if (!(path in targets)) {
@@ -26,8 +28,13 @@ const server = createServer((request, response) => {
   body.padding = multibytePadding
     ? "é".repeat(Math.floor(paddingBytes / 2)) + "x".repeat(paddingBytes % 2)
     : "x".repeat(paddingBytes);
-  response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-  response.end(JSON.stringify(body));
+  response.writeHead(200, {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+    ...(gzipResponse ? { "content-encoding": "gzip" } : {}),
+  });
+  const json = JSON.stringify(body);
+  response.end(gzipResponse ? gzipSync(json) : json);
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -61,7 +68,18 @@ try {
     await probe(true);
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB ASCII and UTF-8 production smoke boundaries passed");
+  // Fetch transparently decompresses gzip; enforce the limit on decoded bytes,
+  // not on the much smaller compressed transfer size.
+  gzipResponse = true;
+  multibytePadding = false;
+  for (const path of Object.keys(targets)) {
+    targets[path] = limit;
+    await probe(false);
+    targets[path] = limit + 1;
+    await probe(true);
+    targets[path] = 0;
+  }
+  console.log("Exact 64 KiB ASCII, UTF-8 and gzip production smoke boundaries passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
