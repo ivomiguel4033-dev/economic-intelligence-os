@@ -38,7 +38,9 @@ const server = createServer((request, response) => {
   const payload = gzipResponse ? gzipSync(json) : Buffer.from(json);
   if (chunkedResponse) {
     // Force chunked transfer encoding across multiple writes, including gzip bytes.
-    const split = Math.max(1, Math.floor(payload.length / 3));
+    // For uncompressed UTF-8, deliberately split in the middle of a code point.
+    const utf8Start = !gzipResponse && multibytePadding ? payload.indexOf(Buffer.from("é")) : -1;
+    const split = utf8Start >= 0 ? utf8Start + 1 : Math.max(1, Math.floor(payload.length / 3));
     response.write(payload.subarray(0, split));
     setImmediate(() => {
       response.write(payload.subarray(split, split * 2));
@@ -109,7 +111,16 @@ try {
     }
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB ASCII, UTF-8, gzip, gzip UTF-8 and chunked gzip smoke boundaries passed");
+  // Uncompressed chunked UTF-8 must also be byte-counted across a split code point.
+  gzipResponse = false;
+  for (const path of Object.keys(targets)) {
+    for (const size of [limit - 1, limit, limit + 1]) {
+      targets[path] = size;
+      await probe(size > limit);
+    }
+    targets[path] = 0;
+  }
+  console.log("Exact 64 KiB ASCII, UTF-8, gzip, gzip UTF-8, chunked gzip and split-code-point UTF-8 smoke boundaries passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
