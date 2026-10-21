@@ -14,4 +14,6 @@ For each staged item, record: service, setting name (never its secret value), ol
 - Verify a restorable database backup and an application rollback target. For first launch, document traffic-disable recovery instead.
 - If any staged item is unexplained, any owner is missing, or the reviewed inventory differs from the applied change set, mark the release **NO-GO**.
 
+Before applying any reviewed Railway changes, capture a fresh pending-change inventory and compare it item by item with the approved inventory. Any added, removed or modified item invalidates the prior approval: stop, review the new delta, and record a new decision and UTC approval timestamp. Never approve a changed batch by relying on an earlier item count alone.
+
 Attach the redacted inventory, reviewer approval and UTC decision timestamp to the release evidence. See `docs/production-readiness-gates.md` and `docs/PRODUCTION_ROLLBACK_DRILL.md` for deployment and recovery gates.
