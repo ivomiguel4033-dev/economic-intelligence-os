@@ -12,6 +12,7 @@ const limit = 65_536;
 const targets = { "/api/health": 0, "/api/ready": 0 };
 let multibytePadding = false;
 let gzipResponse = false;
+let chunkedResponse = false;
 const server = createServer((request, response) => {
   const path = request.url;
   if (!(path in targets)) {
@@ -34,7 +35,18 @@ const server = createServer((request, response) => {
     ...(gzipResponse ? { "content-encoding": "gzip" } : {}),
   });
   const json = JSON.stringify(body);
-  response.end(gzipResponse ? gzipSync(json) : json);
+  const payload = gzipResponse ? gzipSync(json) : Buffer.from(json);
+  if (chunkedResponse) {
+    // Force chunked transfer encoding across multiple writes, including gzip bytes.
+    const split = Math.max(1, Math.floor(payload.length / 3));
+    response.write(payload.subarray(0, split));
+    setImmediate(() => {
+      response.write(payload.subarray(split, split * 2));
+      setImmediate(() => response.end(payload.subarray(split * 2)));
+    });
+  } else {
+    response.end(payload);
+  }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -88,7 +100,16 @@ try {
     }
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB ASCII, UTF-8, gzip and gzip UTF-8 smoke boundaries passed");
+  // Chunked gzip must obey the same decoded byte limit across transfer writes.
+  chunkedResponse = true;
+  for (const path of Object.keys(targets)) {
+    for (const size of [limit - 1, limit, limit + 1]) {
+      targets[path] = size;
+      await probe(size > limit);
+    }
+    targets[path] = 0;
+  }
+  console.log("Exact 64 KiB ASCII, UTF-8, gzip, gzip UTF-8 and chunked gzip smoke boundaries passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
