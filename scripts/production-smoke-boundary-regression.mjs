@@ -79,7 +79,16 @@ try {
     await probe(true);
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB ASCII, UTF-8 and gzip production smoke boundaries passed");
+  // Also enforce the decoded byte cap when gzip carries multibyte UTF-8 JSON.
+  multibytePadding = true;
+  for (const path of Object.keys(targets)) {
+    for (const size of [limit - 1, limit, limit + 1]) {
+      targets[path] = size;
+      await probe(size > limit);
+    }
+    targets[path] = 0;
+  }
+  console.log("Exact 64 KiB ASCII, UTF-8, gzip and gzip UTF-8 smoke boundaries passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
