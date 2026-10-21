@@ -6,7 +6,7 @@ The release gate `node scripts/production-smoke.mjs https://<service-origin>` pr
 
 - Both endpoints return HTTP 200 directly, without redirects, and `Content-Type: application/json` (optional UTF-8 charset only).
 - Both endpoints send `Cache-Control: no-store`. A nonzero/malformed `Age`, CDN cache hit, stale or revalidated status is a failure even if the JSON looks healthy.
-- Both bodies contain valid UTF-8 JSON, no larger than **65,536 bytes**. The limit is inclusive; 65,537 bytes must fail.
+- Both bodies contain valid UTF-8 JSON, no larger than **65,536 bytes**. The limit is inclusive; 65,537 bytes must fail. This limit applies to decoded response bytes, including when an HTTP intermediary serves gzip-compressed or chunked content; the smaller transfer size is not evidence of compliance.
 - Liveness identifies `economic-intelligence-os`, status `ok` and application check `ok`.
 - Readiness identifies the same service, status `ready`, database status `ok` and a finite nonnegative `latencyMs` number.
 
