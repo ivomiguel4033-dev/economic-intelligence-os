@@ -6,6 +6,7 @@ Use this checklist **before** approving the first production promotion in PR #11
 
 - Record the exact candidate commit SHA and a successful CI run for that SHA. If checks are pending or failing, stop.
 - Confirm that `npm run test:production-smoke` passed for the exact candidate commit, including the HTTP contract and 64 KiB decoded-response boundary checks. A passing generic build alone is insufficient.
+- In staging, verify that both `/api/health` and `/api/ready` are uncached end-to-end: `Cache-Control: no-store`, no positive `Age`, and no cache hit in `Cache-Status`, `X-Cache`, or `CF-Cache-Status`. Treat a cached readiness response as a release NO-GO even when HTTP 200 is returned.
 - Confirm the target Railway project, environment, web service, and database by their identifiers. Review each staged Railway change; do not apply the legacy staged patch wholesale.
 - Verify that the web service has the intended OIDC issuer, audience, JWKS URL and primary AI provider settings **without copying secret values** into tickets, logs or evidence files.
 - Confirm a tested, restorable PostgreSQL backup and migration compatibility with the previous application image. A database rollback must not be assumed possible.
