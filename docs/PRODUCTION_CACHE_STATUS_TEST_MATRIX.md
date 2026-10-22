@@ -9,6 +9,8 @@ The smoke probe must reject a cache hit on either `/api/health` or `/api/ready`,
 | `edge; hit` | FAIL |
 | `edge; fwd=uri-miss` | PASS if all other checks pass |
 | `edge; fwd=uri-miss, shield; hit` | FAIL |
+| `edge; fwd=uri-miss, shield; HIT` | FAIL (case-insensitive) |
+| `edge; hit` on `/api/ready` | FAIL even if `/api/health` passes |
 | No `Cache-Status` header | PASS if all other checks pass |
 
 Run `npm run test:production-smoke` on the candidate SHA. In staging, run `node scripts/production-smoke.mjs https://<staging-origin>` and inspect both endpoints. Do not promote if the cache policy is not verified end to end. Record the candidate SHA, CI run, staging timestamp and probe result without credentials. Follow `docs/PRODUCTION_ROLLBACK_DRILL.md` for recovery evidence.
