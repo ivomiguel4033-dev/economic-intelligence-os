@@ -138,6 +138,12 @@ try {
   assert.equal(await run(), false, "Explicit true liveness Cache-Status hit must block promotion");
   healthCacheStatus = "edge; hit=?0";
   assert.equal(await run(), true, "Explicit false liveness Cache-Status hit must pass");
+  healthCacheStatus = "edge; hit=1";
+  assert.equal(await run(), false, "Malformed numeric liveness Cache-Status hit must fail closed");
+  healthCacheStatus = "edge; hit=?2";
+  assert.equal(await run(), false, "Invalid boolean liveness Cache-Status hit must fail closed");
+  healthCacheStatus = "edge; hit=?0; ttl=30";
+  assert.equal(await run(), true, "Explicit cache miss with TTL metadata must pass liveness");
   healthCacheStatus = "edge; fwd=uri-miss, shield; hit=?1";
   assert.equal(await run(), false, "Downstream cache hit must block liveness promotion");
   healthCacheStatus = "edge; fwd=uri-miss";
@@ -147,6 +153,10 @@ try {
   assert.equal(await run(), false, "Explicit true readiness Cache-Status hit must block promotion");
   readyCacheStatus = "edge; hit=?0";
   assert.equal(await run(), true, "Explicit false readiness Cache-Status hit must pass");
+  readyCacheStatus = "edge; hit=bogus";
+  assert.equal(await run(), false, "Malformed readiness Cache-Status hit must fail closed");
+  readyCacheStatus = "edge; hit=?0, shield; hit=?1";
+  assert.equal(await run(), false, "A downstream cache hit must override an upstream miss");
   readyCacheStatus = "edge; fwd=uri-miss, shield; HIT";
   assert.equal(await run(), false, "Downstream case-insensitive readiness cache hit must block promotion");
   readyCacheStatus = null;
