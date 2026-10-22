@@ -44,6 +44,14 @@ try {
     if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public")) {
       throw new Error(`${path} must disable caching`);
     }
+    // CDN-specific policies can override general Cache-Control at intermediary caches.
+    // Accept only an explicit no-store policy; contradictory directives fail closed.
+    for (const header of ["cdn-cache-control", "surrogate-control"]) {
+      const policy = response.headers.get(header);
+      if (policy !== null && policy.trim().toLowerCase() !== "no-store") {
+        throw new Error(`${path} must disable ${header} caching`);
+      }
+    }
     // A nonzero or malformed Age header means a proxy may have served stale health data.
     const age = response.headers.get("age");
     if (age !== null && age.trim() !== "0") {

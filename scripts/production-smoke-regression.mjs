@@ -23,6 +23,10 @@ let healthCfCacheStatus = null;
 let readyCfCacheStatus = null;
 let healthCacheStatus = null;
 let readyCacheStatus = null;
+let healthCdnCacheControl = null;
+let readyCdnCacheControl = null;
+let healthSurrogateControl = null;
+let readySurrogateControl = null;
 let contentType = "application/json";
 let readyContentType = "application/json";
 let service = "economic-intelligence-os";
@@ -54,6 +58,10 @@ const server = createServer((request, response) => {
   if (cfCacheStatus !== null) headers["cf-cache-status"] = cfCacheStatus;
   const cacheStatus = health ? healthCacheStatus : readyCacheStatus;
   if (cacheStatus !== null) headers["cache-status"] = cacheStatus;
+  const cdnPolicy = health ? healthCdnCacheControl : readyCdnCacheControl;
+  if (cdnPolicy !== null) headers["cdn-cache-control"] = cdnPolicy;
+  const surrogatePolicy = health ? healthSurrogateControl : readySurrogateControl;
+  if (surrogatePolicy !== null) headers["surrogate-control"] = surrogatePolicy;
   response.writeHead(health ? healthStatus : readyStatus, headers);
   const body = JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
@@ -147,6 +155,26 @@ try {
   readyCfCacheStatus = "DYNAMIC";
   assert.equal(await run(), true, "Cloudflare dynamic readiness must pass");
   readyCfCacheStatus = null;
+  healthCdnCacheControl = "public, max-age=60";
+  assert.equal(await run(), false, "CDN liveness caching policy must block promotion");
+  healthCdnCacheControl = "no-store";
+  assert.equal(await run(), true, "Explicit CDN no-store policy must pass liveness");
+  healthCdnCacheControl = "no-store, s-maxage=60";
+  assert.equal(await run(), false, "Contradictory CDN liveness policy must block promotion");
+  healthCdnCacheControl = null;
+  readyCdnCacheControl = "public";
+  assert.equal(await run(), false, "CDN readiness public policy must block promotion");
+  readyCdnCacheControl = null;
+  healthSurrogateControl = "max-age=60";
+  assert.equal(await run(), false, "Surrogate liveness caching policy must block promotion");
+  healthSurrogateControl = null;
+  readySurrogateControl = "max-age=60";
+  assert.equal(await run(), false, "Surrogate readiness caching policy must block promotion");
+  readySurrogateControl = "NO-STORE";
+  assert.equal(await run(), true, "Case-insensitive surrogate no-store policy must pass readiness");
+  readySurrogateControl = "no-store, max-age=60";
+  assert.equal(await run(), false, "Contradictory surrogate readiness policy must block promotion");
+  readySurrogateControl = null;
   healthRedirect = true;
   assert.equal(await run(), false, "Redirected liveness must not pass even if the target is healthy");
   healthRedirect = false;
