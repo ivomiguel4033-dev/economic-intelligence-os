@@ -21,6 +21,8 @@ let healthXCache = null;
 let readyXCache = null;
 let healthCfCacheStatus = null;
 let readyCfCacheStatus = null;
+let healthCacheStatus = null;
+let readyCacheStatus = null;
 let contentType = "application/json";
 let readyContentType = "application/json";
 let service = "economic-intelligence-os";
@@ -50,6 +52,8 @@ const server = createServer((request, response) => {
   if (xCache !== null) headers["x-cache"] = xCache;
   const cfCacheStatus = health ? healthCfCacheStatus : readyCfCacheStatus;
   if (cfCacheStatus !== null) headers["cf-cache-status"] = cfCacheStatus;
+  const cacheStatus = health ? healthCacheStatus : readyCacheStatus;
+  if (cacheStatus !== null) headers["cache-status"] = cacheStatus;
   response.writeHead(health ? healthStatus : readyStatus, headers);
   const body = JSON.stringify(health
     ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
@@ -120,6 +124,24 @@ try {
   healthCfCacheStatus = "DYNAMIC, HIT";
   assert.equal(await run(), false, "Combined Cloudflare cache status containing HIT must block promotion");
   healthCfCacheStatus = null;
+  healthCacheStatus = "edge; hit";
+  assert.equal(await run(), false, "Bare liveness Cache-Status hit must block promotion");
+  healthCacheStatus = "edge; hit=?1";
+  assert.equal(await run(), false, "Explicit true liveness Cache-Status hit must block promotion");
+  healthCacheStatus = "edge; hit=?0";
+  assert.equal(await run(), true, "Explicit false liveness Cache-Status hit must pass");
+  healthCacheStatus = "edge; fwd=uri-miss, shield; hit=?1";
+  assert.equal(await run(), false, "Downstream cache hit must block liveness promotion");
+  healthCacheStatus = "edge; fwd=uri-miss";
+  assert.equal(await run(), true, "Forwarded cache miss must pass liveness");
+  healthCacheStatus = null;
+  readyCacheStatus = "edge; hit=?1";
+  assert.equal(await run(), false, "Explicit true readiness Cache-Status hit must block promotion");
+  readyCacheStatus = "edge; hit=?0";
+  assert.equal(await run(), true, "Explicit false readiness Cache-Status hit must pass");
+  readyCacheStatus = "edge; fwd=uri-miss, shield; HIT";
+  assert.equal(await run(), false, "Downstream case-insensitive readiness cache hit must block promotion");
+  readyCacheStatus = null;
   readyCfCacheStatus = "STALE";
   assert.equal(await run(), false, "Cloudflare stale readiness must block promotion");
   readyCfCacheStatus = "DYNAMIC";

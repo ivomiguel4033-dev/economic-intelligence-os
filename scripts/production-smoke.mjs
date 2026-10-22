@@ -62,7 +62,7 @@ try {
     }
     // RFC 9211 Cache-Status exposes cache hits even when Age and vendor headers are absent.
     const cacheStatus = response.headers.get("cache-status");
-    if (cacheStatus !== null && /;\s*hit\s*(?=;|,|$)/i.test(cacheStatus)) {
+    if (cacheStatus !== null && /;\s*hit(?:\s*=\s*\?1)?\s*(?=;|,|$)/i.test(cacheStatus)) {
       throw new Error(`${path} returned a cached response (cache-status)`);
     }
     // Bound memory use when an unhealthy origin returns an oversized response.
