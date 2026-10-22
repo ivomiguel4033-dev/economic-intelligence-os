@@ -76,9 +76,10 @@ try {
     }
     // RFC 9211 Cache-Status uses a structured boolean: only hit=?0 proves a miss.
     // Bare hit means true; malformed hit values must fail closed during promotion.
+    // Check comma-delimited members too: an invalid bare hit after a miss cannot be ignored.
     const cacheStatus = response.headers.get("cache-status");
     if (cacheStatus !== null) {
-      for (const match of cacheStatus.matchAll(/(?:^|;)\s*hit(?=\s|=|;|,|$)([^;,]*)/gi)) {
+      for (const match of cacheStatus.matchAll(/(?:^|[;,])\s*hit(?=\s|=|;|,|$)([^;,]*)/gi)) {
         if (!/^\s*=\s*\?0\s*$/.test(match[1])) {
           throw new Error(`${path} returned a cached or invalid response (cache-status)`);
         }

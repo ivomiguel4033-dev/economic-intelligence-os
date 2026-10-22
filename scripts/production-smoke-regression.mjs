@@ -138,6 +138,8 @@ try {
   assert.equal(await run(), false, "Explicit true liveness Cache-Status hit must block promotion");
   healthCacheStatus = "edge; hit=?0";
   assert.equal(await run(), true, "Explicit false liveness Cache-Status hit must pass");
+  healthCacheStatus = "edge; hit=?0, hit=?1";
+  assert.equal(await run(), false, "Comma-delimited cache hit after a miss must block liveness promotion");
   healthCacheStatus = "edge; hit=1";
   assert.equal(await run(), false, "Malformed numeric liveness Cache-Status hit must fail closed");
   healthCacheStatus = "edge; hit=?2";
@@ -153,6 +155,8 @@ try {
   assert.equal(await run(), false, "Explicit true readiness Cache-Status hit must block promotion");
   readyCacheStatus = "edge; hit=?0";
   assert.equal(await run(), true, "Explicit false readiness Cache-Status hit must pass");
+  readyCacheStatus = "edge; hit=?0, hit=bogus";
+  assert.equal(await run(), false, "Malformed comma-delimited cache hit must block readiness promotion");
   readyCacheStatus = "edge; hit=bogus";
   assert.equal(await run(), false, "Malformed readiness Cache-Status hit must fail closed");
   readyCacheStatus = "edge; hit=?0, shield; hit=?1";
