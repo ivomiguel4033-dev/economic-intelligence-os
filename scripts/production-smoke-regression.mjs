@@ -235,6 +235,12 @@ try {
   assert.equal(await run(), false, "Public liveness caching must fail regardless of directive order");
   cacheControl = "private, NO-STORE";
   assert.equal(await run(), true, "Case-insensitive no-store directive must pass");
+  cacheControl = "no-store, s-maxage=60";
+  assert.equal(await run(), false, "Positive shared-cache lifetime must block liveness promotion");
+  cacheControl = "no-store, max-age=0";
+  assert.equal(await run(), true, "Zero max-age alongside no-store must pass liveness");
+  cacheControl = "no-store, immutable";
+  assert.equal(await run(), false, "Immutable liveness caching must block promotion");
   cacheControl = "no-store";
   readyCacheControl = "public, max-age=60";
   assert.equal(await run(), false, "Cacheable readiness must block promotion even when liveness is healthy");
@@ -242,6 +248,12 @@ try {
   assert.equal(await run(), false, "Misleading readiness cache directive must block promotion");
   readyCacheControl = "no-store, public";
   assert.equal(await run(), false, "Contradictory public readiness caching must block promotion");
+  readyCacheControl = "no-store, max-age=60";
+  assert.equal(await run(), false, "Positive readiness max-age must block promotion");
+  readyCacheControl = "no-store, s-maxage=bogus";
+  assert.equal(await run(), false, "Malformed readiness shared-cache lifetime must block promotion");
+  readyCacheControl = "no-store, s-maxage=0";
+  assert.equal(await run(), true, "Zero readiness shared-cache lifetime must pass");
   readyCacheControl = "no-store";
   service = "unexpected-service";
   assert.equal(await run(), false, "Unexpected service identity must block promotion");

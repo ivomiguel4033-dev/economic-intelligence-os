@@ -41,7 +41,13 @@ try {
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
-    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public")) {
+    // Positive or malformed freshness lifetimes conflict with an uncacheable health response.
+    // A zero lifetime is allowed for compatibility with no-store, but immutable is not.
+    const conflictingFreshness = cacheDirectives.some((directive) =>
+      directive === "immutable" ||
+      (/^(?:s-maxage|max-age)\s*=/.test(directive) &&
+       !/^(?:s-maxage|max-age)\s*=\s*0$/.test(directive)));
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public") || conflictingFreshness) {
       throw new Error(`${path} must disable caching`);
     }
     // CDN-specific policies can override general Cache-Control at intermediary caches.
