@@ -7,7 +7,7 @@ The smoke probe must reject a cache hit on either `/api/health` or `/api/ready`,
 | Cache-Status response | Expected smoke outcome |
 | --- | --- |
 | `edge; hit` | FAIL |
-| `edge; hit=?1` | FAIL (explicit RFC 9211 true Boolean; not yet covered by the current smoke parser) |
+| `edge; hit=?1` | FAIL (explicit RFC 9211 true Boolean; covered by the smoke regression suite) |
 | `edge; hit=?0` | PASS if all other checks pass (explicit false Boolean) |
 | `edge; fwd=uri-miss` | PASS if all other checks pass |
 | `edge; fwd=uri-miss, shield; hit` | FAIL |
@@ -19,6 +19,6 @@ Run `npm run test:production-smoke` on the candidate SHA. In staging, run `node 
 
 This matrix does not replace production OIDC, primary AI provider, Railway staging reconciliation, database backup or rollback gates.
 
-## Manual gate for explicit Boolean cache hits
+## Verification of explicit Boolean cache hits
 
-Until the automated smoke parser and regression suite recognize `Cache-Status: edge; hit=?1`, verify that neither health endpoint is served from cache using the edge/CDN response metadata. Do not promote a candidate if a `hit=?1` response is observed, even if the current smoke script exits successfully. Record the CDN result and the candidate SHA as release evidence; treat this as an open automation gap rather than an automated passing check.
+The smoke parser and regression suite reject `Cache-Status: edge; hit=?1` on either health endpoint. Confirm the CI production smoke job passed on the candidate SHA, then inspect both endpoints at the actual edge/CDN. Do not promote if an observed cache hit contradicts the probe result. Preserve the candidate SHA, CI run, timestamp and edge result as release evidence.
