@@ -77,6 +77,15 @@ try {
     if (age !== null && age.trim() !== "0") {
       throw new Error(`${path} returned a cached or invalid Age header`);
     }
+    // Expires can advertise cache freshness to an intermediary that ignores no-store.
+    // Permit only expired dates or conventional explicit zero/negative sentinels.
+    const expires = response.headers.get("expires");
+    if (expires !== null && !["0", "-1"].includes(expires.trim())) {
+      const expiry = Date.parse(expires);
+      if (!Number.isFinite(expiry) || expiry > Date.now()) {
+        throw new Error(`${path} returned a future or invalid Expires header`);
+      }
+    }
     // Legacy HTTP Warning 110/111/112 exposes stale or disconnected proxy responses.
     // A health probe must not promote an instance based on such cached evidence.
     const warning = response.headers.get("warning");
