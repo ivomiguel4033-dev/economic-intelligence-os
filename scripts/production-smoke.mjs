@@ -46,10 +46,11 @@ try {
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
-    // Positive, bare or malformed freshness lifetimes conflict with an uncacheable health response.
-    // A zero lifetime is allowed for compatibility with no-store, but immutable is not.
-    const conflictingFreshness = cacheDirectives.some((directive) =>
-      /^immutable(?=\s|=|;|$)/.test(directive) ||
+    // Positive or malformed freshness lifetimes conflict with uncacheable health responses.
+    // Immutable and must-understand can defeat no-store (must-understand permits
+    // compliant caches to disregard no-store for understood status codes).
+    const conflictingCaching = cacheDirectives.some((directive) =>
+      /^(?:immutable|must-understand)(?=\s|=|;|$)/.test(directive) ||
       (/^(?:s-maxage|max-age)(?=\s|=|;|$)/.test(directive) &&
        !/^(?:s-maxage|max-age)\s*=\s*0$/.test(directive)));
     // Stale-serving extensions are incompatible with a fail-closed deployment health gate.
@@ -60,7 +61,7 @@ try {
     const malformedNoStore = cacheDirectives.some((directive) =>
       /^no-store(?:\s|=|;)/.test(directive) && directive !== "no-store");
     if (!cacheDirectives.includes("no-store") || cacheDirectives.some((directive) => /^public(?:\s|=|;|$)/.test(directive)) ||
-        conflictingFreshness || staleServing || malformedNoStore) {
+        conflictingCaching || staleServing || malformedNoStore) {
       throw new Error(`${path} must disable caching`);
     }
     // CDN-specific policies can override general Cache-Control at intermediary caches.

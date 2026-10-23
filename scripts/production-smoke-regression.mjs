@@ -338,6 +338,10 @@ try {
   assert.equal(await run(), false, "Parameterized immutable liveness caching must block promotion");
   cacheControl = "no-store, immutable ; unexpected=1";
   assert.equal(await run(), false, "Malformed immutable liveness caching must block promotion");
+  cacheControl = "no-store, must-understand";
+  assert.equal(await run(), false, "Must-understand can override no-store and must block liveness promotion");
+  cacheControl = "no-store, must-understand=true";
+  assert.equal(await run(), false, "Parameterized must-understand must block liveness promotion");
   cacheControl = "no-store, stale-while-revalidate=30";
   assert.equal(await run(), false, "Stale-while-revalidate liveness caching must block promotion");
   cacheControl = "no-store, stale-if-error=30";
@@ -367,6 +371,10 @@ try {
   assert.equal(await run(), true, "Zero readiness shared-cache lifetime must pass");
   readyCacheControl = "no-store, immutable = true";
   assert.equal(await run(), false, "Whitespace cannot hide parameterized immutable readiness caching");
+  readyCacheControl = "no-store, must-understand";
+  assert.equal(await run(), false, "Must-understand must block readiness promotion");
+  readyCacheControl = "no-store, must-understand ; mode=1";
+  assert.equal(await run(), false, "Malformed must-understand must block readiness promotion");
   readyCacheControl = "no-store, stale-while-revalidate=30";
   assert.equal(await run(), false, "Stale-while-revalidate readiness caching must block promotion");
   readyCacheControl = "no-store, stale-if-error=30";
