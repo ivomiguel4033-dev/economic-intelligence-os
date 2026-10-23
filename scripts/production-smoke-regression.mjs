@@ -326,6 +326,10 @@ try {
   assert.equal(await run(), true, "Case-insensitive no-store directive must pass");
   cacheControl = "no-store, s-maxage=60";
   assert.equal(await run(), false, "Positive shared-cache lifetime must block liveness promotion");
+  cacheControl = "no-store, max-age";
+  assert.equal(await run(), false, "Bare max-age must not pass liveness cache policy");
+  cacheControl = "no-store, max-age; unexpected=1";
+  assert.equal(await run(), false, "Malformed max-age parameters must block liveness promotion");
   cacheControl = "no-store, max-age=0";
   assert.equal(await run(), true, "Zero max-age alongside no-store must pass liveness");
   cacheControl = "no-store, immutable";
@@ -351,6 +355,10 @@ try {
   assert.equal(await run(), false, "Positive readiness max-age must block promotion");
   readyCacheControl = "no-store, s-maxage=bogus";
   assert.equal(await run(), false, "Malformed readiness shared-cache lifetime must block promotion");
+  readyCacheControl = "no-store, s-maxage";
+  assert.equal(await run(), false, "Bare shared-cache lifetime must block readiness promotion");
+  readyCacheControl = "no-store, s-maxage ; unexpected=1";
+  assert.equal(await run(), false, "Malformed shared-cache lifetime parameters must block readiness promotion");
   readyCacheControl = "no-store, s-maxage=0";
   assert.equal(await run(), true, "Zero readiness shared-cache lifetime must pass");
   readyCacheControl = "no-store, stale-while-revalidate=30";

@@ -46,11 +46,11 @@ try {
     }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
-    // Positive or malformed freshness lifetimes conflict with an uncacheable health response.
+    // Positive, bare or malformed freshness lifetimes conflict with an uncacheable health response.
     // A zero lifetime is allowed for compatibility with no-store, but immutable is not.
     const conflictingFreshness = cacheDirectives.some((directive) =>
       directive === "immutable" ||
-      (/^(?:s-maxage|max-age)\s*=/.test(directive) &&
+      (/^(?:s-maxage|max-age)(?=\s|=|;|$)/.test(directive) &&
        !/^(?:s-maxage|max-age)\s*=\s*0$/.test(directive)));
     // Stale-serving extensions are incompatible with a fail-closed deployment health gate.
     const staleServing = cacheDirectives.some((directive) =>
