@@ -55,8 +55,12 @@ try {
     // Stale-serving extensions are incompatible with a fail-closed deployment health gate.
     const staleServing = cacheDirectives.some((directive) =>
       /^(?:stale-while-revalidate|stale-if-error)\b/.test(directive));
+    // Contradictory or parameterized no-store directives can be interpreted
+    // differently by intermediaries; never approve promotion on ambiguous policy.
+    const malformedNoStore = cacheDirectives.some((directive) =>
+      /^no-store(?:\s|=|;)/.test(directive) && directive !== "no-store");
     if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public") ||
-        conflictingFreshness || staleServing) {
+        conflictingFreshness || staleServing || malformedNoStore) {
       throw new Error(`${path} must disable caching`);
     }
     // CDN-specific policies can override general Cache-Control at intermediary caches.
