@@ -106,6 +106,7 @@ jobs:
       - name: Distributed tenant concurrency regression checks
         run: node scripts/distributed-tenant-concurrency-regression.mjs
       - name: Production smoke gate and HTTP boundary regression checks
+        timeout-minutes: 2
         run: npm run test:production-smoke
       - name: Production release evidence regression gate
         timeout-minutes: 2
