@@ -316,6 +316,10 @@ try {
   assert.equal(await run(), false, "Whitespace cannot hide parameterized liveness no-store");
   cacheControl = "no-store, public";
   assert.equal(await run(), false, "Contradictory public liveness caching must block promotion");
+  cacheControl = "no-store, public=true";
+  assert.equal(await run(), false, "Parameterized public liveness caching must block promotion");
+  cacheControl = "no-store, public = true";
+  assert.equal(await run(), false, "Whitespace cannot hide parameterized public liveness caching");
   cacheControl = "public, NO-STORE";
   assert.equal(await run(), false, "Public liveness caching must fail regardless of directive order");
   cacheControl = "private, NO-STORE";
@@ -341,6 +345,8 @@ try {
   assert.equal(await run(), false, "Parameterized readiness no-store must fail closed");
   readyCacheControl = "no-store, public";
   assert.equal(await run(), false, "Contradictory public readiness caching must block promotion");
+  readyCacheControl = "no-store, public=true";
+  assert.equal(await run(), false, "Parameterized public readiness caching must block promotion");
   readyCacheControl = "no-store, max-age=60";
   assert.equal(await run(), false, "Positive readiness max-age must block promotion");
   readyCacheControl = "no-store, s-maxage=bogus";
