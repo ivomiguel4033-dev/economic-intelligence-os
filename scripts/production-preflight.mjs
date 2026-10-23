@@ -127,6 +127,11 @@ function validateSecurityBaseline(env) {
   if (env.METRICS_TOKEN.length < 32) {
     fail("METRICS_TOKEN must be at least 32 characters");
   }
+  // These protect separate trust boundaries; reusing a token as the audit
+  // hash pepper lets a leaked metrics credential compromise audit pseudonyms.
+  if (env.SECURITY_EVENT_HASH_PEPPER === env.METRICS_TOKEN) {
+    fail("SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct");
+  }
 }
 
 function requireProductionMode(env) {

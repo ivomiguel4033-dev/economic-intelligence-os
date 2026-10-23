@@ -25,6 +25,7 @@ assert.deepEqual(
 );
 
 for (const [name, env, expected] of [
+  ["reused security secrets", { ...base, METRICS_TOKEN: base.SECURITY_EVENT_HASH_PEPPER }, "SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct"],
   ["production mode", { ...base, NODE_ENV: "development" }, "NODE_ENV must be production"],
   ["database URL scheme", { ...base, DATABASE_URL: "https://db.internal/app" }, "DATABASE_URL must use postgres:// or postgresql://"],
   ["database URL malformed", { ...base, DATABASE_URL: "not-a-url" }, "DATABASE_URL must be a valid URL"],
