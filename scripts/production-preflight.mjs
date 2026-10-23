@@ -162,6 +162,11 @@ function validateProvider(env, prefix, required = false) {
         fail(`${keys[index]} must not contain surrounding whitespace`);
       }
     }
+    // Provider credentials must not double as audit or metrics credentials.
+    // A leaked AI key must never grant access to observability or audit pseudonyms.
+    if (values[1] === env.SECURITY_EVENT_HASH_PEPPER || values[1] === env.METRICS_TOKEN) {
+      fail(`${prefix}_API_KEY must be distinct from audit and metrics secrets`);
+    }
     const url = validateHttpsUrl(values[0], `${prefix}_BASE_URL`);
     if (values[0].includes("?")) fail(`${prefix}_BASE_URL must not include query parameters`);
     // Keep AI provider and JWKS endpoint restrictions aligned.
