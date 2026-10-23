@@ -26,6 +26,7 @@ try {
   assert.equal(record.firstLaunch, null, "Launch mode must require operator input");
   assert.equal(record.commitSha, "", "Commit must not be guessed");
   assert.equal(record.railwayDeploymentId, "", "Deployment must not be guessed");
+  assert.equal(record.rollbackVerified, false, "Rollback verification must default to NO-GO");
   for (const gate of [
     "ciPassed", "stagedChangesReviewed", "preflightPassed",
     "oidcVerified", "aiVerified", "postgresReady", "backupVerified",

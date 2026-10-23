@@ -53,7 +53,12 @@ try {
   check({ ...valid, railwayDeploymentId: " " }, 1, "Blank deployment ID");
   check({ ...valid, rollbackDeploymentId: "previous" }, 1, "First launch with rollback target");
   check({ ...valid, firstLaunch: false }, 1, "Upgrade without rollback target");
-  check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous" }, 0, "Upgrade with rollback target");
+  check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous" }, 1, "Upgrade without verified rollback capability");
+  for (const invalid of [false, null, "true", 1]) {
+    check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous", rollbackVerified: invalid }, 1, "Upgrade requires explicit rollback verification");
+  }
+  check({ ...valid, rollbackVerified: true }, 1, "First launch cannot claim a verified rollback");
+  check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous", rollbackVerified: true }, 0, "Upgrade with verified rollback target");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "candidate-deployment" }, 1, "Upgrade cannot roll back to current deployment");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: " candidate-deployment " }, 1, "Rollback ID whitespace cannot bypass self-rollback rejection");
   const missingArgument = spawnSync(process.execPath, [validator], { encoding: "utf8", timeout: 5000 });

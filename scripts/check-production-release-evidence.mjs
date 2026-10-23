@@ -42,11 +42,21 @@ function verify(record) {
     if (record.rollbackDeploymentId !== undefined && record.rollbackDeploymentId !== "") {
       throw new Error("First launch cannot claim an existing rollback target");
     }
-  } else if (!validDeploymentId(record.rollbackDeploymentId)) {
-    throw new Error("Upgrades require a recorded rollback deployment ID");
-  }
-  if (record.firstLaunch === false && record.rollbackDeploymentId === record.railwayDeploymentId) {
-    throw new Error("Rollback deployment must differ from the current Railway deployment");
+    if (record.rollbackVerified === true) {
+      throw new Error("First launch cannot claim verified rollback capability");
+    }
+  } else {
+    if (!validDeploymentId(record.rollbackDeploymentId)) {
+      throw new Error("Upgrades require a recorded rollback deployment ID");
+    }
+    if (record.rollbackDeploymentId === record.railwayDeploymentId) {
+      throw new Error("Rollback deployment must differ from the current Railway deployment");
+    }
+    // An opaque ID alone does not establish that the target can be restored.
+    // Require explicit operator verification before approving an upgrade.
+    if (record.rollbackVerified !== true) {
+      throw new Error("Upgrades require rollbackVerified=true");
+    }
   }
   return true;
 }
@@ -111,7 +121,12 @@ if (process.argv[2] === "--self-test") {
   assert.throws(() => verify({ ...valid, railwayDeploymentId: "x".repeat(129) }), /Railway deployment ID/);
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "x".repeat(129) }), /rollback deployment ID/);
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
-  assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), true);
+  assert.throws(() => verify({ ...valid, rollbackVerified: true }), /First launch cannot claim verified rollback/);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), /rollbackVerified=true/);
+  for (const invalid of [false, null, "true", 1, {}]) {
+    assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: invalid }), /rollbackVerified=true/);
+  }
+  assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: true }), true);
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "deployment-example" }), /Rollback deployment must differ/);
   console.log("Release evidence validation self-test passed");
 } else {

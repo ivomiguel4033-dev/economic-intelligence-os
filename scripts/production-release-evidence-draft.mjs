@@ -16,6 +16,7 @@ function createDraft() {
     railwayDeploymentId: "",
     firstLaunch: null,
     rollbackDeploymentId: "",
+    rollbackVerified: false,
     ...Object.fromEntries(requiredChecks.map((name) => [name, false])),
   };
 }

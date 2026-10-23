@@ -11,8 +11,8 @@ This is a manual, fail-closed release gate. A passing CI run does not prove Rail
 ## Post-deployment
 1. Record the actual Railway deployment ID. Execute deployed health/readiness, authenticated OIDC and AI smoke checks. Inspect logs and error rates.
 2. Observe the release before marking post-release observation successful.
-3. For an upgrade, record a verified prior Railway deployment ID for rollback. For first launch, set `firstLaunch: true` and do not invent a rollback target.
-4. Create a JSON evidence record with `commitSha` (40 hex characters), `ciRunUrl` (this repository's Actions run), `railwayDeploymentId`, `firstLaunch`, and these boolean gates: `ciPassed`, `stagedChangesReviewed`, `preflightPassed`, `oidcVerified`, `aiVerified`, `postgresReady`, `backupVerified`, `migrationReviewed`, `smokePassed`, `postReleaseObservationPassed`. Upgrades also require `rollbackDeploymentId`.
+3. For an upgrade, record a prior Railway deployment ID and independently verify that the target can be restored and remains database/schema compatible; set `rollbackVerified: true` only after that check. For first launch, set `firstLaunch: true`, leave `rollbackVerified: false`, and do not invent a rollback target.
+4. Create a JSON evidence record with `commitSha` (40 hex characters), `ciRunUrl` (this repository's Actions run), `railwayDeploymentId`, `firstLaunch`, and these boolean gates: `ciPassed`, `stagedChangesReviewed`, `preflightPassed`, `oidcVerified`, `aiVerified`, `postgresReady`, `backupVerified`, `migrationReviewed`, `smokePassed`, `postReleaseObservationPassed`. Upgrades also require `rollbackDeploymentId` and `rollbackVerified: true`; the validator cannot independently prove the rollback target is usable.
 5. Run `node scripts/check-production-release-evidence.mjs path/to/evidence.json`. Exit code 0 checks completeness only; it does not verify external evidence. Preserve independent evidence in operational records.
 
 ## Failure and rollback

@@ -13,6 +13,7 @@ Copy this record for each proposed Railway release. Never record secrets, tokens
 | PostgreSQL deployment and backup verified | | PASS / FAIL |
 | Migration compatibility reviewed | | PASS / FAIL |
 | Known-good application deployment ID, if any | | PASS / FAIL / FIRST LAUNCH |
+| Upgrade rollback target verified as restorable and schema-compatible (`rollbackVerified`) | | PASS / FAIL / FIRST LAUNCH |
 | Independent HTTPS liveness and readiness smoke | | PASS / FAIL |
 | Authentication negative test (wrong issuer/audience) | | PASS / FAIL |
 | Post-release error/readiness observation | | PASS / FAIL |
