@@ -59,7 +59,7 @@ try {
     // differently by intermediaries; never approve promotion on ambiguous policy.
     const malformedNoStore = cacheDirectives.some((directive) =>
       /^no-store(?:\s|=|;)/.test(directive) && directive !== "no-store");
-    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public") ||
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.some((directive) => /^public(?:\s|=|;|$)/.test(directive)) ||
         conflictingFreshness || staleServing || malformedNoStore) {
       throw new Error(`${path} must disable caching`);
     }
