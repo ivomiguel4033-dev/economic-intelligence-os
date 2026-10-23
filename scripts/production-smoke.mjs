@@ -47,7 +47,11 @@ try {
       directive === "immutable" ||
       (/^(?:s-maxage|max-age)\s*=/.test(directive) &&
        !/^(?:s-maxage|max-age)\s*=\s*0$/.test(directive)));
-    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public") || conflictingFreshness) {
+    // Stale-serving extensions are incompatible with a fail-closed deployment health gate.
+    const staleServing = cacheDirectives.some((directive) =>
+      /^(?:stale-while-revalidate|stale-if-error)\b/.test(directive));
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.includes("public") ||
+        conflictingFreshness || staleServing) {
       throw new Error(`${path} must disable caching`);
     }
     // CDN-specific policies can override general Cache-Control at intermediary caches.

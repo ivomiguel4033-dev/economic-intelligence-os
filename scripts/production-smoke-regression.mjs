@@ -273,6 +273,10 @@ try {
   assert.equal(await run(), true, "Zero max-age alongside no-store must pass liveness");
   cacheControl = "no-store, immutable";
   assert.equal(await run(), false, "Immutable liveness caching must block promotion");
+  cacheControl = "no-store, stale-while-revalidate=30";
+  assert.equal(await run(), false, "Stale-while-revalidate liveness caching must block promotion");
+  cacheControl = "no-store, stale-if-error=30";
+  assert.equal(await run(), false, "Stale-if-error liveness caching must block promotion");
   cacheControl = "no-store";
   readyCacheControl = "public, max-age=60";
   assert.equal(await run(), false, "Cacheable readiness must block promotion even when liveness is healthy");
@@ -286,6 +290,10 @@ try {
   assert.equal(await run(), false, "Malformed readiness shared-cache lifetime must block promotion");
   readyCacheControl = "no-store, s-maxage=0";
   assert.equal(await run(), true, "Zero readiness shared-cache lifetime must pass");
+  readyCacheControl = "no-store, stale-while-revalidate=30";
+  assert.equal(await run(), false, "Stale-while-revalidate readiness caching must block promotion");
+  readyCacheControl = "no-store, stale-if-error=30";
+  assert.equal(await run(), false, "Stale-if-error readiness caching must block promotion");
   readyCacheControl = "no-store";
   service = "unexpected-service";
   assert.equal(await run(), false, "Unexpected service identity must block promotion");
