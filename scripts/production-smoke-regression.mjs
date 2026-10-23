@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
 const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url));
+const requestCacheHeaders = new Map();
 let healthStatus = 200;
 let readyStatus = 200;
 let healthRedirect = false;
@@ -41,6 +42,12 @@ let invalidReadyUtf8 = false;
 let invalidHealthJson = false;
 let invalidReadyJson = false;
 const server = createServer((request, response) => {
+  if (request.url === "/api/health" || request.url === "/api/ready") {
+    requestCacheHeaders.set(request.url, {
+      cacheControl: request.headers["cache-control"],
+      pragma: request.headers.pragma,
+    });
+  }
   const health = request.url === "/api/health" || request.url === "/api/health-redirected";
   if ((request.url === "/api/health" && healthRedirect) ||
       (request.url === "/api/ready" && readyRedirect)) {
@@ -93,6 +100,12 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(await run(), true, "Healthy deployment must pass");
+  for (const path of ["/api/health", "/api/ready"]) {
+    assert.deepEqual(requestCacheHeaders.get(path), {
+      cacheControl: "no-store",
+      pragma: "no-cache",
+    }, `${path} must request an uncached response from intermediaries`);
+  }
   invalidHealthJson = true;
   assert.equal(await run(), false, "Malformed liveness JSON must block promotion");
   invalidHealthJson = false;

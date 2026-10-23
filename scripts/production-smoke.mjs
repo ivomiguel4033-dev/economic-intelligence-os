@@ -22,7 +22,12 @@ try {
   }
   async function check(path, status, dependency = false) {
     const response = await fetch(new URL(path, origin), {
-      headers: { accept: "application/json" },
+      // Ask intermediaries for a fresh probe even if a cache is misconfigured.
+      headers: {
+        accept: "application/json",
+        "cache-control": "no-store",
+        pragma: "no-cache",
+      },
       redirect: "manual",
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
