@@ -58,6 +58,7 @@ try {
     ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
     railwayDeploymentId: "deployment-example",
     firstLaunch: true,
+    rollbackVerified: false,
     ciPassed: true,
     stagedChangesReviewed: true,
     preflightPassed: true,
