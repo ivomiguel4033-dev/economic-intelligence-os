@@ -121,9 +121,17 @@ try {
   assert.equal(await run(), false, "Liveness cache HIT must block promotion even with zero or absent Age");
   healthXCache = "MISS from CDN";
   assert.equal(await run(), true, "Liveness cache MISS must not block promotion");
+  healthXCache = "STALE from CDN";
+  assert.equal(await run(), false, "Stale liveness X-Cache response must block promotion");
+  healthXCache = "MISS from CDN";
+  assert.equal(await run(), true, "Liveness X-Cache MISS remains acceptable");
   healthXCache = "TCP_HIT from edge";
   assert.equal(await run(), false, "Akamai TCP_HIT liveness must block promotion");
   healthXCache = null;
+  readyXCache = "UPDATING from edge";
+  assert.equal(await run(), false, "Updating readiness X-Cache response must block promotion");
+  readyXCache = "REVALIDATED from edge";
+  assert.equal(await run(), false, "Revalidated readiness X-Cache response must block promotion");
   readyXCache = "TCP_MEM_HIT from edge";
   assert.equal(await run(), false, "Akamai TCP_MEM_HIT readiness must block promotion");
   readyXCache = "TCP_MISS from edge";
