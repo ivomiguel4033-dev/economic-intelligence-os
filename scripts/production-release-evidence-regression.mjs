@@ -17,6 +17,7 @@ const valid = {
   ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
   railwayDeploymentId: "candidate-deployment",
   firstLaunch: true,
+  rollbackVerified: false,
   ...Object.fromEntries(checks.map((check) => [check, true])),
 };
 let index = 0;
@@ -57,7 +58,9 @@ try {
   for (const invalid of [false, null, "true", 1]) {
     check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous", rollbackVerified: invalid }, 1, "Upgrade requires explicit rollback verification");
   }
-  check({ ...valid, rollbackVerified: true }, 1, "First launch cannot claim a verified rollback");
+  for (const invalid of [undefined, null, true, "false", "true", 0, 1, {}]) {
+    check({ ...valid, rollbackVerified: invalid }, 1, "First launch requires explicit rollbackVerified=false");
+  }
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous", rollbackVerified: true }, 0, "Upgrade with verified rollback target");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "candidate-deployment" }, 1, "Upgrade cannot roll back to current deployment");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: " candidate-deployment " }, 1, "Rollback ID whitespace cannot bypass self-rollback rejection");

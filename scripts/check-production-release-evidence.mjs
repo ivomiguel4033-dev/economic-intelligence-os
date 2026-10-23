@@ -42,8 +42,8 @@ function verify(record) {
     if (record.rollbackDeploymentId !== undefined && record.rollbackDeploymentId !== "") {
       throw new Error("First launch cannot claim an existing rollback target");
     }
-    if (record.rollbackVerified === true) {
-      throw new Error("First launch cannot claim verified rollback capability");
+    if (record.rollbackVerified !== false) {
+      throw new Error("First launch requires rollbackVerified=false (no verified rollback target)");
     }
   } else {
     if (!validDeploymentId(record.rollbackDeploymentId)) {
@@ -96,6 +96,7 @@ if (process.argv[2] === "--self-test") {
     ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
     railwayDeploymentId: "deployment-example",
     firstLaunch: true,
+    rollbackVerified: false,
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
   };
   assert.equal(verify(valid), true);
@@ -121,7 +122,9 @@ if (process.argv[2] === "--self-test") {
   assert.throws(() => verify({ ...valid, railwayDeploymentId: "x".repeat(129) }), /Railway deployment ID/);
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "x".repeat(129) }), /rollback deployment ID/);
   assert.throws(() => verify({ ...valid, firstLaunch: false }), /rollback deployment ID/);
-  assert.throws(() => verify({ ...valid, rollbackVerified: true }), /First launch cannot claim verified rollback/);
+  for (const invalid of [undefined, null, true, "false", "true", 0, 1, {}]) {
+    assert.throws(() => verify({ ...valid, rollbackVerified: invalid }), /First launch requires rollbackVerified=false/);
+  }
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment" }), /rollbackVerified=true/);
   for (const invalid of [false, null, "true", 1, {}]) {
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: invalid }), /rollbackVerified=true/);
