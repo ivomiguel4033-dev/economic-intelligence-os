@@ -213,6 +213,20 @@ try {
   readyRedirect = true;
   assert.equal(await run(), false, "Redirected readiness must not pass even if the target is healthy");
   readyRedirect = false;
+  // The deployment gate must reject malformed origins before any network request.
+  // Match the validation error, not merely a failed HTTP connection.
+  async function rejectsInvalidOrigin(candidateOrigin) {
+    try {
+      await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
+      assert.fail("Invalid deployment origin unexpectedly passed");
+    } catch (error) {
+      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes/);
+    }
+  }
+  await rejectsInvalidOrigin("http://example.com");
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "operator:secret@127.0.0.1"));
+  await rejectsInvalidOrigin(origin + "/unexpected-path");
+  await rejectsInvalidOrigin(" " + origin);
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");
   assert.equal(await run(origin.replace("://", ":\\")), false, "Scheme backslash must not be normalized into a valid origin");
   assert.equal(await run(origin + "\n"), false, "Trailing newline must not be normalized into a valid origin");
