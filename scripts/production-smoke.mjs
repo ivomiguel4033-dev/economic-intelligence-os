@@ -72,6 +72,12 @@ try {
     if (age !== null && age.trim() !== "0") {
       throw new Error(`${path} returned a cached or invalid Age header`);
     }
+    // Legacy HTTP Warning 110/111/112 exposes stale or disconnected proxy responses.
+    // A health probe must not promote an instance based on such cached evidence.
+    const warning = response.headers.get("warning");
+    if (warning !== null && /(?:^|,)\s*11[012](?=\s|$)/.test(warning)) {
+      throw new Error(`${path} returned a stale or disconnected response (warning)`);
+    }
     // A proxy may report a cache hit even when Age is zero or absent.
     const cacheSignals = [
       ["x-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|refresh_|ims_)?hit)(?=$|[^a-z0-9])/i],
