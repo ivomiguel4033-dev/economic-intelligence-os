@@ -121,6 +121,13 @@ function validateSecurityBaseline(env) {
   if (env.ALLOW_INSECURE_AUTH === "true") {
     fail("Insecure authentication override is forbidden in production");
   }
+  // Reject invisible bytes in long-lived production secrets before checking length.
+  // They can be silently introduced by environment-variable copy/paste or templating.
+  for (const key of ["SECURITY_EVENT_HASH_PEPPER", "METRICS_TOKEN"]) {
+    const value = env[key];
+    if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${key} must not contain control characters`);
+    if (value !== value.trim()) fail(`${key} must not contain surrounding whitespace`);
+  }
   if (env.SECURITY_EVENT_HASH_PEPPER.length < 32) {
     fail("SECURITY_EVENT_HASH_PEPPER must be at least 32 characters");
   }

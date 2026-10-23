@@ -25,6 +25,10 @@ assert.deepEqual(
 );
 
 for (const [name, env, expected] of [
+  ["audit pepper embedded newline", { ...base, SECURITY_EVENT_HASH_PEPPER: "x".repeat(32) + "\n" }, "SECURITY_EVENT_HASH_PEPPER must not contain control characters"],
+  ["audit pepper leading whitespace", { ...base, SECURITY_EVENT_HASH_PEPPER: " " + "x".repeat(32) }, "SECURITY_EVENT_HASH_PEPPER must not contain surrounding whitespace"],
+  ["metrics token DEL byte", { ...base, METRICS_TOKEN: "y".repeat(32) + "\u007f" }, "METRICS_TOKEN must not contain control characters"],
+  ["metrics token trailing whitespace", { ...base, METRICS_TOKEN: "y".repeat(32) + " " }, "METRICS_TOKEN must not contain surrounding whitespace"],
   ["reused security secrets", { ...base, METRICS_TOKEN: base.SECURITY_EVENT_HASH_PEPPER }, "SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct"],
   ["primary key reused as metrics token", { ...base, AI_PRIMARY_API_KEY: base.METRICS_TOKEN }, "AI_PRIMARY_API_KEY must be distinct from audit and metrics secrets"],
   ["primary key reused as audit pepper", { ...base, AI_PRIMARY_API_KEY: base.SECURITY_EVENT_HASH_PEPPER }, "AI_PRIMARY_API_KEY must be distinct from audit and metrics secrets"],
