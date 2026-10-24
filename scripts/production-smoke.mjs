@@ -49,6 +49,14 @@ try {
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
     }
+    // Reject oversized or malformed declared bodies before consuming the stream.
+    // The streaming cap below remains authoritative for missing or dishonest lengths.
+    const maxResponseBytes = 64 * 1024;
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null &&
+        (!/^[1-9][0-9]*$/.test(declaredLength) || Number(declaredLength) > maxResponseBytes)) {
+      throw new Error(`${path} declared an invalid or oversized Content-Length`);
+    }
     const contentType = response.headers.get("content-type") ?? "";
     const [rawMediaType, ...parameters] = contentType.split(";");
     if (rawMediaType.trim().toLowerCase() !== "application/json") {
@@ -149,7 +157,6 @@ try {
       }
     }
     // Bound memory use when an unhealthy origin returns an oversized response.
-    const maxResponseBytes = 64 * 1024;
     const chunks = [];
     let totalBytes = 0;
     if (!response.body) throw new Error(`${path} returned an empty response`);

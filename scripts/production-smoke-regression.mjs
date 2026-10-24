@@ -9,6 +9,8 @@ const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url))
 const requestCacheHeaders = new Map();
 let healthStatus = 200;
 let readyStatus = 200;
+let healthDeclaredContentLength = null;
+let readyDeclaredContentLength = null;
 let healthContentRange = null;
 let readyContentRange = null;
 let healthSetCookie = null;
@@ -79,6 +81,8 @@ const server = createServer((request, response) => {
   };
   const contentRange = health ? healthContentRange : readyContentRange;
   if (contentRange !== null) headers["content-range"] = contentRange;
+  const declaredContentLength = health ? healthDeclaredContentLength : readyDeclaredContentLength;
+  if (declaredContentLength !== null) headers["content-length"] = declaredContentLength;
   const setCookie = health ? healthSetCookie : readySetCookie;
   if (setCookie !== null) headers["set-cookie"] = setCookie;
   const authChallenge = health ? healthWwwAuthenticate : readyWwwAuthenticate;
@@ -185,6 +189,17 @@ try {
   assert.equal(await run(), false, "HTTP 200 partial readiness must block promotion");
   readyContentRange = null;
   assert.equal(await run(), true, "Full health and readiness responses must still pass");
+  healthDeclaredContentLength = "65537";
+  assert.equal(await run(), false, "Oversized declared liveness response must block promotion before streaming");
+  healthDeclaredContentLength = "0";
+  assert.equal(await run(), false, "Zero declared liveness response length must block promotion");
+  healthDeclaredContentLength = null;
+  readyDeclaredContentLength = "65537";
+  assert.equal(await run(), false, "Oversized declared readiness response must block promotion before streaming");
+  readyDeclaredContentLength = "0";
+  assert.equal(await run(), false, "Zero declared readiness response length must block promotion");
+  readyDeclaredContentLength = null;
+  assert.equal(await run(), true, "Normal probes without declared content length must pass");
   invalidHealthJson = true;
   assert.equal(await run(), false, "Malformed liveness JSON must block promotion");
   invalidHealthJson = false;
