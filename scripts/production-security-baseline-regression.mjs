@@ -17,6 +17,27 @@ assert.deepEqual(validateProductionSecurityBaseline({
   ...validEnv, OIDC_JWKS_URL: "https://identity.example.com/jwks.json?version=1",
 }), { ready: true, failures: [] });
 
+// Runtime readiness must reject the same malformed PostgreSQL URLs as preflight.
+assert.deepEqual(validateProductionSecurityBaseline({
+  ...validEnv, DATABASE_URL: "postgres://app:secret@db.internal:5432/app?sslmode=require",
+}), { ready: true, failures: [] });
+for (const [value, expected] of [
+  ["not-a-url", "DATABASE_URL must be a valid URL"],
+  ["https://db.internal/app", "DATABASE_URL must use postgres:// or postgresql://"],
+  ["postgresql:///app", "DATABASE_URL must include a hostname"],
+  ["postgresql://db.internal", "DATABASE_URL must include a database name"],
+  ["postgresql://db.internal/app#", "DATABASE_URL must not include a fragment"],
+  ["postgresql://db.internal/app#fragment", "DATABASE_URL must not include a fragment"],
+  [" postgresql://db.internal/app", "DATABASE_URL must not contain surrounding whitespace"],
+  ["postgresql://db.internal/\tapp", "DATABASE_URL must not contain control characters"],
+  ["postgresql://db.internal/\u007fapp", "DATABASE_URL must not contain control characters"],
+  ["postgresql://db.internal/app\\other", "DATABASE_URL must not contain backslashes"],
+]) {
+  const result = validateProductionSecurityBaseline({ ...validEnv, DATABASE_URL: value });
+  assert.equal(result.ready, false, "Malformed DATABASE_URL must block runtime readiness");
+  assert.ok(result.failures.includes(expected), "Expected DATABASE_URL failure: " + expected);
+}
+
 for (const [key, value, expected] of [
   ["OIDC_ISSUER", "https://localhost/tenant", "OIDC_ISSUER must not use a local hostname"],
   ["OIDC_ISSUER", "https://identity.local/tenant", "OIDC_ISSUER must not use a local hostname"],

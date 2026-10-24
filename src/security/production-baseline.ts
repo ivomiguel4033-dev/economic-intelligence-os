@@ -60,6 +60,28 @@ function validateHttpsUrl(value: string, label: string, failures: string[]): voi
   }
 }
 
+// Keep runtime readiness consistent with the deployment preflight database URL gate.
+function validateDatabaseUrl(value: string, failures: string[]): void {
+  // WHATWG URL parsing can normalize away embedded controls and surrounding spaces.
+  if (/[\u0000-\u001f\u007f]/.test(value)) failures.push("DATABASE_URL must not contain control characters");
+  if (value.includes("\\")) failures.push("DATABASE_URL must not contain backslashes");
+  if (value !== value.trim()) failures.push("DATABASE_URL must not contain surrounding whitespace");
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    failures.push("DATABASE_URL must be a valid URL");
+    return;
+  }
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    failures.push("DATABASE_URL must use postgres:// or postgresql://");
+  }
+  if (!url.hostname) failures.push("DATABASE_URL must include a hostname");
+  if (!url.pathname || url.pathname === "/") failures.push("DATABASE_URL must include a database name");
+  // An empty trailing fragment is not represented in URL.hash.
+  if (value.includes("#")) failures.push("DATABASE_URL must not include a fragment");
+}
+
 export function validateProductionSecurityBaseline(env: NodeJS.ProcessEnv = process.env): SecurityBaselineResult {
   const failures: string[] = [];
   const required = [
@@ -71,6 +93,8 @@ export function validateProductionSecurityBaseline(env: NodeJS.ProcessEnv = proc
     "METRICS_TOKEN",
   ];
   for (const key of required) if (!env[key]?.trim()) failures.push(`${key} is required`);
+
+  if (env.DATABASE_URL) validateDatabaseUrl(env.DATABASE_URL, failures);
 
   // URL parsing normalizes whitespace and control characters, while JWT
   // issuer/audience comparisons use exact values. Match the deployment preflight.
