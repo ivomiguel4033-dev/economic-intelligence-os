@@ -18,6 +18,13 @@ assert.deepEqual(validateProductionSecurityBaseline({
 }), { ready: true, failures: [] });
 
 for (const [key, value, expected] of [
+  ["OIDC_ISSUER", "https://localhost/tenant", "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC_ISSUER", "https://identity.local/tenant", "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC_ISSUER", "https://127.0.0.1/tenant", "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC_ISSUER", "https://10.1.2.3/tenant", "OIDC_ISSUER must not use a local hostname"],
+  ["OIDC_JWKS_URL", "https://[::1]/jwks.json", "OIDC_JWKS_URL must not use a local hostname"],
+  ["OIDC_JWKS_URL", "https://169.254.1.1/jwks.json", "OIDC_JWKS_URL must not use a local hostname"],
+  ["OIDC_JWKS_URL", "https://[fc00::1]/jwks.json", "OIDC_JWKS_URL must not use a local hostname"],
   ["OIDC_ISSUER", "http://identity.example.com/tenant", "OIDC_ISSUER must use HTTPS"],
   ["OIDC_JWKS_URL", "http://identity.example.com/jwks.json", "OIDC_JWKS_URL must use HTTPS"],
   ["OIDC_ISSUER", "not-a-url", "OIDC_ISSUER must be a valid URL"],
