@@ -40,6 +40,12 @@ export function validateProductionSecurityBaseline(env: NodeJS.ProcessEnv = proc
   if (env.NODE_ENV === "production" && env.ALLOW_INSECURE_AUTH === "true") failures.push("Insecure authentication override is forbidden in production");
   if (env.SECURITY_EVENT_HASH_PEPPER && env.SECURITY_EVENT_HASH_PEPPER.length < 32) failures.push("SECURITY_EVENT_HASH_PEPPER must be at least 32 characters");
   if (env.METRICS_TOKEN && env.METRICS_TOKEN.length < 32) failures.push("METRICS_TOKEN must be at least 32 characters");
+  // Keep runtime readiness aligned with pre-deploy checks: these secrets protect
+  // different trust boundaries and must never share the same credential.
+  if (env.SECURITY_EVENT_HASH_PEPPER && env.METRICS_TOKEN &&
+      env.SECURITY_EVENT_HASH_PEPPER === env.METRICS_TOKEN) {
+    failures.push("SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct");
+  }
 
   return { ready: failures.length === 0, failures };
 }
