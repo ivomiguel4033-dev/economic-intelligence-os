@@ -10,7 +10,8 @@ const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-
 // Railway deployment IDs are opaque identifiers, not free-form labels.
 // Reject whitespace, control characters and oversized IDs in release/rollback evidence.
 // The generous bound permits opaque provider IDs without accepting unbounded labels.
-const validDeploymentId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+const validDeploymentId = (value) => typeof value === "string" &&
+  /^(?=.{1,128}$)[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/.test(value);
 
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
@@ -131,6 +132,12 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: invalidId }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: invalidId }), /rollback deployment ID/);
   }
+  // An opaque deployment ID must contain an identifier, not just punctuation.
+  for (const invalidId of ["-", "_", "---", "___", "-deployment", "deployment-", "_deployment", "deployment_"]) {
+    assert.throws(() => verify({ ...valid, railwayDeploymentId: invalidId }), /Railway deployment ID/);
+    assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: invalidId }), /rollback deployment ID/);
+  }
+  assert.equal(verify({ ...valid, railwayDeploymentId: "deploy_123-A" }), true);
   assert.equal(verify({ ...valid, railwayDeploymentId: "x".repeat(128) }), true);
   assert.throws(() => verify({ ...valid, railwayDeploymentId: "x".repeat(129) }), /Railway deployment ID/);
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "x".repeat(129) }), /rollback deployment ID/);
