@@ -15,6 +15,8 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// Percent-encoded punctuation is valid in a PostgreSQL password.
+assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:pa%40ss@db.internal/app" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://8.8.8.8/keys" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_ISSUER: "https://8.8.8.8/tenant" }), { ready: true });
@@ -42,6 +44,10 @@ for (const [name, env, expected] of [
   ["database URL fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#fragment" }, "DATABASE_URL must not include a fragment"],
   ["database URL missing username", { ...base, DATABASE_URL: "postgresql://:secret@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL missing password", { ...base, DATABASE_URL: "postgresql://app@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
+  ["database URL encoded blank username", { ...base, DATABASE_URL: "postgresql://%20:fixture@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
+  ["database URL encoded blank password", { ...base, DATABASE_URL: "postgresql://app:%20@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
+  ["database URL malformed password escape", { ...base, DATABASE_URL: "postgresql://app:%ZZ@db.internal/app" }, "DATABASE_URL credentials must use valid percent-encoding"],
+  ["database URL encoded password newline", { ...base, DATABASE_URL: "postgresql://app:%0A@db.internal/app" }, "DATABASE_URL credentials must not contain control characters"],
   ["database URL whitespace", { ...base, DATABASE_URL: " postgresql://db.internal/app" }, "DATABASE_URL must not contain surrounding whitespace"],
   ["database URL embedded tab", { ...base, DATABASE_URL: "postgresql://db.internal/\tapp" }, "DATABASE_URL must not contain control characters"],
   ["database URL embedded newline", { ...base, DATABASE_URL: "postgresql://db.internal/\napp" }, "DATABASE_URL must not contain control characters"],

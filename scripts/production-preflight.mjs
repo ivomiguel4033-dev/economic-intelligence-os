@@ -82,8 +82,21 @@ function validateDatabaseUrl(value) {
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
   // Railway production migrations must authenticate explicitly; implicit local
   // PostgreSQL credentials can silently target the wrong database identity.
-  if (!url.username || !url.password) {
+  // URL.username/password remain percent-encoded. Decode once to reject
+  // whitespace-only credentials and malformed escapes before pg parses them.
+  let username;
+  let password;
+  try {
+    username = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+  } catch {
+    fail("DATABASE_URL credentials must use valid percent-encoding");
+  }
+  if (!username.trim() || !password.trim()) {
     fail("DATABASE_URL must include explicit username and password");
+  }
+  if (/[\u0000-\u001f\u007f]/.test(username) || /[\u0000-\u001f\u007f]/.test(password)) {
+    fail("DATABASE_URL credentials must not contain control characters");
   }
 }
 
