@@ -109,6 +109,9 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, [check]: false }), /Missing or failed release gate/);
   }
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
+  for (const invalidUrl of [ciRunPrefix + "123?attempt=2", ciRunPrefix + "123#logs", ciRunPrefix + "123/", ciRunPrefix + "123%2F"]) {
+    assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
+  }
   for (const invalidUrl of [ciRunPrefix + "0", ciRunPrefix + "000", ciRunPrefix + "0123"]) {
     assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
   }
