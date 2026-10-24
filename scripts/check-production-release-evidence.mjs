@@ -49,7 +49,8 @@ function verify(record) {
     if (!validDeploymentId(record.rollbackDeploymentId)) {
       throw new Error("Upgrades require a recorded rollback deployment ID");
     }
-    if (record.rollbackDeploymentId === record.railwayDeploymentId) {
+    // Railway deployment identifiers may be UUIDs; letter case cannot make a deployment a valid rollback target.
+    if (record.rollbackDeploymentId.toLowerCase() === record.railwayDeploymentId.toLowerCase()) {
       throw new Error("Rollback deployment must differ from the current Railway deployment");
     }
     // An opaque ID alone does not establish that the target can be restored.
@@ -131,6 +132,7 @@ if (process.argv[2] === "--self-test") {
   }
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: true }), true);
   assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "deployment-example" }), /Rollback deployment must differ/);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "DEPLOYMENT-EXAMPLE", rollbackVerified: true }), /Rollback deployment must differ/);
   console.log("Release evidence validation self-test passed");
 } else {
   if (process.argv.length !== 3) {
