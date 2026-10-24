@@ -9,6 +9,8 @@ const script = fileURLToPath(new URL("./production-smoke.mjs", import.meta.url))
 const requestCacheHeaders = new Map();
 let healthStatus = 200;
 let readyStatus = 200;
+let healthContentRange = null;
+let readyContentRange = null;
 let healthRedirect = false;
 let readyRedirect = false;
 let healthBodyStatus = "ok";
@@ -65,6 +67,8 @@ const server = createServer((request, response) => {
     "content-type": health ? contentType : readyContentType,
     "cache-control": health ? cacheControl : readyCacheControl,
   };
+  const contentRange = health ? healthContentRange : readyContentRange;
+  if (contentRange !== null) headers["content-range"] = contentRange;
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   const expires = health ? healthExpires : readyExpires;
@@ -118,6 +122,13 @@ try {
       pragma: "no-cache",
     }, `${path} must request an uncached response from intermediaries`);
   }
+  healthContentRange = "bytes 0-10/100";
+  assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
+  healthContentRange = null;
+  readyContentRange = "bytes 0-10/100";
+  assert.equal(await run(), false, "HTTP 200 partial readiness must block promotion");
+  readyContentRange = null;
+  assert.equal(await run(), true, "Full health and readiness responses must still pass");
   invalidHealthJson = true;
   assert.equal(await run(), false, "Malformed liveness JSON must block promotion");
   invalidHealthJson = false;

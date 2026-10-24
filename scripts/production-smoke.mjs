@@ -33,6 +33,10 @@ try {
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) throw new Error(`${path} returned HTTP ${response.status}`);
+    // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
+    if (response.headers.has("content-range")) {
+      throw new Error(`${path} returned an unexpected partial response (content-range)`);
+    }
     const contentType = response.headers.get("content-type") ?? "";
     const [rawMediaType, ...parameters] = contentType.split(";");
     if (rawMediaType.trim().toLowerCase() !== "application/json") {
