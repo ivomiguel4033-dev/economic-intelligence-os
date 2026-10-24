@@ -80,6 +80,17 @@ function validateDatabaseUrl(value) {
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
+  // Query parameters must not redefine the destination or authentication identity.
+  // Keep transport options such as sslmode=require available for Railway.
+  const forbiddenConnectionKeys = new Set([
+    "host", "hostaddr", "port", "user", "username", "password",
+    "database", "dbname", "service", "passfile",
+  ]);
+  for (const key of url.searchParams.keys()) {
+    if (forbiddenConnectionKeys.has(key.toLowerCase())) {
+      fail("DATABASE_URL query parameters must not override connection identity");
+    }
+  }
   // The URL parser leaves percent-encoding in the pathname. Reject database
   // names that decode to whitespace, control bytes or invalid UTF-8 before
   // migrations can connect to an unintended database.
