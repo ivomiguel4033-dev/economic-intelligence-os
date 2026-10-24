@@ -11,6 +11,8 @@ let healthStatus = 200;
 let readyStatus = 200;
 let healthContentRange = null;
 let readyContentRange = null;
+let healthSetCookie = null;
+let readySetCookie = null;
 let healthRedirect = false;
 let readyRedirect = false;
 let healthBodyStatus = "ok";
@@ -71,6 +73,8 @@ const server = createServer((request, response) => {
   };
   const contentRange = health ? healthContentRange : readyContentRange;
   if (contentRange !== null) headers["content-range"] = contentRange;
+  const setCookie = health ? healthSetCookie : readySetCookie;
+  if (setCookie !== null) headers["set-cookie"] = setCookie;
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   const date = health ? healthDate : readyDate;
@@ -126,6 +130,13 @@ try {
       pragma: "no-cache",
     }, `${path} must request an uncached response from intermediaries`);
   }
+  healthSetCookie = "session=unexpected; Path=/; HttpOnly";
+  assert.equal(await run(), false, "Liveness setting a cookie must block promotion");
+  healthSetCookie = null;
+  readySetCookie = "session=unexpected; Path=/; HttpOnly";
+  assert.equal(await run(), false, "Readiness setting a cookie must block promotion");
+  readySetCookie = null;
+  assert.equal(await run(), true, "Stateless liveness and readiness must pass");
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;

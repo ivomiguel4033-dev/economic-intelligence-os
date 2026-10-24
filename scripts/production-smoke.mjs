@@ -33,6 +33,11 @@ try {
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) throw new Error(`${path} returned HTTP ${response.status}`);
+    // Health probes must be stateless: a session cookie signals unintended auth middleware
+    // or a proxy response that should never be used to approve a deployment.
+    if (response.headers.has("set-cookie")) {
+      throw new Error(`${path} unexpectedly set a cookie`);
+    }
     // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
