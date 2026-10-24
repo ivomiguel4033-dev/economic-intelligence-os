@@ -80,6 +80,19 @@ function validateDatabaseUrl(value) {
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
+  // The URL parser leaves percent-encoding in the pathname. Reject database
+  // names that decode to whitespace, control bytes or invalid UTF-8 before
+  // migrations can connect to an unintended database.
+  let databaseName;
+  try {
+    databaseName = decodeURIComponent(url.pathname.slice(1));
+  } catch {
+    fail("DATABASE_URL database name must use valid percent-encoding");
+  }
+  if (/[\u0000-\u001f\u007f]/.test(databaseName)) {
+    fail("DATABASE_URL database name must not contain control characters");
+  }
+  if (!databaseName.trim()) fail("DATABASE_URL must include a nonblank database name");
   // Railway production migrations must authenticate explicitly; implicit local
   // PostgreSQL credentials can silently target the wrong database identity.
   // URL.username/password remain percent-encoded. Decode once to reject
