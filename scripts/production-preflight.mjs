@@ -14,6 +14,8 @@ function validateHttpsUrl(value, label) {
     fail(`${label} must be a valid URL`);
   }
   if (url.protocol !== "https:") fail(`${label} must use HTTPS`);
+  // Port zero is reserved and cannot identify a reachable production endpoint.
+  if (url.port === "0") fail(`${label} must not use port 0`);
   if (url.username || url.password) fail(`${label} must not contain credentials`);
   // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
   if (value.includes("#")) fail(`${label} must not include a fragment`);
@@ -78,6 +80,8 @@ function validateDatabaseUrl(value) {
     fail("DATABASE_URL must use postgres:// or postgresql://");
   }
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
+  // Reject unusable database endpoints before attempting production migrations.
+  if (url.port === "0") fail("DATABASE_URL must not use port 0");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
   // Query parameters must not redefine the destination or authentication identity.
