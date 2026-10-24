@@ -47,6 +47,17 @@ const weakMetricsToken = validateProductionSecurityBaseline({ ...validEnv, METRI
 assert.equal(weakMetricsToken.ready, false);
 assert.ok(weakMetricsToken.failures.includes("METRICS_TOKEN must be at least 32 characters"));
 
+for (const [key, value, expected] of [
+  ["SECURITY_EVENT_HASH_PEPPER", validEnv.SECURITY_EVENT_HASH_PEPPER + "\n", "SECURITY_EVENT_HASH_PEPPER must not contain control characters"],
+  ["SECURITY_EVENT_HASH_PEPPER", " " + validEnv.SECURITY_EVENT_HASH_PEPPER, "SECURITY_EVENT_HASH_PEPPER must not contain surrounding whitespace"],
+  ["METRICS_TOKEN", validEnv.METRICS_TOKEN + "\u007f", "METRICS_TOKEN must not contain control characters"],
+  ["METRICS_TOKEN", validEnv.METRICS_TOKEN + " ", "METRICS_TOKEN must not contain surrounding whitespace"],
+]) {
+  const result = validateProductionSecurityBaseline({ ...validEnv, [key]: value });
+  assert.equal(result.ready, false, `${key} must reject malformed secret values`);
+  assert.ok(result.failures.includes(expected), `${key} should fail with: ${expected}`);
+}
+
 const reusedSecuritySecrets = validateProductionSecurityBaseline({
   ...validEnv,
   METRICS_TOKEN: validEnv.SECURITY_EVENT_HASH_PEPPER,

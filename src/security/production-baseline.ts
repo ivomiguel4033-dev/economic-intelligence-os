@@ -45,6 +45,15 @@ export function validateProductionSecurityBaseline(env: NodeJS.ProcessEnv = proc
   }
   if (env.OIDC_JWKS_URL) validateHttpsUrl(env.OIDC_JWKS_URL, "OIDC_JWKS_URL", failures);
   if (env.NODE_ENV === "production" && env.ALLOW_INSECURE_AUTH === "true") failures.push("Insecure authentication override is forbidden in production");
+  // Keep runtime readiness aligned with preflight: pasted newlines and
+  // surrounding whitespace must not silently become part of long-lived secrets.
+  for (const key of ["SECURITY_EVENT_HASH_PEPPER", "METRICS_TOKEN"] as const) {
+    const value = env[key];
+    if (!value) continue;
+    if (/[\u0000-\u001f\u007f]/.test(value)) failures.push(`${key} must not contain control characters`);
+    if (value !== value.trim()) failures.push(`${key} must not contain surrounding whitespace`);
+  }
+
   if (env.SECURITY_EVENT_HASH_PEPPER && env.SECURITY_EVENT_HASH_PEPPER.length < 32) failures.push("SECURITY_EVENT_HASH_PEPPER must be at least 32 characters");
   if (env.METRICS_TOKEN && env.METRICS_TOKEN.length < 32) failures.push("METRICS_TOKEN must be at least 32 characters");
   // Keep runtime readiness aligned with pre-deploy checks: these secrets protect
