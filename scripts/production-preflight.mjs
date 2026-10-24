@@ -92,11 +92,13 @@ function validateDatabaseUrl(value) {
   } catch {
     fail("DATABASE_URL credentials must use valid percent-encoding");
   }
-  if (!username.trim() || !password.trim()) {
-    fail("DATABASE_URL must include explicit username and password");
-  }
+  // Report encoded control characters before checking blank credentials:
+  // a decoded newline is both whitespace and a forbidden control byte.
   if (/[\u0000-\u001f\u007f]/.test(username) || /[\u0000-\u001f\u007f]/.test(password)) {
     fail("DATABASE_URL credentials must not contain control characters");
+  }
+  if (!username.trim() || !password.trim()) {
+    fail("DATABASE_URL must include explicit username and password");
   }
 }
 
