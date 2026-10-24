@@ -80,6 +80,11 @@ function validateDatabaseUrl(value) {
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
+  // Railway production migrations must authenticate explicitly; implicit local
+  // PostgreSQL credentials can silently target the wrong database identity.
+  if (!url.username || !url.password) {
+    fail("DATABASE_URL must include explicit username and password");
+  }
 }
 
 function validateSecurityBaseline(env) {

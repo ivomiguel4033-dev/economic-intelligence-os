@@ -40,6 +40,8 @@ for (const [name, env, expected] of [
   ["database URL missing host", { ...base, DATABASE_URL: "postgresql:///app" }, "DATABASE_URL must include a hostname"],
   ["database URL missing database", { ...base, DATABASE_URL: "postgresql://db.internal" }, "DATABASE_URL must include a database name"],
   ["database URL fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#fragment" }, "DATABASE_URL must not include a fragment"],
+  ["database URL missing username", { ...base, DATABASE_URL: "postgresql://:secret@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
+  ["database URL missing password", { ...base, DATABASE_URL: "postgresql://app@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL whitespace", { ...base, DATABASE_URL: " postgresql://db.internal/app" }, "DATABASE_URL must not contain surrounding whitespace"],
   ["database URL embedded tab", { ...base, DATABASE_URL: "postgresql://db.internal/\tapp" }, "DATABASE_URL must not contain control characters"],
   ["database URL embedded newline", { ...base, DATABASE_URL: "postgresql://db.internal/\napp" }, "DATABASE_URL must not contain control characters"],
