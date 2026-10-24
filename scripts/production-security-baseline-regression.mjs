@@ -12,6 +12,10 @@ const validEnv = {
 };
 
 assert.deepEqual(validateProductionSecurityBaseline(validEnv), { ready: true, failures: [] });
+// A JWKS query may be intentional; only issuer identifiers prohibit queries.
+assert.deepEqual(validateProductionSecurityBaseline({
+  ...validEnv, OIDC_JWKS_URL: "https://identity.example.com/jwks.json?version=1",
+}), { ready: true, failures: [] });
 
 for (const [key, value, expected] of [
   ["OIDC_ISSUER", "http://identity.example.com/tenant", "OIDC_ISSUER must use HTTPS"],
@@ -19,6 +23,12 @@ for (const [key, value, expected] of [
   ["OIDC_ISSUER", "not-a-url", "OIDC_ISSUER must be a valid URL"],
   ["OIDC_JWKS_URL", "https://user:password@identity.example.com/jwks.json", "OIDC_JWKS_URL must not include credentials"],
   ["OIDC_ISSUER", "https://identity.example.com/tenant#fragment", "OIDC_ISSUER must not include a fragment"],
+  ["OIDC_ISSUER", "https://identity.example.com/tenant#", "OIDC_ISSUER must not include a fragment"],
+  ["OIDC_JWKS_URL", "https://identity.example.com/jwks.json#", "OIDC_JWKS_URL must not include a fragment"],
+  ["OIDC_ISSUER", "https://identity.example.com/tenant?", "OIDC_ISSUER must not include query parameters"],
+  ["OIDC_ISSUER", "https://identity.example.com/tenant?debug=true", "OIDC_ISSUER must not include query parameters"],
+  ["OIDC_ISSUER", "https://identity.example.com\\@attacker.example/tenant", "OIDC_ISSUER must not contain backslashes"],
+  ["OIDC_JWKS_URL", "https://identity.example.com\\@attacker.example/jwks.json", "OIDC_JWKS_URL must not contain backslashes"],
 ]) {
   const result = validateProductionSecurityBaseline({ ...validEnv, [key]: value });
   assert.equal(result.ready, false);
