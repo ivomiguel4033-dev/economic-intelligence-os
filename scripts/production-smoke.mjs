@@ -38,6 +38,13 @@ try {
     if (response.headers.has("set-cookie")) {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
+    // A 200 response carrying an authentication challenge or retry instruction is
+    // not unambiguous evidence that this deployment can serve production traffic.
+    for (const header of ["www-authenticate", "retry-after"]) {
+      if (response.headers.has(header)) {
+        throw new Error(`${path} unexpectedly returned ${header}`);
+      }
+    }
     // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
