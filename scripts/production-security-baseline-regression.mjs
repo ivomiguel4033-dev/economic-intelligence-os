@@ -37,6 +37,13 @@ const weakMetricsToken = validateProductionSecurityBaseline({ ...validEnv, METRI
 assert.equal(weakMetricsToken.ready, false);
 assert.ok(weakMetricsToken.failures.includes("METRICS_TOKEN must be at least 32 characters"));
 
+const reusedSecuritySecrets = validateProductionSecurityBaseline({
+  ...validEnv,
+  METRICS_TOKEN: validEnv.SECURITY_EVENT_HASH_PEPPER,
+});
+assert.equal(reusedSecuritySecrets.ready, false, "Runtime readiness must reject reused audit and metrics credentials");
+assert.ok(reusedSecuritySecrets.failures.includes("SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct"));
+
 const missingMetricsToken = { ...validEnv };
 delete missingMetricsToken.METRICS_TOKEN;
 const missingMetrics = validateProductionSecurityBaseline(missingMetricsToken);
