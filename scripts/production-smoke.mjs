@@ -81,6 +81,17 @@ try {
     if (age !== null && age.trim() !== "0") {
       throw new Error(`${path} returned a cached or invalid Age header`);
     }
+    // A stale or future HTTP Date can expose cached probes even when Age is zero.
+    // Allow five minutes of clock skew but reject malformed or noncanonical dates.
+    const responseDate = response.headers.get("date");
+    if (responseDate !== null) {
+      const issuedAt = Date.parse(responseDate);
+      if (!Number.isFinite(issuedAt) ||
+          new Date(issuedAt).toUTCString() !== responseDate.trim() ||
+          Math.abs(Date.now() - issuedAt) > 5 * 60 * 1000) {
+        throw new Error(`${path} returned a stale or invalid Date header`);
+      }
+    }
     // Expires can advertise cache freshness to an intermediary that ignores no-store.
     // Permit only expired dates or conventional explicit zero/negative sentinels.
     const expires = response.headers.get("expires");
