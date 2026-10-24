@@ -148,6 +148,10 @@ try {
   assert.equal(await run(), false, "Future liveness Expires must block promotion");
   healthExpires = "not-a-date";
   assert.equal(await run(), false, "Malformed liveness Expires must block promotion");
+  healthExpires = "1";
+  assert.equal(await run(), false, "Numeric liveness Expires must not parse as an old date");
+  healthExpires = "Wed, 21 Oct 2015 07:28:00 UTC";
+  assert.equal(await run(), false, "Noncanonical liveness Expires timezone must block promotion");
   healthExpires = null;
   readyExpires = "0";
   assert.equal(await run(), true, "Explicit zero readiness Expires must pass");
@@ -155,6 +159,10 @@ try {
   assert.equal(await run(), true, "Conventional expired readiness Expires sentinel must pass");
   readyExpires = "Wed, 21 Oct 2099 07:28:00 GMT";
   assert.equal(await run(), false, "Future readiness Expires must block promotion");
+  readyExpires = "1";
+  assert.equal(await run(), false, "Numeric readiness Expires must block promotion");
+  readyExpires = "Tue, 21 Oct 2015 07:28:00 GMT";
+  assert.equal(await run(), false, "Mismatched weekday in readiness Expires must block promotion");
   readyExpires = null;
   healthWarning = '110 - "Response is stale"';
   assert.equal(await run(), false, "Legacy stale liveness Warning must block promotion");

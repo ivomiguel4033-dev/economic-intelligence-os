@@ -82,7 +82,9 @@ try {
     const expires = response.headers.get("expires");
     if (expires !== null && !["0", "-1"].includes(expires.trim())) {
       const expiry = Date.parse(expires);
-      if (!Number.isFinite(expiry) || expiry > Date.now()) {
+      // Date.parse accepts non-HTTP dates such as "1" and mismatched weekdays.
+      // Require the canonical IMF-fixdate representation for promotion evidence.
+      if (!Number.isFinite(expiry) || new Date(expiry).toUTCString() !== expires.trim() || expiry > Date.now()) {
         throw new Error(`${path} returned a future or invalid Expires header`);
       }
     }
