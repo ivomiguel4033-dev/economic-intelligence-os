@@ -18,6 +18,8 @@ let readyRedirect = false;
 let healthBodyStatus = "ok";
 let applicationStatus = "ok";
 let readyBodyStatus = "ready";
+let healthTimestamp = null;
+let readyTimestamp = null;
 let cacheControl = "no-store";
 let readyCacheControl = "no-store";
 let healthAge = null;
@@ -99,8 +101,10 @@ const server = createServer((request, response) => {
   if (surrogatePolicy !== null) headers["surrogate-control"] = surrogatePolicy;
   response.writeHead(health ? healthStatus : readyStatus, headers);
   const body = JSON.stringify(health
-    ? { status: healthBodyStatus, service, checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
-    : { status: readyBodyStatus, service, dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) });
+    ? { status: healthBodyStatus, service, timestamp: healthTimestamp ?? new Date().toISOString(),
+        checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
+    : { status: readyBodyStatus, service, timestamp: readyTimestamp ?? new Date().toISOString(),
+        dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) });
   if (health ? invalidHealthJson : invalidReadyJson) {
     response.end('{"status":');
   } else if (health ? invalidHealthUtf8 : invalidReadyUtf8) {
@@ -130,6 +134,22 @@ try {
       pragma: "no-cache",
     }, `${path} must request an uncached response from intermediaries`);
   }
+  // Replayed JSON must fail even if a proxy replaces the HTTP Date with a fresh one.
+  healthTimestamp = new Date(Date.now() - 6 * 60_000).toISOString();
+  assert.equal(await run(), false, "Stale liveness body timestamp must block promotion");
+  healthTimestamp = new Date(Date.now() + 6 * 60_000).toISOString();
+  assert.equal(await run(), false, "Future liveness body timestamp must block promotion");
+  healthTimestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  assert.equal(await run(), false, "Noncanonical liveness body timestamp must block promotion");
+  healthTimestamp = null;
+  readyTimestamp = new Date(Date.now() - 6 * 60_000).toISOString();
+  assert.equal(await run(), false, "Stale readiness body timestamp must block promotion");
+  readyTimestamp = "not-a-date";
+  assert.equal(await run(), false, "Invalid readiness body timestamp must block promotion");
+  readyTimestamp = "";
+  assert.equal(await run(), false, "Empty readiness body timestamp must block promotion");
+  readyTimestamp = null;
+  assert.equal(await run(), true, "Fresh canonical body timestamps must pass");
   healthSetCookie = "session=unexpected; Path=/; HttpOnly";
   assert.equal(await run(), false, "Liveness setting a cookie must block promotion");
   healthSetCookie = null;

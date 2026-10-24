@@ -22,8 +22,10 @@ const server = createServer((request, response) => {
   }
   const health = path === "/api/health";
   const body = health
-    ? { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, padding: "" }
-    : { service: "economic-intelligence-os", status: "ready", dependencies: { database: { status: "ok", latencyMs: 1 } }, padding: "" };
+    ? { service: "economic-intelligence-os", status: "ok", timestamp: new Date().toISOString(),
+        checks: { application: "ok" }, padding: "" }
+    : { service: "economic-intelligence-os", status: "ready", timestamp: new Date().toISOString(),
+        dependencies: { database: { status: "ok", latencyMs: 1 } }, padding: "" };
   const baseBytes = Buffer.byteLength(JSON.stringify(body));
   const paddingBytes = Math.max(0, targets[path] - baseBytes);
   body.padding = multibytePadding

@@ -154,6 +154,17 @@ try {
     }
     // Malformed UTF-8 must not be silently replaced in deployment health evidence.
     const body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+    // A proxy can refresh its HTTP Date while replaying an old JSON payload.
+    // Require a fresh, canonical server-generated timestamp on both probes.
+    const timestamp = body?.timestamp;
+    const generatedAt = typeof timestamp === "string" ? Date.parse(timestamp) : NaN;
+    if (typeof timestamp !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
+        !Number.isFinite(generatedAt) ||
+        new Date(generatedAt).toISOString() !== timestamp ||
+        Math.abs(Date.now() - generatedAt) > 5 * 60 * 1000) {
+      throw new Error(`${path} returned a stale or invalid body timestamp`);
+    }
     if (body.service !== "economic-intelligence-os" || body.status !== status) {
       throw new Error(`${path} returned an unexpected service or status`);
     }
