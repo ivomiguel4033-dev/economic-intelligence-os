@@ -409,6 +409,12 @@ try {
   assert.equal(await run(), true, "JSON media type with charset and mixed case must pass");
   contentType = 'application/json; charset="UTF-8"';
   assert.equal(await run(), true, "Quoted UTF-8 charset must pass");
+  contentType = "application/json; boundary=unexpected";
+  assert.equal(await run(), false, "Unexpected liveness media-type parameter must block promotion");
+  contentType = "application/json; charset=utf-8; profile=unexpected";
+  assert.equal(await run(), false, "Extra liveness media-type parameter must block promotion");
+  contentType = "application/json;";
+  assert.equal(await run(), false, "Empty liveness media-type parameter must block promotion");
   contentType = "application/json; charset=iso-8859-1";
   assert.equal(await run(), false, "Non-UTF-8 liveness charset must block promotion");
   contentType = "application/json; charset=utf-8; charset=latin1";
@@ -416,6 +422,12 @@ try {
   contentType = "application/json; charset";
   assert.equal(await run(), false, "Malformed liveness charset must block promotion");
   contentType = "application/json";
+  readyContentType = "application/json; profile=unexpected";
+  assert.equal(await run(), false, "Unexpected readiness media-type parameter must block promotion");
+  readyContentType = "application/json; charset=utf-8; boundary=unexpected";
+  assert.equal(await run(), false, "Extra readiness media-type parameter must block promotion");
+  readyContentType = 'application/json; charset="UTF-8"';
+  assert.equal(await run(), true, "Quoted UTF-8 readiness charset must remain valid");
   readyContentType = "application/json; charset=latin1";
   assert.equal(await run(), false, "Non-UTF-8 readiness charset must block promotion");
   readyContentType = "application/json; charset=utf-8; charset=utf-8";
