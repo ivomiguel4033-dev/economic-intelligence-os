@@ -531,6 +531,14 @@ try {
   assert.equal(await run(), false, "Boolean database latency must block promotion");
   latencyMs = { value: 1 };
   assert.equal(await run(), false, "Object database latency must block promotion");
+  latencyMs = 1.5;
+  assert.equal(await run(), false, "Fractional database latency cannot be emitted by the readiness route");
+  latencyMs = Number.MAX_SAFE_INTEGER + 1;
+  assert.equal(await run(), false, "Unsafe database latency must block promotion");
+  latencyMs = 5_001;
+  assert.equal(await run(), false, "Database latency above the five-second smoke deadline must block promotion");
+  latencyMs = 5_000;
+  assert.equal(await run(), true, "Database latency at the five-second boundary remains valid");
   latencyMs = 0;
   assert.equal(await run(), true, "Zero database latency is valid");
   healthPadding = 60_000;

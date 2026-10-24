@@ -176,9 +176,13 @@ try {
     if (body.service !== "economic-intelligence-os" || body.status !== status) {
       throw new Error(`${path} returned an unexpected service or status`);
     }
+    // The API measures database latency with Date.now() and the smoke request
+    // has a five-second deadline. Fractional, unsafe or >5s values cannot
+    // represent a healthy, fresh readiness probe and must not promote a release.
+    const databaseLatencyMs = body.dependencies?.database?.latencyMs;
     if (dependency && (body.dependencies?.database?.status !== "ok" ||
-        !Number.isFinite(body.dependencies.database.latencyMs) ||
-        body.dependencies.database.latencyMs < 0)) {
+        !Number.isSafeInteger(databaseLatencyMs) ||
+        databaseLatencyMs < 0 || databaseLatencyMs > 5_000)) {
       throw new Error("/api/ready did not confirm database readiness");
     }
     if (!dependency && body.checks?.application !== "ok") {
