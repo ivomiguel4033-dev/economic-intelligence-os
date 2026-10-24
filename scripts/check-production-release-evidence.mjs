@@ -27,8 +27,11 @@ function verify(record) {
     // All-zero SHA is the Git null object ID, not a deployable release commit.
     throw new Error("A nonzero full 40-character release commit SHA is required");
   }
-  if (typeof record.ciRunUrl !== "string" ||
-      !new RegExp("^" + ciRunPrefix.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&") + "[1-9][0-9]*$").test(record.ciRunUrl)) {
+  // A syntactically valid but out-of-range run ID cannot be represented safely
+  // by JavaScript and must not be accepted as verifiable CI evidence.
+  const runId = typeof record.ciRunUrl === "string" && record.ciRunUrl.startsWith(ciRunPrefix)
+    ? record.ciRunUrl.slice(ciRunPrefix.length) : "";
+  if (!/^[1-9][0-9]*$/.test(runId) || !Number.isSafeInteger(Number(runId))) {
     throw new Error("CI evidence must link to a run in this repository");
   }
   for (const check of requiredChecks) {
@@ -110,6 +113,9 @@ if (process.argv[2] === "--self-test") {
   }
   assert.throws(() => verify({ ...valid, ciRunUrl: "https://example.org/actions/runs/123" }), /CI evidence/);
   for (const invalidUrl of [ciRunPrefix + "123?attempt=2", ciRunPrefix + "123#logs", ciRunPrefix + "123/", ciRunPrefix + "123%2F"]) {
+    assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
+  }
+  for (const invalidUrl of [ciRunPrefix + "9007199254740992", ciRunPrefix + "9".repeat(100)]) {
     assert.throws(() => verify({ ...valid, ciRunUrl: invalidUrl }), /CI evidence/);
   }
   for (const invalidUrl of [ciRunPrefix + "0", ciRunPrefix + "000", ciRunPrefix + "0123"]) {
