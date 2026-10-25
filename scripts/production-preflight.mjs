@@ -108,6 +108,11 @@ function validateDatabaseUrl(value) {
     fail("DATABASE_URL database name must not contain control characters");
   }
   if (!databaseName.trim()) fail("DATABASE_URL must include a nonblank database name");
+  // A name with leading/trailing decoded whitespace can silently select a different database.
+  // Preserve valid interior spaces, but reject accidental padding in Railway configuration.
+  if (databaseName !== databaseName.trim()) {
+    fail("DATABASE_URL database name must not contain surrounding whitespace");
+  }
   // Railway production migrations must authenticate explicitly; implicit local
   // PostgreSQL credentials can silently target the wrong database identity.
   // URL.username/password remain percent-encoded. Decode once to reject
