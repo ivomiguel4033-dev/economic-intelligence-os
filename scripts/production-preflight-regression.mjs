@@ -15,6 +15,9 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// A repeated substring does not invalidate a secret unless the entire value
+// consists of repetitions of a short motif.
+assert.deepEqual(validateProductionPreflight({ ...base, METRICS_TOKEN: "ab".repeat(15) + "CD" }), { ready: true });
 // An @ in the URL path is not an authority credential marker.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/@model" }), { ready: true });
 // Percent-encoded punctuation is valid in a PostgreSQL password.
@@ -48,6 +51,10 @@ for (const [name, env, expected] of [
   ["uniform audit pepper", { ...base, SECURITY_EVENT_HASH_PEPPER: "x".repeat(32) }, "SECURITY_EVENT_HASH_PEPPER must not consist of a single repeated character"],
   ["uniform metrics token", { ...base, METRICS_TOKEN: "y".repeat(32) }, "METRICS_TOKEN must not consist of a single repeated character"],
   ["uniform unicode metrics token", { ...base, METRICS_TOKEN: "é".repeat(32) }, "METRICS_TOKEN must not consist of a single repeated character"],
+  ["repeated audit pepper motif", { ...base, SECURITY_EVENT_HASH_PEPPER: "Ab3!".repeat(8) }, "SECURITY_EVENT_HASH_PEPPER must not consist of a repeated short pattern"],
+  ["repeated metrics token motif", { ...base, METRICS_TOKEN: "k9".repeat(16) }, "METRICS_TOKEN must not consist of a repeated short pattern"],
+  ["repeated unicode metrics token motif", { ...base, METRICS_TOKEN: "éZ".repeat(16) }, "METRICS_TOKEN must not consist of a repeated short pattern"],
+  ["repeated eight-character pepper motif", { ...base, SECURITY_EVENT_HASH_PEPPER: "abc123XY".repeat(4) }, "SECURITY_EVENT_HASH_PEPPER must not consist of a repeated short pattern"],
   ["reused security secrets", { ...base, METRICS_TOKEN: base.SECURITY_EVENT_HASH_PEPPER }, "SECURITY_EVENT_HASH_PEPPER and METRICS_TOKEN must be distinct"],
   ["primary key reused as metrics token", { ...base, AI_PRIMARY_API_KEY: base.METRICS_TOKEN }, "AI_PRIMARY_API_KEY must be distinct from audit and metrics secrets"],
   ["primary key reused as audit pepper", { ...base, AI_PRIMARY_API_KEY: base.SECURITY_EVENT_HASH_PEPPER }, "AI_PRIMARY_API_KEY must be distinct from audit and metrics secrets"],

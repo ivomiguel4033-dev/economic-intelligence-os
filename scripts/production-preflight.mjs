@@ -218,6 +218,11 @@ function validateSecurityBaseline(env) {
     if (/^(.)\1+$/u.test(env[key])) {
       fail(`${key} must not consist of a single repeated character`);
     }
+    // A short repeating motif (e.g. abcdabcd...) is still a predictable
+    // fixture, despite passing minimum length and uniform-character checks.
+    if (/^(.{2,8})\1+$/u.test(env[key])) {
+      fail(`${key} must not consist of a repeated short pattern`);
+    }
   }
   // These protect separate trust boundaries; reusing a token as the audit
   // hash pepper lets a leaked metrics credential compromise audit pseudonyms.
