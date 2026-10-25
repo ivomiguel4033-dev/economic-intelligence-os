@@ -87,16 +87,15 @@ function verify(record) {
 }
 
 
-// A duplicate top-level key makes an audit record ambiguous: JSON.parse uses
-// the last value while another reviewer may rely on the first occurrence.
-// Compare decoded names so escaped JSON keys cannot disguise duplicates.
-function rejectDuplicateTopLevelKeys(text) {
-  const seen = new Set();
-  let depth = 0;
+// Duplicate JSON object keys make audit evidence ambiguous: JSON.parse keeps
+// the last value, while another reviewer may rely on an earlier occurrence.
+// Check every object (including metadata nested inside arrays), and compare
+// decoded key names so Unicode escapes cannot disguise duplicates.
+function rejectDuplicateObjectKeys(text) {
+  const stack = [];
   let inString = false;
   let escaped = false;
   let keyStart = -1;
-  let expectingKey = false;
   for (let index = 0; index < text.length; index++) {
     const character = text[index];
     if (inString) {
@@ -108,24 +107,31 @@ function rejectDuplicateTopLevelKeys(text) {
         inString = false;
         if (keyStart !== -1) {
           const key = JSON.parse(text.slice(keyStart, index + 1));
-          if (seen.has(key)) throw new Error("Duplicate top-level release evidence field: " + key);
-          seen.add(key);
+          const object = stack[stack.length - 1];
+          if (object.seen.has(key)) {
+            const scope = stack.length === 1 ? "top-level" : "nested";
+            throw new Error("Duplicate " + scope + " release evidence field: " + key);
+          }
+          object.seen.add(key);
+          object.expectingKey = false;
           keyStart = -1;
-          expectingKey = false;
         }
       }
       continue;
     }
     if (character === '"') {
       inString = true;
-      if (depth === 1 && expectingKey) keyStart = index;
-    } else if (character === "{" || character === "[") {
-      depth++;
-      if (depth === 1) expectingKey = true;
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object" && object.expectingKey) keyStart = index;
+    } else if (character === "{") {
+      stack.push({ kind: "object", seen: new Set(), expectingKey: true });
+    } else if (character === "[") {
+      stack.push({ kind: "array" });
     } else if (character === "}" || character === "]") {
-      depth--;
-    } else if (character === "," && depth === 1) {
-      expectingKey = true;
+      stack.pop();
+    } else if (character === ",") {
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object") object.expectingKey = true;
     }
   }
 }
@@ -159,7 +165,7 @@ async function readEvidence(path) {
       throw new Error("Release evidence must be encoded as valid UTF-8");
     }
     const record = JSON.parse(text);
-    rejectDuplicateTopLevelKeys(text);
+    rejectDuplicateObjectKeys(text);
     return record;
   } finally {
     await handle.close();
@@ -176,6 +182,20 @@ if (process.argv[2] === "--self-test") {
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
   };
   assert.equal(verify(valid), true);
+  // Duplicate metadata keys are also ambiguous, even inside an array.
+  assert.throws(
+    () => rejectDuplicateObjectKeys('{"metadata":{"smokePassed":false,"smokePassed":true}}'),
+    /Duplicate nested release evidence field: smokePassed/,
+  );
+  const escapedNestedKey = '"ci' + String.fromCharCode(92) + 'u0050assed":true';
+  assert.throws(
+    () => rejectDuplicateObjectKeys('{"metadata":[{"ciPassed":false,' + escapedNestedKey + ']}'),
+    /Duplicate nested release evidence field: ciPassed/,
+  );
+  // Reusing a key in different objects is legitimate.
+  assert.doesNotThrow(
+    () => rejectDuplicateObjectKeys('{"metadata":[{"check":true},{"check":false}]}'),
+  );
   assert.throws(() => verify({ ...valid, commitSha: ["a".repeat(40)] }), /full 40-character release commit SHA/);
   assert.throws(() => verify({ ...valid, commitSha: "0".repeat(40) }), /full 40-character release commit SHA/);
   for (const check of requiredChecks) {
