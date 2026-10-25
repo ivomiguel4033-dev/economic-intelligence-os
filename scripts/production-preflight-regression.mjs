@@ -33,6 +33,12 @@ assert.deepEqual(
 );
 
 for (const [name, env, expected] of [
+  ["OIDC audience template", { ...base, OIDC_AUDIENCE: "CHANGE_ME" }, "OIDC_AUDIENCE must not be a placeholder"],
+  ["OIDC audience unknown", { ...base, OIDC_AUDIENCE: "unknown" }, "OIDC_AUDIENCE must not be a placeholder"],
+  ["primary AI key template", { ...base, AI_PRIMARY_API_KEY: "replace_me" }, "AI_PRIMARY_API_KEY must not be a placeholder"],
+  ["primary AI model template", { ...base, AI_PRIMARY_MODEL: "TODO" }, "AI_PRIMARY_MODEL must not be a placeholder"],
+  ["secondary AI key template", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "placeholder", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_API_KEY must not be a placeholder"],
+  ["tertiary AI model template", { ...base, AI_TERTIARY_BASE_URL: "https://third.example.com/v1", AI_TERTIARY_API_KEY: "backup-key", AI_TERTIARY_MODEL: "tbd" }, "AI_TERTIARY_MODEL must not be a placeholder"],
   ["audit pepper embedded newline", { ...base, SECURITY_EVENT_HASH_PEPPER: "x".repeat(32) + "\n" }, "SECURITY_EVENT_HASH_PEPPER must not contain control characters"],
   ["audit pepper leading whitespace", { ...base, SECURITY_EVENT_HASH_PEPPER: " " + "x".repeat(32) }, "SECURITY_EVENT_HASH_PEPPER must not contain surrounding whitespace"],
   ["metrics token DEL byte", { ...base, METRICS_TOKEN: "y".repeat(32) + "\u007f" }, "METRICS_TOKEN must not contain control characters"],

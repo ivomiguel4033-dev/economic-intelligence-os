@@ -2,6 +2,12 @@ function fail(message) {
   throw new Error(`Production preflight failed: ${message}`);
 }
 
+// Reject copied template values that would otherwise satisfy presence checks.
+// A configured-but-fake audience, API key or model must never pass preflight.
+function isPlaceholder(value) {
+  return /^(?:change[-_]?me|replace[-_]?me|placeholder|todo|tbd|undefined|null|none|unknown)$/i.test(value);
+}
+
 function validateHttpsUrl(value, label) {
   // WHATWG URL silently removes embedded tabs and newlines; reject raw control bytes first.
   if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${label} must not contain control characters`);
@@ -166,6 +172,10 @@ function validateSecurityBaseline(env) {
     if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${key} must not contain control characters`);
   }
 
+  if (isPlaceholder(env.OIDC_AUDIENCE)) {
+    fail("OIDC_AUDIENCE must not be a placeholder");
+  }
+
   validateDatabaseUrl(env.DATABASE_URL);
   const issuerUrl = validateHttpsUrl(env.OIDC_ISSUER, "OIDC_ISSUER");
   // Production token issuers must not point to local or non-public literal endpoints.
@@ -229,6 +239,9 @@ function validateProvider(env, prefix, required = false) {
       }
       if (values[index] !== values[index].trim()) {
         fail(`${keys[index]} must not contain surrounding whitespace`);
+      }
+      if (index > 0 && isPlaceholder(values[index])) {
+        fail(`${keys[index]} must not be a placeholder`);
       }
     }
     // Provider credentials must not double as audit or metrics credentials.
