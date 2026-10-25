@@ -94,11 +94,12 @@ function validateDatabaseUrl(value) {
   if (url.port === "0") fail("DATABASE_URL must not use port 0");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
-  // Query parameters must not redefine the destination or authentication identity.
-  // Keep transport options such as sslmode=require available for Railway.
+  // Query parameters must not redefine the connection identity or override
+  // migration search_path via PostgreSQL startup options. Preserve safe
+  // transport options such as sslmode=require for Railway.
   const forbiddenConnectionKeys = new Set([
     "host", "hostaddr", "port", "user", "username", "password",
-    "database", "dbname", "service", "passfile",
+    "database", "dbname", "service", "passfile", "options",
   ]);
   for (const key of url.searchParams.keys()) {
     if (forbiddenConnectionKeys.has(key.toLowerCase())) {

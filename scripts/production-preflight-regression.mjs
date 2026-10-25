@@ -74,6 +74,10 @@ for (const [name, env, expected] of [
   ["database query database override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?dbname=other" }, "DATABASE_URL query parameters must not override connection identity"],
   ["database query port override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?port=1234" }, "DATABASE_URL query parameters must not override connection identity"],
   ["database query service override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?service=other" }, "DATABASE_URL query parameters must not override connection identity"],
+  // PostgreSQL startup options can change search_path and redirect migrations to another schema.
+  ["database query search_path override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?options=-csearch_path%3Devil" }, "DATABASE_URL query parameters must not override connection identity"],
+  ["database query encoded options key", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?%6Fptions=-csearch_path%3Devil" }, "DATABASE_URL query parameters must not override connection identity"],
+  ["database query mixed-case options key", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?OPTIONS=-csearch_path%3Devil" }, "DATABASE_URL query parameters must not override connection identity"],
   ["database URL missing username", { ...base, DATABASE_URL: "postgresql://:secret@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL missing password", { ...base, DATABASE_URL: "postgresql://app@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL encoded blank database", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/%20" }, "DATABASE_URL must include a nonblank database name"],
