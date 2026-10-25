@@ -74,6 +74,21 @@ function isUnsafeEndpointHostname(hostname) {
     host.endsWith(".local") || isNonPublicIpv4(host) || isNonPublicIpv6(host);
 }
 
+// Railway databases may use private network addresses, but loopback,
+// unspecified and link-local hosts cannot identify the intended remote database.
+// Keep RFC1918 addresses available for Railway private networking.
+function isUnsafeDatabaseHostname(hostname) {
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
+  if (host === "localhost" || host.endsWith(".localhost") ||
+      host === "[::]" || host === "[::1]" || /^\[fe[89ab][0-9a-f]:/i.test(host)) {
+    return true;
+  }
+  const parts = host.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return false;
+  const [first, second] = parts.map(Number);
+  return first === 0 || first === 127 || (first === 169 && second === 254);
+}
+
 function validateDatabaseUrl(value) {
   // WHATWG URL removes embedded tab/newline bytes before parsing; fail closed.
   if (/[\u0000-\u001f\u007f]/.test(value)) fail("DATABASE_URL must not contain control characters");
@@ -90,6 +105,7 @@ function validateDatabaseUrl(value) {
     fail("DATABASE_URL must use postgres:// or postgresql://");
   }
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
+  if (isUnsafeDatabaseHostname(url.hostname)) fail("DATABASE_URL must not use a loopback or link-local hostname");
   // Reject unusable database endpoints before attempting production migrations.
   if (url.port === "0") fail("DATABASE_URL must not use port 0");
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");

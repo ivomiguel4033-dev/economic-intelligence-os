@@ -15,6 +15,8 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// Railway private networking is valid for PostgreSQL even though public OIDC/AI URLs are restricted.
+assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@10.20.30.40/app" }), { ready: true });
 // A repeated substring does not invalidate a secret unless the entire value
 // consists of repetitions of a short motif.
 assert.deepEqual(validateProductionPreflight({ ...base, METRICS_TOKEN: "ab".repeat(15) + "CD" }), { ready: true });
@@ -64,6 +66,13 @@ for (const [name, env, expected] of [
   ["database URL scheme", { ...base, DATABASE_URL: "https://db.internal/app" }, "DATABASE_URL must use postgres:// or postgresql://"],
   ["database URL malformed", { ...base, DATABASE_URL: "not-a-url" }, "DATABASE_URL must be a valid URL"],
   ["database URL missing host", { ...base, DATABASE_URL: "postgresql:///app" }, "DATABASE_URL must include a hostname"],
+  ["database URL localhost", { ...base, DATABASE_URL: "postgresql://app:fixture@localhost/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL localhost subdomain", { ...base, DATABASE_URL: "postgresql://app:fixture@db.localhost/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL loopback IPv4", { ...base, DATABASE_URL: "postgresql://app:fixture@127.0.0.2/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL link-local IPv4", { ...base, DATABASE_URL: "postgresql://app:fixture@169.254.169.254/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL unspecified IPv4", { ...base, DATABASE_URL: "postgresql://app:fixture@0.0.0.0/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL loopback IPv6", { ...base, DATABASE_URL: "postgresql://app:fixture@[::1]/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
+  ["database URL link-local IPv6", { ...base, DATABASE_URL: "postgresql://app:fixture@[fe80::1]/app" }, "DATABASE_URL must not use a loopback or link-local hostname"],
   ["database URL missing database", { ...base, DATABASE_URL: "postgresql://db.internal" }, "DATABASE_URL must include a database name"],
   ["database URL port zero", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal:0/app" }, "DATABASE_URL must not use port 0"],
   ["database URL fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#fragment" }, "DATABASE_URL must not include a fragment"],
