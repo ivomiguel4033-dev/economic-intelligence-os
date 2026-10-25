@@ -63,6 +63,16 @@ async function probe(expectOversize) {
     assert.match(String(error.stderr), /response exceeded 65536 bytes/);
   }
 }
+// Compression is forbidden by the smoke contract (Accept-Encoding: identity).
+// Assert that gzip is rejected regardless of its decoded size or transfer framing.
+async function probeRejectsCompression() {
+  try {
+    await exec(process.execPath, [smoke, origin], { timeout: 10_000 });
+    assert.fail("Compressed health response unexpectedly passed");
+  } catch (error) {
+    assert.match(String(error.stderr ?? ""), /returned an unexpected Content-Encoding/);
+  }
+}
 try {
   for (const path of Object.keys(targets)) {
     targets[path] = limit - 1;
@@ -84,34 +94,21 @@ try {
     await probe(true);
     targets[path] = 0;
   }
-  // Fetch transparently decompresses gzip; enforce the limit on decoded bytes,
-  // not on the much smaller compressed transfer size.
+  // Gzip must fail closed before the body can be treated as release evidence,
+  // including small, boundary-sized and oversized bodies, with or without chunking.
   gzipResponse = true;
-  multibytePadding = false;
-  for (const path of Object.keys(targets)) {
-    targets[path] = limit;
-    await probe(false);
-    targets[path] = limit + 1;
-    await probe(true);
-    targets[path] = 0;
-  }
-  // Also enforce the decoded byte cap when gzip carries multibyte UTF-8 JSON.
-  multibytePadding = true;
-  for (const path of Object.keys(targets)) {
-    for (const size of [limit - 1, limit, limit + 1]) {
-      targets[path] = size;
-      await probe(size > limit);
+  for (const multibyte of [false, true]) {
+    multibytePadding = multibyte;
+    for (const chunked of [false, true]) {
+      chunkedResponse = chunked;
+      for (const path of Object.keys(targets)) {
+        for (const size of [limit - 1, limit, limit + 1]) {
+          targets[path] = size;
+          await probeRejectsCompression();
+        }
+        targets[path] = 0;
+      }
     }
-    targets[path] = 0;
-  }
-  // Chunked gzip must obey the same decoded byte limit across transfer writes.
-  chunkedResponse = true;
-  for (const path of Object.keys(targets)) {
-    for (const size of [limit - 1, limit, limit + 1]) {
-      targets[path] = size;
-      await probe(size > limit);
-    }
-    targets[path] = 0;
   }
   // Uncompressed chunked UTF-8 must also be byte-counted across a split code point.
   gzipResponse = false;
@@ -122,7 +119,7 @@ try {
     }
     targets[path] = 0;
   }
-  console.log("Exact 64 KiB ASCII, UTF-8, gzip, gzip UTF-8, chunked gzip and split-code-point UTF-8 smoke boundaries passed");
+  console.log("Exact 64 KiB ASCII and UTF-8 smoke boundaries passed; gzip rejected for both probes across sizes and framing");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
