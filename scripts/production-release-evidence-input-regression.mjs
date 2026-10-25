@@ -71,13 +71,17 @@ try {
     postReleaseObservationPassed: true,
   };
 
-  // Evidence must not be modifiable by unrelated local users during release approval.
-  // Tightening permissions on the same otherwise-valid record must allow it again.
+  // Evidence must not be modifiable by unrelated local users or group members.
+  // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
     const writablePath = join(directory, "world-writable-evidence.json");
     writeFileSync(writablePath, JSON.stringify(validRecord));
     chmodSync(writablePath, 0o666);
-    expectRejected(writablePath, "World-writable evidence", /must not be world-writable/);
+    expectRejected(writablePath, "World-writable evidence", /must not be group- or world-writable/);
+    chmodSync(writablePath, 0o660);
+    expectRejected(writablePath, "Group-writable evidence", /must not be group- or world-writable/);
+    chmodSync(writablePath, 0o640);
+    expectAccepted(writablePath, "Group-readable evidence file");
     chmodSync(writablePath, 0o600);
     expectAccepted(writablePath, "Private evidence file");
   }
