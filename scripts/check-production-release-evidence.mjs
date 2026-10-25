@@ -146,6 +146,11 @@ async function readEvidence(path) {
   try {
     const stats = await handle.stat();
     if (!stats.isFile()) throw new Error("Release evidence must be a regular file");
+    // A world-writable record can be changed by an unrelated local process during approval.
+    // Refuse it as deployment/rollback evidence even when its JSON fields are valid.
+    if (process.platform !== "win32" && (stats.mode & 0o002) !== 0) {
+      throw new Error("Release evidence file must not be world-writable");
+    }
     if (stats.size > maxEvidenceBytes) throw new Error("Release evidence file exceeds 65536 bytes");
     const buffer = Buffer.alloc(maxEvidenceBytes + 1);
     let offset = 0;

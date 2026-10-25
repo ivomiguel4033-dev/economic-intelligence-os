@@ -2,7 +2,7 @@
 // Regression checks: invalid release evidence must never pass the CLI gate.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,6 +70,17 @@ try {
     smokePassed: true,
     postReleaseObservationPassed: true,
   };
+
+  // Evidence must not be modifiable by unrelated local users during release approval.
+  // Tightening permissions on the same otherwise-valid record must allow it again.
+  if (process.platform !== "win32") {
+    const writablePath = join(directory, "world-writable-evidence.json");
+    writeFileSync(writablePath, JSON.stringify(validRecord));
+    chmodSync(writablePath, 0o666);
+    expectRejected(writablePath, "World-writable evidence", /must not be world-writable/);
+    chmodSync(writablePath, 0o600);
+    expectAccepted(writablePath, "Private evidence file");
+  }
 
   // Duplicate release gates can be interpreted differently by operators and parsers.
   // JSON.parse would silently keep the last value and approve the record.
