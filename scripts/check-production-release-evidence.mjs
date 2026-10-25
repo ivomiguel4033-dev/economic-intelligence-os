@@ -14,7 +14,10 @@ const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-
 const validDeploymentId = (value) => typeof value === "string" &&
   /^(?=.{1,128}$)[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/.test(value) &&
   // Nil UUIDs and all-zero sentinels cannot identify real Railway deployments.
-  !/^0+(?:-0+)*$/.test(value);
+  !/^0+(?:-0+)*$/.test(value) &&
+  // Reject common template placeholders as deployment/rollback evidence.
+  // These are not Railway IDs and cannot prove a recoverable release.
+  !/^(?:null|undefined|none|unknown|placeholder|todo|tbd)$/i.test(value);
 
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
@@ -161,6 +164,11 @@ if (process.argv[2] === "--self-test") {
   for (const nilId of ["0", "000", "00000000-0000-0000-0000-000000000000"]) {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: nilId }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: nilId, rollbackVerified: true }), /rollback deployment ID/);
+  }
+  // A populated template is not proof of a real Railway deployment or rollback target.
+  for (const placeholder of ["null", "UNDEFINED", "none", "Unknown", "PLACEHOLDER", "todo", "TBD"]) {
+    assert.throws(() => verify({ ...valid, railwayDeploymentId: placeholder }), /Railway deployment ID/);
+    assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: placeholder, rollbackVerified: true }), /rollback deployment ID/);
   }
   assert.equal(verify({ ...valid, railwayDeploymentId: "0000-a" }), true);
   assert.equal(verify({ ...valid, railwayDeploymentId: "deploy_123-A" }), true);
