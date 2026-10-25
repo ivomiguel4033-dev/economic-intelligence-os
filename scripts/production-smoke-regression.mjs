@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { gzipSync } from "node:zlib";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,8 @@ let healthDeclaredContentLength = null;
 let readyDeclaredContentLength = null;
 let healthContentRange = null;
 let readyContentRange = null;
+let healthContentEncoding = null;
+let readyContentEncoding = null;
 let healthSetCookie = null;
 let readySetCookie = null;
 let healthWwwAuthenticate = null;
@@ -66,6 +69,7 @@ const server = createServer((request, response) => {
     requestCacheHeaders.set(request.url, {
       cacheControl: request.headers["cache-control"],
       pragma: request.headers.pragma,
+      acceptEncoding: request.headers["accept-encoding"],
     });
   }
   const health = request.url === "/api/health" || request.url === "/api/health-redirected";
@@ -79,6 +83,8 @@ const server = createServer((request, response) => {
     "content-type": health ? contentType : readyContentType,
     "cache-control": health ? cacheControl : readyCacheControl,
   };
+  const contentEncoding = health ? healthContentEncoding : readyContentEncoding;
+  if (contentEncoding !== null) headers["content-encoding"] = contentEncoding;
   const contentRange = health ? healthContentRange : readyContentRange;
   if (contentRange !== null) headers["content-range"] = contentRange;
   const declaredContentLength = health ? healthDeclaredContentLength : readyDeclaredContentLength;
@@ -125,7 +131,7 @@ const server = createServer((request, response) => {
     const offset = body.indexOf(marker) + marker.length;
     response.end(Buffer.concat([Buffer.from(body.slice(0, offset)), Buffer.from([0xff]), Buffer.from(body.slice(offset))]));
   } else {
-    response.end(body);
+    response.end(contentEncoding === "gzip" ? gzipSync(body) : body);
   }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -144,8 +150,23 @@ try {
     assert.deepEqual(requestCacheHeaders.get(path), {
       cacheControl: "no-store",
       pragma: "no-cache",
+      acceptEncoding: "identity",
     }, `${path} must request an uncached response from intermediaries`);
   }
+  // A reverse proxy must not override the identity encoding requested by smoke.
+  // Node fetch transparently decompresses gzip, so a compressed valid JSON body
+  // would otherwise pass without this response-header guard.
+  healthContentEncoding = "gzip";
+  assert.equal(await run(), false, "Compressed liveness must block promotion");
+  healthContentEncoding = null;
+  readyContentEncoding = "gzip";
+  assert.equal(await run(), false, "Compressed readiness must block promotion");
+  readyContentEncoding = null;
+  healthContentEncoding = "identity";
+  readyContentEncoding = "identity";
+  assert.equal(await run(), true, "Explicit identity encoding must remain valid");
+  healthContentEncoding = null;
+  readyContentEncoding = null;
   // Replayed JSON must fail even if a proxy replaces the HTTP Date with a fresh one.
   healthTimestamp = new Date(Date.now() - 6 * 60_000).toISOString();
   assert.equal(await run(), false, "Stale liveness body timestamp must block promotion");

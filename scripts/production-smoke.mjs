@@ -34,6 +34,8 @@ try {
       // Ask intermediaries for a fresh probe even if a cache is misconfigured.
       headers: {
         accept: "application/json",
+        // Keep health probes uncompressed for deterministic, bounded evidence.
+        "accept-encoding": "identity",
         "cache-control": "no-store",
         pragma: "no-cache",
       },
@@ -57,6 +59,12 @@ try {
     // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
+    }
+    // A proxy must not compress a health probe against the explicit identity request.
+    // fetch() transparently decompresses gzip/br, which would otherwise hide this drift.
+    const contentEncoding = response.headers.get("content-encoding");
+    if (contentEncoding !== null && contentEncoding.trim().toLowerCase() !== "identity") {
+      throw new Error(`${path} returned an unexpected Content-Encoding`);
     }
     // Reject oversized or malformed declared bodies before consuming the stream.
     // The streaming cap below remains authoritative for missing or dishonest lengths.
