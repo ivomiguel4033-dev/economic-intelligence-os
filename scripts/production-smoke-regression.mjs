@@ -398,6 +398,10 @@ try {
   }
   await rejectsInvalidOrigin("http://example.com");
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "operator:secret@127.0.0.1"));
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "@127.0.0.1"));
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", ":@127.0.0.1"));
+  await rejectsInvalidOrigin(origin.replace("://", ":///"));
+  await rejectsInvalidOrigin(origin.replace("://", ":////"));
   await rejectsInvalidOrigin(origin + "/unexpected-path");
   await rejectsInvalidOrigin(" " + origin);
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");

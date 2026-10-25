@@ -13,6 +13,12 @@ try {
   if (/[\u0000-\u001f\u007f]/.test(input) || input !== input.trim() || input.includes("\\")) {
     throw new Error("Origin must not contain whitespace, control characters or backslashes");
   }
+  // WHATWG URL normalizes missing authority slashes and strips empty userinfo.
+  // Check the literal origin before trusting the parsed hostname for promotion.
+  const rawAuthority = /^https?:\/\/([^/?#]+)/i.exec(input)?.[1];
+  if (!rawAuthority || rawAuthority.includes("@")) {
+    throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
+  }
   const origin = new URL(input);
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
   if ((origin.protocol !== "https:" && !(local && origin.protocol === "http:")) ||
