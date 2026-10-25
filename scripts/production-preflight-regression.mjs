@@ -17,6 +17,8 @@ const base = {
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
 // Percent-encoded punctuation is valid in a PostgreSQL password.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:pa%40ss@db.internal/app" }), { ready: true });
+// Internal spaces in an explicitly encoded PostgreSQL database name remain valid.
+assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/report%20archive" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://8.8.8.8/keys" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_ISSUER: "https://8.8.8.8/tenant" }), { ready: true });
@@ -53,6 +55,10 @@ for (const [name, env, expected] of [
   ["database URL missing username", { ...base, DATABASE_URL: "postgresql://:secret@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL missing password", { ...base, DATABASE_URL: "postgresql://app@db.internal/app" }, "DATABASE_URL must include explicit username and password"],
   ["database URL encoded blank database", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/%20" }, "DATABASE_URL must include a nonblank database name"],
+  ["database URL leading encoded space", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/%20app" }, "DATABASE_URL database name must not contain surrounding whitespace"],
+  ["database URL trailing encoded space", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app%20" }, "DATABASE_URL database name must not contain surrounding whitespace"],
+  ["database URL leading encoded NBSP", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/%C2%A0app" }, "DATABASE_URL database name must not contain surrounding whitespace"],
+  ["database URL trailing encoded em space", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app%E2%80%83" }, "DATABASE_URL database name must not contain surrounding whitespace"],
   ["database URL encoded database newline", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app%0A" }, "DATABASE_URL database name must not contain control characters"],
   ["database URL encoded database NUL", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app%00" }, "DATABASE_URL database name must not contain control characters"],
   ["database URL malformed database escape", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app%ZZ" }, "DATABASE_URL database name must use valid percent-encoding"],
