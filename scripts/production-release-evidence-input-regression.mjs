@@ -70,6 +70,30 @@ try {
     smokePassed: true,
     postReleaseObservationPassed: true,
   };
+
+  // Duplicate release gates can be interpreted differently by operators and parsers.
+  // JSON.parse would silently keep the last value and approve the record.
+  const duplicateGatePath = join(directory, "duplicate-smoke-gate.json");
+  writeFileSync(duplicateGatePath, JSON.stringify(validRecord).replace(
+    '"smokePassed":true', '"smokePassed":false,"smokePassed":true',
+  ));
+  expectRejected(duplicateGatePath, "Duplicate smoke gate", /Duplicate top-level release evidence field: smokePassed/);
+
+  // Escaped JSON member names must be compared after decoding.
+  const escapedKey = '"ci' + String.fromCharCode(92) + 'u0050assed":true';
+  const escapedGatePath = join(directory, "escaped-duplicate-ci-gate.json");
+  writeFileSync(escapedGatePath, JSON.stringify(validRecord).replace(
+    '"ciPassed":true', '"ciPassed":false,' + escapedKey,
+  ));
+  expectRejected(escapedGatePath, "Escaped duplicate CI gate", /Duplicate top-level release evidence field: ciPassed/);
+
+  // A nested metadata key or key-looking text in a value is not a duplicate.
+  const nestedKeyPath = join(directory, "nested-metadata.json");
+  writeFileSync(nestedKeyPath, JSON.stringify({
+    ...validRecord, metadata: { smokePassed: false }, note: 'text with "ciPassed": false',
+  }));
+  expectAccepted(nestedKeyPath, "Nested metadata and quoted text");
+
   const emptyPaddingBody = JSON.stringify({ ...validRecord, padding: "" });
   const paddingLength = 65_536 - Buffer.byteLength(emptyPaddingBody, "utf8");
   assert.ok(paddingLength > 0, "Valid evidence fits within the byte limit");

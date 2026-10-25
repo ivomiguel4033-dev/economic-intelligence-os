@@ -86,6 +86,50 @@ function verify(record) {
   return true;
 }
 
+
+// A duplicate top-level key makes an audit record ambiguous: JSON.parse uses
+// the last value while another reviewer may rely on the first occurrence.
+// Compare decoded names so escaped JSON keys cannot disguise duplicates.
+function rejectDuplicateTopLevelKeys(text) {
+  const seen = new Set();
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let keyStart = -1;
+  let expectingKey = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+        if (keyStart !== -1) {
+          const key = JSON.parse(text.slice(keyStart, index + 1));
+          if (seen.has(key)) throw new Error("Duplicate top-level release evidence field: " + key);
+          seen.add(key);
+          keyStart = -1;
+          expectingKey = false;
+        }
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      if (depth === 1 && expectingKey) keyStart = index;
+    } else if (character === "{" || character === "[") {
+      depth++;
+      if (depth === 1) expectingKey = true;
+    } else if (character === "}" || character === "]") {
+      depth--;
+    } else if (character === "," && depth === 1) {
+      expectingKey = true;
+    }
+  }
+}
+
 // Bound evidence input to 64 KiB before JSON parsing. A size-limited read
 // avoids loading untrusted or accidentally huge evidence files into memory.
 const maxEvidenceBytes = 64 * 1024;
@@ -114,7 +158,9 @@ async function readEvidence(path) {
     } catch {
       throw new Error("Release evidence must be encoded as valid UTF-8");
     }
-    return JSON.parse(text);
+    const record = JSON.parse(text);
+    rejectDuplicateTopLevelKeys(text);
+    return record;
   } finally {
     await handle.close();
   }
