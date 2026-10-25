@@ -20,6 +20,9 @@ try {
     throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
   }
   const origin = new URL(input);
+  // Port zero is a bind-only sentinel, never a reachable deployment endpoint.
+  // Fail during validation rather than treating a connection failure as smoke evidence.
+  if (origin.port === "0") throw new Error("Deployment origin must not use port 0");
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
   if ((origin.protocol !== "https:" && !(local && origin.protocol === "http:")) ||
       origin.username || origin.password || input.includes("?") || input.includes("#") || origin.search || origin.hash ||

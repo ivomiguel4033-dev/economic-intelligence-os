@@ -393,10 +393,12 @@ try {
       await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
       assert.fail("Invalid deployment origin unexpectedly passed");
     } catch (error) {
-      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes/);
+      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes|Deployment origin must not use port 0/);
     }
   }
   await rejectsInvalidOrigin("http://example.com");
+  await rejectsInvalidOrigin("https://example.com:0");
+  await rejectsInvalidOrigin("http://127.0.0.1:0");
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "operator:secret@127.0.0.1"));
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "@127.0.0.1"));
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", ":@127.0.0.1"));
