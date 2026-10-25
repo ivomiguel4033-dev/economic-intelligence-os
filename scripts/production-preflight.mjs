@@ -137,6 +137,11 @@ function validateDatabaseUrl(value) {
   if (!username.trim() || !password.trim()) {
     fail("DATABASE_URL must include explicit username and password");
   }
+  // Encoded leading/trailing whitespace can silently change the database login.
+  // Keep legitimate interior spaces in usernames and passwords untouched.
+  if (username !== username.trim() || password !== password.trim()) {
+    fail("DATABASE_URL credentials must not contain surrounding whitespace");
+  }
 }
 
 function validateSecurityBaseline(env) {
