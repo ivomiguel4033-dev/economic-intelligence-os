@@ -12,7 +12,9 @@ const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-
 // Reject whitespace, control characters and oversized IDs in release/rollback evidence.
 // The generous bound permits opaque provider IDs without accepting unbounded labels.
 const validDeploymentId = (value) => typeof value === "string" &&
-  /^(?=.{1,128}$)[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/.test(value);
+  /^(?=.{1,128}$)[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/.test(value) &&
+  // Nil UUIDs and all-zero sentinels cannot identify real Railway deployments.
+  !/^0+(?:-0+)*$/.test(value);
 
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
@@ -143,6 +145,12 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: invalidId }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: invalidId }), /rollback deployment ID/);
   }
+  // Never accept placeholder all-zero IDs as deployment or rollback evidence.
+  for (const nilId of ["0", "000", "00000000-0000-0000-0000-000000000000"]) {
+    assert.throws(() => verify({ ...valid, railwayDeploymentId: nilId }), /Railway deployment ID/);
+    assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: nilId, rollbackVerified: true }), /rollback deployment ID/);
+  }
+  assert.equal(verify({ ...valid, railwayDeploymentId: "0000-a" }), true);
   assert.equal(verify({ ...valid, railwayDeploymentId: "deploy_123-A" }), true);
   assert.equal(verify({ ...valid, railwayDeploymentId: "x".repeat(128) }), true);
   assert.throws(() => verify({ ...valid, railwayDeploymentId: "x".repeat(129) }), /Railway deployment ID/);
