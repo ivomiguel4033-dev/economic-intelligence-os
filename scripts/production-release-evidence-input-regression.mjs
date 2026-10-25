@@ -2,7 +2,7 @@
 // Regression checks: invalid release evidence must never pass the CLI gate.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,6 +81,21 @@ try {
   const oneByteOver = join(directory, "65537.json");
   writeFileSync(oneByteOver, JSON.stringify({ ...validRecord, padding: "x".repeat(paddingLength + 1) }));
   expectRejected(oneByteOver, "Valid evidence exceeding the byte limit by one", /Release evidence file exceeds 65536 bytes/);
+
+  // Evidence must be an actual file, not a directory, a symlink or a blocking FIFO.
+  expectRejected(directory, "Directory cannot be release evidence", /regular file/);
+  if (process.platform !== "win32") {
+    const linkPath = join(directory, "linked-evidence.json");
+    symlinkSync(boundaryPath, linkPath);
+    expectRejected(linkPath, "Symlink must not redirect release evidence");
+  }
+  if (process.platform === "linux") {
+    const fifoPath = join(directory, "pipe-evidence.json");
+    const created = spawnSync("mkfifo", [fifoPath], { timeout: 5000 });
+    assert.equal(created.error, undefined, "FIFO fixture command must execute");
+    assert.equal(created.status, 0, "FIFO fixture must be created");
+    expectRejected(fifoPath, "FIFO evidence must fail without blocking", /regular file/);
+  }
   console.log("Production release evidence input regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });

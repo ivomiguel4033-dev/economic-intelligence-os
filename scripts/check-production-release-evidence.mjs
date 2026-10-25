@@ -2,6 +2,7 @@
 // Validate the completeness of a post-deployment release evidence record.
 // This is a documentation/evidence gate, not proof that an external service is healthy.
 import assert from "node:assert/strict";
+import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 
@@ -72,8 +73,13 @@ function verify(record) {
 // avoids loading untrusted or accidentally huge evidence files into memory.
 const maxEvidenceBytes = 64 * 1024;
 async function readEvidence(path) {
-  const handle = await open(path, "r");
+  // Nonblocking open prevents a named pipe from hanging the release gate.
+  // O_NOFOLLOW rejects symlinks before reading evidence from an unexpected target.
+  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   try {
+    const stats = await handle.stat();
+    if (!stats.isFile()) throw new Error("Release evidence must be a regular file");
+    if (stats.size > maxEvidenceBytes) throw new Error("Release evidence file exceeds 65536 bytes");
     const buffer = Buffer.alloc(maxEvidenceBytes + 1);
     let offset = 0;
     while (offset < buffer.length) {
