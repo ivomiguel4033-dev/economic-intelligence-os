@@ -15,6 +15,8 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// An @ in the URL path is not an authority credential marker.
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/@model" }), { ready: true });
 // Percent-encoded punctuation is valid in a PostgreSQL password.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:pa%40ss@db.internal/app" }), { ready: true });
 // Internal spaces in an explicitly encoded PostgreSQL database name remain valid.
@@ -83,6 +85,11 @@ for (const [name, env, expected] of [
   })(), "AI_PRIMARY provider is required in production"],
   ["partial secondary", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1" }, "AI_SECONDARY provider configuration is incomplete"],
   ["insecure provider", { ...base, AI_PRIMARY_BASE_URL: "http://api.example.com/v1" }, "AI_PRIMARY_BASE_URL must use HTTPS"],
+  ["OIDC issuer empty userinfo", { ...base, OIDC_ISSUER: "https://@identity.example.com/tenant" }, "OIDC_ISSUER must not contain credentials"],
+  ["OIDC JWKS empty userinfo", { ...base, OIDC_JWKS_URL: "https://:@identity.example.com/keys" }, "OIDC_JWKS_URL must not contain credentials"],
+  ["AI primary empty userinfo", { ...base, AI_PRIMARY_BASE_URL: "https://@api.example.com/v1" }, "AI_PRIMARY_BASE_URL must not contain credentials"],
+  ["AI primary normalized slash prefix", { ...base, AI_PRIMARY_BASE_URL: "https:////api.example.com/v1" }, "AI_PRIMARY_BASE_URL must include an explicit HTTPS authority"],
+  ["AI secondary empty userinfo", { ...base, AI_SECONDARY_BASE_URL: "https://:@backup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_BASE_URL must not contain credentials"],
   ["provider leading whitespace", { ...base, AI_PRIMARY_BASE_URL: " https://api.example.com/v1" }, "AI_PRIMARY_BASE_URL must not contain surrounding whitespace"],
   ["provider embedded tab", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/\tv1" }, "AI_PRIMARY_BASE_URL must not contain control characters"],
   ["provider embedded newline", { ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/\nv1" }, "AI_PRIMARY_BASE_URL must not contain control characters"],

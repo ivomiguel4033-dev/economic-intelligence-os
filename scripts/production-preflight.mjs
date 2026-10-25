@@ -16,7 +16,11 @@ function validateHttpsUrl(value, label) {
   if (url.protocol !== "https:") fail(`${label} must use HTTPS`);
   // Port zero is reserved and cannot identify a reachable production endpoint.
   if (url.port === "0") fail(`${label} must not use port 0`);
-  if (url.username || url.password) fail(`${label} must not contain credentials`);
+  // WHATWG URL normalizes malformed slash prefixes and strips empty userinfo.
+  // Require an explicit HTTPS authority and inspect it before accepting the endpoint.
+  const authority = /^https:\/\/([^/?#]+)/i.exec(value)?.[1];
+  if (!authority) fail(`${label} must include an explicit HTTPS authority`);
+  if (authority.includes("@") || url.username || url.password) fail(`${label} must not contain credentials`);
   // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
   if (value.includes("#")) fail(`${label} must not include a fragment`);
   return url;
