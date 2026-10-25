@@ -148,6 +148,12 @@ function validateDatabaseUrl(value) {
   if (username !== username.trim() || password !== password.trim()) {
     fail("DATABASE_URL credentials must not contain surrounding whitespace");
   }
+  // A nonempty template credential can pass presence checks yet make the
+  // first Railway migration fail authentication. Decode before checking so
+  // percent-encoded placeholders cannot bypass the production gate.
+  if (isPlaceholder(username) || isPlaceholder(password)) {
+    fail("DATABASE_URL credentials must not be placeholders");
+  }
 }
 
 function validateSecurityBaseline(env) {

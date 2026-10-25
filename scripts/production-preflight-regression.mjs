@@ -23,6 +23,8 @@ assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresq
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app%20user:pass%20word@db.internal/app" }), { ready: true });
 // Internal spaces in an explicitly encoded PostgreSQL database name remain valid.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/report%20archive" }), { ready: true });
+// Legitimate credentials containing a placeholder substring are not templates.
+assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:todo-service@db.internal/app" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://8.8.8.8/keys" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_ISSUER: "https://8.8.8.8/tenant" }), { ready: true });
@@ -78,6 +80,10 @@ for (const [name, env, expected] of [
   ["database URL encoded trailing username NBSP", { ...base, DATABASE_URL: "postgresql://app%C2%A0:fixture@db.internal/app" }, "DATABASE_URL credentials must not contain surrounding whitespace"],
   ["database URL encoded leading password em space", { ...base, DATABASE_URL: "postgresql://app:%E2%80%83fixture@db.internal/app" }, "DATABASE_URL credentials must not contain surrounding whitespace"],
   ["database URL encoded trailing password space", { ...base, DATABASE_URL: "postgresql://app:fixture%20@db.internal/app" }, "DATABASE_URL credentials must not contain surrounding whitespace"],
+  ["database URL placeholder username", { ...base, DATABASE_URL: "postgresql://CHANGE_ME:fixture@db.internal/app" }, "DATABASE_URL credentials must not be placeholders"],
+  ["database URL placeholder password", { ...base, DATABASE_URL: "postgresql://app:replace_me@db.internal/app" }, "DATABASE_URL credentials must not be placeholders"],
+  ["database URL percent-encoded placeholder password", { ...base, DATABASE_URL: "postgresql://app:%74%6F%64%6F@db.internal/app" }, "DATABASE_URL credentials must not be placeholders"],
+  ["database URL mixed-case placeholder username", { ...base, DATABASE_URL: "postgresql://UnKnOwN:fixture@db.internal/app" }, "DATABASE_URL credentials must not be placeholders"],
   ["database URL malformed password escape", { ...base, DATABASE_URL: "postgresql://app:%ZZ@db.internal/app" }, "DATABASE_URL credentials must use valid percent-encoding"],
   ["database URL encoded password newline", { ...base, DATABASE_URL: "postgresql://app:%0A@db.internal/app" }, "DATABASE_URL credentials must not contain control characters"],
   ["database URL whitespace", { ...base, DATABASE_URL: " postgresql://db.internal/app" }, "DATABASE_URL must not contain surrounding whitespace"],
