@@ -212,6 +212,13 @@ function validateSecurityBaseline(env) {
   if (env.METRICS_TOKEN.length < 32) {
     fail("METRICS_TOKEN must be at least 32 characters");
   }
+  // Length alone is not sufficient: uniform values such as 32 x's are
+  // common copy/paste fixtures and offer effectively no secret entropy.
+  for (const key of ["SECURITY_EVENT_HASH_PEPPER", "METRICS_TOKEN"]) {
+    if (/^(.)\1+$/u.test(env[key])) {
+      fail(`${key} must not consist of a single repeated character`);
+    }
+  }
   // These protect separate trust boundaries; reusing a token as the audit
   // hash pepper lets a leaked metrics credential compromise audit pseudonyms.
   if (env.SECURITY_EVENT_HASH_PEPPER === env.METRICS_TOKEN) {
