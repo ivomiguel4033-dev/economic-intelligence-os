@@ -129,11 +129,17 @@ assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await record
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1/@model"));
+// Encoded path segments do not change the hostname and remain valid.
+assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1/%61pi"));
 assert.doesNotThrow(() => assertSafeProviderAddress("203.0.114.10"));
 for (const unsafeAddress of ["127.0.0.1", "10.0.0.1", "::1", "64:ff9b::7f00:1", "not-an-ip"]) {
   assert.throws(() => assertSafeProviderAddress(unsafeAddress), undefined, `provider address must reject ${unsafeAddress}`);
 }
 for (const unsafeUrl of [
+  // WHATWG URL would silently canonicalize these encoded authority bytes.
+  "https://%61pi.example.com/v1",
+  "https://api%2eexample.com/v1",
+  "https://api.example.com%2e/v1",
   "https:////api.example.com/v1",
   "https://@api.example.com/v1",
   "https://:@api.example.com/v1",

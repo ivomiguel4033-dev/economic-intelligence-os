@@ -106,6 +106,12 @@ export function assertSafeProviderUrl(value: string): URL {
   if (!authority || authority.includes("@")) {
     throw new Error("AI provider endpoint must include an explicit authority without credentials");
   }
+  // URL parsing decodes percent-encoded host bytes (for example %61 -> a).
+  // Keep the runtime policy aligned with the production preflight: never
+  // approve a hostname whose literal configured authority was rewritten.
+  if (authority.includes("%")) {
+    throw new Error("AI provider endpoint must not contain percent-encoded authority characters");
+  }
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
   if (url.username || url.password) throw new Error("AI provider endpoint must not include credentials");
