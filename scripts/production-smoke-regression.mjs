@@ -24,6 +24,10 @@ let healthRetryAfter = null;
 let readyRetryAfter = null;
 let healthRefresh = null;
 let readyRefresh = null;
+let healthLocation = null;
+let readyLocation = null;
+let healthXAccelRedirect = null;
+let readyXAccelRedirect = null;
 let healthRedirect = false;
 let readyRedirect = false;
 let healthBodyStatus = "ok";
@@ -99,6 +103,10 @@ const server = createServer((request, response) => {
   if (retryAfter !== null) headers["retry-after"] = retryAfter;
   const refresh = health ? healthRefresh : readyRefresh;
   if (refresh !== null) headers.refresh = refresh;
+  const location = health ? healthLocation : readyLocation;
+  if (location !== null) headers.location = location;
+  const internalRedirect = health ? healthXAccelRedirect : readyXAccelRedirect;
+  if (internalRedirect !== null) headers["x-accel-redirect"] = internalRedirect;
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   const date = health ? healthDate : readyDate;
@@ -216,6 +224,21 @@ try {
   assert.equal(await run(), false, "Delayed HTTP Refresh on readiness must block promotion");
   readyRefresh = null;
   assert.equal(await run(), true, "Probes without HTTP Refresh must still pass");
+  // A proxy can return 200 and valid JSON while attaching a redirect hint.
+  // Internal Nginx redirects must also never count as release evidence.
+  healthLocation = "/login";
+  assert.equal(await run(), false, "HTTP 200 Location on liveness must block promotion");
+  healthLocation = null;
+  readyLocation = "https://example.com/login";
+  assert.equal(await run(), false, "HTTP 200 Location on readiness must block promotion");
+  readyLocation = null;
+  healthXAccelRedirect = "/internal/health";
+  assert.equal(await run(), false, "Nginx internal redirect on liveness must block promotion");
+  healthXAccelRedirect = null;
+  readyXAccelRedirect = "/internal/ready";
+  assert.equal(await run(), false, "Nginx internal redirect on readiness must block promotion");
+  readyXAccelRedirect = null;
+  assert.equal(await run(), true, "Probes without redirect hints must still pass");
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;
