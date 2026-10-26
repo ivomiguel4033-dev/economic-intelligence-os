@@ -83,6 +83,16 @@ function isUnsafeDatabaseHostname(hostname) {
       host === "[::]" || host === "[::1]" || /^\[fe[89ab][0-9a-f]:/i.test(host)) {
     return true;
   }
+  // URL.hostname canonicalizes IPv4-mapped IPv6 literals into hex hextets.
+  // Do not let a mapped loopback, unspecified or link-local IPv4 address
+  // bypass the migration endpoint safety gate.
+  const mapped = /^\[::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})\]$/i.exec(host);
+  if (mapped) {
+    const upper = parseInt(mapped[1], 16);
+    const first = upper >>> 8;
+    const second = upper & 255;
+    return first === 0 || first === 127 || (first === 169 && second === 254);
+  }
   const parts = host.split(".");
   if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return false;
   const [first, second] = parts.map(Number);
