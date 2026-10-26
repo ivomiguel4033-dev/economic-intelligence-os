@@ -1,5 +1,23 @@
 import assert from "node:assert/strict";
-import { assuranceFromClaims, normalizeVerifiedIdentity } from "../src/security/oidc.ts";
+import { assuranceFromClaims, normalizeVerifiedIdentity, parseOidcJwksUrl } from "../src/security/oidc.ts";
+
+// The runtime JWKS client must reject ambiguous or credential-bearing endpoints
+// even when it is instantiated outside the production preflight.
+for (const invalidJwksUrl of [
+  "http://idp.example/keys",
+  "https://user:secret@idp.example/keys",
+  "https://idp.example/keys#",
+  "https://idp.example/keys#fragment",
+  "https://idp.example\\@evil.test/keys",
+  " https://idp.example/keys",
+  "https://idp.example/keys ",
+  "https://idp.example/keys\n",
+  "not-a-url",
+]) {
+  assert.throws(() => parseOidcJwksUrl(invalidJwksUrl), /OIDC JWKS URL/, invalidJwksUrl);
+}
+assert.equal(parseOidcJwksUrl("https://idp.example/keys?tenant=abc").search, "?tenant=abc");
+assert.equal(parseOidcJwksUrl("https://idp.example/.well-known/jwks.json").hostname, "idp.example");
 
 // ACR names are opaque identifiers. Partial text must not elevate assurance.
 for (const acr of ["no-mfa", "non-phishing-resistant", "untrusted-phr", "no-aal3",

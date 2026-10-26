@@ -42,6 +42,24 @@ export function assuranceFromClaims(amr: unknown, acr: unknown): VerifiedIdentit
   return "password";
 }
 
+// Validate the configured JWKS endpoint before URL normalization can hide
+// credentials, fragments or pasted control characters.
+export function parseOidcJwksUrl(value: string): URL {
+  if (value !== value.trim() || /[\u0000-\u001f\u007f\\]/.test(value)) {
+    throw new Error("OIDC JWKS URL contains unsafe characters");
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("OIDC JWKS URL must be a valid URL");
+  }
+  if (url.protocol !== "https:") throw new Error("OIDC JWKS URL must use HTTPS");
+  if (url.username || url.password) throw new Error("OIDC JWKS URL must not contain credentials");
+  if (value.includes("#")) throw new Error("OIDC JWKS URL must not include a fragment");
+  return url;
+}
+
 export function normalizeVerifiedIdentity(claims: OidcClaims): VerifiedIdentity {
   if (!claims.iss || !claims.sub) throw new Error("Invalid OIDC identity claims");
   if (!claims.exp || claims.exp <= Math.floor(Date.now() / 1000)) throw new Error("Identity token expired");

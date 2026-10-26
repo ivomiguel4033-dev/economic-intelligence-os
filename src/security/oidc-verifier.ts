@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { IdentityVerifier, VerifiedIdentity } from "@/security/identity";
-import { assuranceFromClaims } from "@/security/oidc";
+import { assuranceFromClaims, parseOidcJwksUrl } from "@/security/oidc";
 
 export interface OIDCVerifierConfig {
   issuer: string;
@@ -13,9 +13,7 @@ export class OIDCVerifier implements IdentityVerifier {
   private readonly jwks;
 
   constructor(private readonly config: OIDCVerifierConfig) {
-    const jwksUrl = new URL(config.jwksUrl);
-    if (jwksUrl.protocol !== "https:") throw new Error("OIDC JWKS URL must use HTTPS");
-    this.jwks = createRemoteJWKSet(jwksUrl);
+    this.jwks = createRemoteJWKSet(parseOidcJwksUrl(config.jwksUrl));
   }
 
   async verify(token: string): Promise<VerifiedIdentity> {
