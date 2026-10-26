@@ -2,7 +2,7 @@
 // Regression checks: invalid release evidence must never pass the CLI gate.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, linkSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,6 +84,19 @@ try {
     expectAccepted(writablePath, "Group-readable evidence file");
     chmodSync(writablePath, 0o600);
     expectAccepted(writablePath, "Private evidence file");
+  }
+
+  // A hard link can alter reviewed evidence via another filename despite safe mode bits.
+  // Once the alias is removed, the original single-link file must pass again.
+  if (process.platform !== "win32") {
+    const hardlinkSource = join(directory, "hardlink-source.json");
+    const hardlinkAlias = join(directory, "hardlink-alias.json");
+    writeFileSync(hardlinkSource, JSON.stringify(validRecord));
+    linkSync(hardlinkSource, hardlinkAlias);
+    expectRejected(hardlinkSource, "Hard-linked evidence source", /must not have multiple hard links/);
+    expectRejected(hardlinkAlias, "Hard-linked evidence alias", /must not have multiple hard links/);
+    unlinkSync(hardlinkAlias);
+    expectAccepted(hardlinkSource, "Single-link evidence after alias removal");
   }
 
   // Duplicate release gates can be interpreted differently by operators and parsers.

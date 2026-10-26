@@ -151,6 +151,9 @@ async function readEvidence(path) {
     if (process.platform !== "win32" && (stats.mode & 0o022) !== 0) {
       throw new Error("Release evidence file must not be group- or world-writable");
     }
+    // Hard links allow the same evidence inode to be modified through an alternate path.
+    // Require a single directory entry so the reviewed evidence path is unambiguous.
+    if (stats.nlink !== 1) throw new Error("Release evidence must not have multiple hard links");
     if (stats.size > maxEvidenceBytes) throw new Error("Release evidence file exceeds 65536 bytes");
     const buffer = Buffer.alloc(maxEvidenceBytes + 1);
     let offset = 0;
