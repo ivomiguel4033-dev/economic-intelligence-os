@@ -225,6 +225,17 @@ try {
   readyVary = "*";
   assert.equal(await run(), false, "Wildcard readiness variation must block promotion");
   readyVary = null;
+  // Invalid Vary syntax must not bypass credential-sensitive token detection.
+  healthVary = '"Authorization"';
+  assert.equal(await run(), false, "Quoted Authorization must not bypass Vary validation");
+  healthVary = "Accept-Encoding,,Origin";
+  assert.equal(await run(), false, "Empty Vary member on liveness must block promotion");
+  healthVary = null;
+  readyVary = "Origin; Cookie";
+  assert.equal(await run(), false, "Semicolon-delimited Vary on readiness must block promotion");
+  readyVary = "Accept-Encoding, ";
+  assert.equal(await run(), false, "Trailing empty Vary member must block promotion");
+  readyVary = null;
   healthVary = "Accept-Encoding";
   readyVary = "Accept-Encoding, Origin";
   assert.equal(await run(), true, "Non-authentication Vary headers remain valid");

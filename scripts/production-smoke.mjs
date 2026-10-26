@@ -99,9 +99,16 @@ try {
     // return healthy JSON for the smoke client while serving login content to
     // other callers; wildcard Vary is similarly unverifiable.
     const vary = response.headers.get("vary");
-    if (vary !== null && vary.split(",").some((field) =>
-      ["authorization", "proxy-authorization", "cookie", "*"].includes(field.trim().toLowerCase()))) {
-      throw new Error(`${path} unexpectedly varies by credentials or wildcard`);
+    if (vary !== null) {
+      // RFC 9110 Vary is a comma-separated list of field-name tokens or "*".
+      // Malformed members (quotes, semicolons, empty entries) can disguise
+      // credential-dependent responses from a naive exact-match check.
+      const fields = vary.split(",").map((field) => field.trim().toLowerCase());
+      if (fields.some((field) =>
+        !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) ||
+        ["authorization", "proxy-authorization", "cookie", "*"].includes(field))) {
+        throw new Error(`${path} returned an invalid or credential-dependent Vary header`);
+      }
     }
     // A 200 response with authentication, redirect or proxy delegation hints
     // is not reliable evidence of a directly healthy deployment endpoint.
