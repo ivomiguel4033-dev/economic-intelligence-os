@@ -219,6 +219,21 @@ try {
   assert.equal(await run(), false, "Even zero-second readiness retry hint must block promotion");
   readyRetryAfter = null;
   assert.equal(await run(), true, "Unchallenged probes without retry hints must pass");
+  // A reverse proxy or auth middleware may attach authentication metadata to
+  // an HTTP 200 JSON response. Public health probes must remain unauthenticated.
+  for (const [header, value] of [
+    ["authentication-info", 'nextnonce="unexpected"'],
+    ["proxy-authenticate", 'Basic realm="proxy"'],
+    ["proxy-authentication-info", 'nextnonce="unexpected"'],
+  ]) {
+    healthDelegationHeader = [header, value];
+    assert.equal(await run(), false, `${header} on liveness must block promotion`);
+    healthDelegationHeader = null;
+    readyDelegationHeader = [header, value];
+    assert.equal(await run(), false, `${header} on readiness must block promotion`);
+    readyDelegationHeader = null;
+  }
+  assert.equal(await run(), true, "Unauthenticated health probes must remain valid");
   // A proxy can send an HTTP Refresh redirect alongside 200 and valid JSON.
   // Such a response must not count as proof that the release is ready.
   healthRefresh = "0; url=/login";
