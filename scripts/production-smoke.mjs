@@ -95,6 +95,14 @@ try {
     if (response.headers.has("set-cookie")) {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
+    // Public health probes must not vary by caller credentials. A proxy can
+    // return healthy JSON for the smoke client while serving login content to
+    // other callers; wildcard Vary is similarly unverifiable.
+    const vary = response.headers.get("vary");
+    if (vary !== null && vary.split(",").some((field) =>
+      ["authorization", "proxy-authorization", "cookie", "*"].includes(field.trim().toLowerCase()))) {
+      throw new Error(`${path} unexpectedly varies by credentials or wildcard`);
+    }
     // A 200 response with authentication, redirect or proxy delegation hints
     // is not reliable evidence of a directly healthy deployment endpoint.
     for (const header of ["www-authenticate", "authentication-info", "proxy-authenticate", "proxy-authentication-info", "retry-after", "refresh", "location", "x-accel-redirect", "x-sendfile", "x-reproxy-url"]) {

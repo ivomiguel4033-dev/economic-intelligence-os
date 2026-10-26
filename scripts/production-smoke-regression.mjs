@@ -18,6 +18,8 @@ let healthContentEncoding = null;
 let readyContentEncoding = null;
 let healthSetCookie = null;
 let readySetCookie = null;
+let healthVary = null;
+let readyVary = null;
 let healthWwwAuthenticate = null;
 let readyWwwAuthenticate = null;
 let healthRetryAfter = null;
@@ -101,6 +103,8 @@ const server = createServer((request, response) => {
   if (declaredContentLength !== null) headers["content-length"] = declaredContentLength;
   const setCookie = health ? healthSetCookie : readySetCookie;
   if (setCookie !== null) headers["set-cookie"] = setCookie;
+  const vary = health ? healthVary : readyVary;
+  if (vary !== null) headers.vary = vary;
   const authChallenge = health ? healthWwwAuthenticate : readyWwwAuthenticate;
   if (authChallenge !== null) headers["www-authenticate"] = authChallenge;
   const retryAfter = health ? healthRetryAfter : readyRetryAfter;
@@ -209,6 +213,23 @@ try {
   assert.equal(await run(), false, "Readiness setting a cookie must block promotion");
   readySetCookie = null;
   assert.equal(await run(), true, "Stateless liveness and readiness must pass");
+  // A healthy response that varies by caller credentials cannot establish that
+  // the public production endpoints work for unauthenticated clients.
+  healthVary = "Authorization";
+  assert.equal(await run(), false, "Auth-dependent liveness must block promotion");
+  healthVary = "Accept-Encoding, Cookie";
+  assert.equal(await run(), false, "Cookie-dependent liveness must block promotion");
+  healthVary = null;
+  readyVary = "Proxy-Authorization";
+  assert.equal(await run(), false, "Proxy-auth-dependent readiness must block promotion");
+  readyVary = "*";
+  assert.equal(await run(), false, "Wildcard readiness variation must block promotion");
+  readyVary = null;
+  healthVary = "Accept-Encoding";
+  readyVary = "Accept-Encoding, Origin";
+  assert.equal(await run(), true, "Non-authentication Vary headers remain valid");
+  healthVary = null;
+  readyVary = null;
   healthWwwAuthenticate = 'Bearer realm="deployment"';
   assert.equal(await run(), false, "Liveness auth challenge must block promotion despite HTTP 200");
   healthWwwAuthenticate = null;
