@@ -48,7 +48,6 @@ const client = new Client({
   lock_timeout: migrationLockTimeoutMs,
   idle_in_transaction_session_timeout: migrationIdleInTransactionTimeoutMs,
 });
-await client.connect();
 
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
 const allowChecksumBaseline = process.env.ALLOW_MIGRATION_CHECKSUM_BASELINE === "true";
@@ -63,6 +62,9 @@ if (allowChecksumBaseline && checksumBaselineFiles.size === 0) {
     "MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations when checksum baseline adoption is enabled",
   );
 }
+// Reject invalid checksum-baseline authorization before opening a database connection.
+// Configuration failures must remain actionable even during a Railway outage.
+await client.connect();
 let migrationLockHeld = false;
 
 try {

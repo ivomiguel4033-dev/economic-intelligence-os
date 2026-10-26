@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile, cp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,6 +29,32 @@ async function reset() {
 }
 
 try {
+  // Invalid baseline flags must fail locally, without attempting PostgreSQL.
+  // Port 1 is intentionally unreachable; a connection error would mask
+  // the configuration problem during an actual Railway outage.
+  const invalidBaseline = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL("./migrate.mjs", import.meta.url))],
+    {
+      encoding: "utf8",
+      timeout: 5_000,
+      env: {
+        ...process.env,
+        DATABASE_URL: "postgresql://app:secret@127.0.0.1:1/unreachable",
+        ALLOW_MIGRATION_CHECKSUM_BASELINE: "true",
+        MIGRATION_CHECKSUM_BASELINE_FILES: "",
+      },
+    },
+  );
+  assert(invalidBaseline.error === undefined, "Invalid baseline preflight must exit without timing out");
+  assert(
+    invalidBaseline.status !== 0 &&
+      /MIGRATION_CHECKSUM_BASELINE_FILES must explicitly list migrations/.test(
+        invalidBaseline.stdout + invalidBaseline.stderr,
+      ),
+    "Invalid checksum baseline must fail before attempting a PostgreSQL connection",
+  );
+
   let result = await validate(["001_create_tenants.sql", "002_add_outbox.sql"]);
   assert(result.status === 0, `Canonical migrations should pass: ${result.output}`);
 
