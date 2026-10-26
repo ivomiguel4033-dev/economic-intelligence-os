@@ -42,6 +42,11 @@ assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
   { ready: true },
 );
+// Distinct PostgreSQL query options remain valid; only ambiguous repeats are rejected.
+assert.deepEqual(
+  validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal/app?sslmode=require&application_name=eio" }),
+  { ready: true },
+);
 
 for (const [name, env, expected] of [
   ["OIDC audience template", { ...base, OIDC_AUDIENCE: "CHANGE_ME" }, "OIDC_AUDIENCE must not be a placeholder"],
@@ -90,6 +95,10 @@ for (const [name, env, expected] of [
   ["database URL missing database", { ...base, DATABASE_URL: "postgresql://db.internal" }, "DATABASE_URL must include a database name"],
   ["database URL port zero", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal:0/app" }, "DATABASE_URL must not use port 0"],
   ["database URL fragment", { ...base, DATABASE_URL: "postgresql://db.internal/app#fragment" }, "DATABASE_URL must not include a fragment"],
+  // Repeated options are interpreted inconsistently by clients and can downgrade TLS.
+  ["database duplicate sslmode", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?sslmode=require&sslmode=disable" }, "DATABASE_URL query parameters must not repeat keys"],
+  ["database case-variant duplicate sslmode", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?sslmode=require&SSLMODE=disable" }, "DATABASE_URL query parameters must not repeat keys"],
+  ["database encoded duplicate sslmode", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?sslmode=require&%73slmode=disable" }, "DATABASE_URL query parameters must not repeat keys"],
   ["database query host override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?host=other.example" }, "DATABASE_URL query parameters must not override connection identity"],
   ["database query encoded host override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?%68ost=other.example" }, "DATABASE_URL query parameters must not override connection identity"],
   ["database query user override", { ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?USER=admin" }, "DATABASE_URL query parameters must not override connection identity"],

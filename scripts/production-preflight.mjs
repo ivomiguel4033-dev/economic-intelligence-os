@@ -133,8 +133,17 @@ function validateDatabaseUrl(value) {
     "host", "hostaddr", "port", "user", "username", "password",
     "database", "dbname", "service", "passfile", "options",
   ]);
+  // Duplicate keys (including case or percent-encoded variants) are ambiguous:
+  // clients may choose the first or last value for security-sensitive options
+  // such as sslmode. Never approve migrations with conflicting connection settings.
+  const seenQueryKeys = new Set();
   for (const key of url.searchParams.keys()) {
-    if (forbiddenConnectionKeys.has(key.toLowerCase())) {
+    const normalizedKey = key.toLowerCase();
+    if (seenQueryKeys.has(normalizedKey)) {
+      fail("DATABASE_URL query parameters must not repeat keys");
+    }
+    seenQueryKeys.add(normalizedKey);
+    if (forbiddenConnectionKeys.has(normalizedKey)) {
       fail("DATABASE_URL query parameters must not override connection identity");
     }
   }
