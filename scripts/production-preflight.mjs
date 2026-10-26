@@ -27,6 +27,8 @@ function validateHttpsUrl(value, label) {
   const authority = /^https:\/\/([^/?#]+)/i.exec(value)?.[1];
   if (!authority) fail(`${label} must include an explicit HTTPS authority`);
   if (authority.includes("@") || url.username || url.password) fail(`${label} must not contain credentials`);
+  // URL parsing decodes escaped hostname bytes, which can disguise the configured destination.
+  if (authority.includes("%")) fail(`${label} must not contain percent-encoded authority characters`);
   // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
   if (value.includes("#")) fail(`${label} must not include a fragment`);
   return url;

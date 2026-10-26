@@ -26,6 +26,9 @@ assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresq
 assert.deepEqual(validateProductionPreflight({ ...base, METRICS_TOKEN: "ab".repeat(15) + "CD" }), { ready: true });
 // An @ in the URL path is not an authority credential marker.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/@model" }), { ready: true });
+// Encoded path bytes do not change the configured host and remain supported.
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%61pi" }), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/%6beys" }), { ready: true });
 // Percent-encoded punctuation is valid in a PostgreSQL password.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:pa%40ss@db.internal/app" }), { ready: true });
 // Explicitly encoded interior spaces in PostgreSQL credentials remain valid.
@@ -86,6 +89,21 @@ assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal/app?sslmode=require&application_name=eio" }),
   { ready: true },
 );
+
+// The WHATWG parser silently decodes escaped hostnames. Reject those raw
+// authorities before accepting OIDC or AI endpoints for production.
+for (const [label, config] of [
+  ["issuer", { OIDC_ISSUER: "https://%69dentity.example.com/tenant" }],
+  ["JWKS", { OIDC_JWKS_URL: "https://%69dentity.example.com/keys" }],
+  ["primary AI", { AI_PRIMARY_BASE_URL: "https://%61pi.example.com/v1" }],
+  ["secondary AI", { AI_SECONDARY_BASE_URL: "https://%62ackup.example.com/v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, ...config }),
+    /must not contain percent-encoded authority characters/,
+    `${label} percent-encoded authority must be rejected`,
+  );
+}
 
 for (const [name, env, expected] of [
   ["OIDC audience template", { ...base, OIDC_AUDIENCE: "CHANGE_ME" }, "OIDC_AUDIENCE must not be a placeholder"],
