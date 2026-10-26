@@ -128,11 +128,22 @@ assert.match(telemetrySource, /void recordTelemetry\([\s\S]*?return response;/, 
 assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await recordTelemetry\(/, "provider failure telemetry must remain off the critical path");
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
+assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1/@model"));
 assert.doesNotThrow(() => assertSafeProviderAddress("203.0.114.10"));
 for (const unsafeAddress of ["127.0.0.1", "10.0.0.1", "::1", "64:ff9b::7f00:1", "not-an-ip"]) {
   assert.throws(() => assertSafeProviderAddress(unsafeAddress), undefined, `provider address must reject ${unsafeAddress}`);
 }
 for (const unsafeUrl of [
+  "https:////api.example.com/v1",
+  "https://@api.example.com/v1",
+  "https://:@api.example.com/v1",
+  "https://api.example.com/v1?",
+  "https://api.example.com/v1#",
+  "https://api.example.com/v1\\\\extra",
+  "https://api.example.com/v1\n",
+  "https://api.example.com/\tv1",
+  " https://api.example.com/v1",
+  "https://api.example.com/v1 ",
   "https://user:secret@api.example.com/v1",
   "https://api.example.com/v1#internal",
   "https://localhost/v1",

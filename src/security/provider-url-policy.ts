@@ -97,11 +97,20 @@ async function resolvePublicProviderAddresses(url: URL, signal?: AbortSignal): P
 }
 
 export function assertSafeProviderUrl(value: string): URL {
+  // WHATWG URL parsing strips control characters and normalizes backslashes.
+  // Validate the literal endpoint before it can be silently rewritten.
+  if (/[\u0000-\u001f\u007f]/.test(value) || value !== value.trim() || value.includes("\\")) {
+    throw new Error("AI provider endpoint must not contain whitespace, control characters or backslashes");
+  }
+  const authority = /^https:\/\/([^/?#]+)/i.exec(value)?.[1];
+  if (!authority || authority.includes("@")) {
+    throw new Error("AI provider endpoint must include an explicit authority without credentials");
+  }
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
   if (url.username || url.password) throw new Error("AI provider endpoint must not include credentials");
-  if (url.hash) throw new Error("AI provider endpoint must not include a fragment");
-  if (url.search) throw new Error("AI provider endpoint must not include query parameters");
+  if (value.includes("#") || url.hash) throw new Error("AI provider endpoint must not include a fragment");
+  if (value.includes("?") || url.search) throw new Error("AI provider endpoint must not include query parameters");
   const host = normalizedHostname(url);
   if (host === "localhost" || host.endsWith(".localhost") ||
       host === "local" || host.endsWith(".local") ||
