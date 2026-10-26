@@ -79,7 +79,10 @@ function isUnsafeEndpointHostname(hostname) {
 // Keep RFC1918 addresses available for Railway private networking.
 function isUnsafeDatabaseHostname(hostname) {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
+  // .local names resolve via mDNS and may target a nearby workstation.
+  // Preserve Railway private .internal hostnames while blocking local DNS drift.
   if (host === "localhost" || host.endsWith(".localhost") ||
+      host === "local" || host.endsWith(".local") ||
       host === "[::]" || host === "[::1]" || /^\[fe[89ab][0-9a-f]:/i.test(host)) {
     return true;
   }
