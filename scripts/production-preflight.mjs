@@ -71,7 +71,9 @@ function isNonPublicIpv6(host) {
 function isUnsafeEndpointHostname(hostname) {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
   return host === "localhost" || host.endsWith(".localhost") ||
-    host.endsWith(".local") || isNonPublicIpv4(host) || isNonPublicIpv6(host);
+    host === "local" || host.endsWith(".local") ||
+    host === "localdomain" || host.endsWith(".localdomain") ||
+    isNonPublicIpv4(host) || isNonPublicIpv6(host);
 }
 
 // Railway databases may use private network addresses, but loopback,
@@ -83,6 +85,7 @@ function isUnsafeDatabaseHostname(hostname) {
   // Preserve Railway private .internal hostnames while blocking local DNS drift.
   if (host === "localhost" || host.endsWith(".localhost") ||
       host === "local" || host.endsWith(".local") ||
+      host === "localdomain" || host.endsWith(".localdomain") ||
       host === "[::]" || host === "[::1]" || /^\[fe[89ab][0-9a-f]:/i.test(host)) {
     return true;
   }

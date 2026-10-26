@@ -103,7 +103,9 @@ export function assertSafeProviderUrl(value: string): URL {
   if (url.hash) throw new Error("AI provider endpoint must not include a fragment");
   if (url.search) throw new Error("AI provider endpoint must not include query parameters");
   const host = normalizedHostname(url);
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) throw new Error("Local AI provider endpoints are not allowed in production");
+  if (host === "localhost" || host.endsWith(".localhost") ||
+      host === "local" || host.endsWith(".local") ||
+      host === "localdomain" || host.endsWith(".localdomain")) throw new Error("Local AI provider endpoints are not allowed in production");
   if (isPrivateIpv4(host) || isPrivateIpv6(host)) throw new Error("Private-network AI provider endpoints are not allowed");
   return url;
 }
