@@ -114,6 +114,8 @@ export function assertSafeProviderUrl(value: string): URL {
   }
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("AI provider endpoint must use HTTPS");
+  // Match the production preflight: port zero is a bind sentinel, not a reachable provider endpoint.
+  if (url.port === "0") throw new Error("AI provider endpoint must not use port 0");
   if (url.username || url.password) throw new Error("AI provider endpoint must not include credentials");
   if (value.includes("#") || url.hash) throw new Error("AI provider endpoint must not include a fragment");
   if (value.includes("?") || url.search) throw new Error("AI provider endpoint must not include query parameters");

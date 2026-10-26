@@ -129,6 +129,8 @@ assert.doesNotMatch(telemetrySource, /catch\s*\(error\)\s*\{[\s\S]*?await record
 
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1"));
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1/@model"));
+// An explicitly configured nonzero HTTPS port remains valid.
+assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com:8443/v1"));
 // Encoded path segments do not change the hostname and remain valid.
 assert.doesNotThrow(() => assertSafeProviderUrl("https://api.example.com/v1/%61pi"));
 assert.doesNotThrow(() => assertSafeProviderAddress("203.0.114.10"));
@@ -143,6 +145,7 @@ for (const unsafeUrl of [
   "https:////api.example.com/v1",
   "https://@api.example.com/v1",
   "https://:@api.example.com/v1",
+  "https://api.example.com:0/v1",
   "https://api.example.com/v1?",
   "https://api.example.com/v1#",
   "https://api.example.com/v1\\\\extra",
