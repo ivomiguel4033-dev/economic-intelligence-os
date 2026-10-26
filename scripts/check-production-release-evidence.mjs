@@ -139,6 +139,18 @@ function rejectDuplicateObjectKeys(text) {
 // Bound evidence input to 64 KiB before JSON parsing. A size-limited read
 // avoids loading untrusted or accidentally huge evidence files into memory.
 const maxEvidenceBytes = 64 * 1024;
+// Validate the same open inode before and after reading release evidence.
+// A writable owner process could otherwise truncate or replace the contents
+// while the gate reads them, yielding an inconsistent approval record.
+function assertEvidenceStable(before, after, bytesRead) {
+  if (bytesRead !== before.size || after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs ||
+      after.ino !== before.ino || after.mode !== before.mode ||
+      after.nlink !== before.nlink) {
+    throw new Error("Release evidence changed during validation");
+  }
+}
+
 async function readEvidence(path) {
   // Nonblocking open prevents a named pipe from hanging the release gate.
   // O_NOFOLLOW rejects symlinks before reading evidence from an unexpected target.
@@ -165,6 +177,8 @@ async function readEvidence(path) {
     if (offset > maxEvidenceBytes) {
       throw new Error("Release evidence file exceeds 65536 bytes");
     }
+    // Reject in-place mutation or truncation while the evidence was read.
+    assertEvidenceStable(stats, await handle.stat(), offset);
     // Decode strictly: Buffer.toString("utf8") silently replaces malformed bytes.
     let text;
     try {
@@ -190,6 +204,22 @@ if (process.argv[2] === "--self-test") {
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
   };
   assert.equal(verify(valid), true);
+  // File identity and metadata must remain stable for the entire evidence read.
+  // Use synthetic fstat snapshots to cover races deterministically without timing sleeps.
+  const stableStats = { size: 42, mtimeMs: 1000, ctimeMs: 1000, ino: 123, mode: 0o100600, nlink: 1 };
+  assert.doesNotThrow(() => assertEvidenceStable(stableStats, { ...stableStats }, 42));
+  assert.throws(() => assertEvidenceStable(stableStats, stableStats, 41), /changed during validation/);
+  for (const [field, changed] of [
+    ["size", 41], ["mtimeMs", 1001], ["ctimeMs", 1001],
+    ["ino", 124], ["mode", 0o100666], ["nlink", 2],
+  ]) {
+    assert.throws(
+      () => assertEvidenceStable(stableStats, { ...stableStats, [field]: changed }, 42),
+      /changed during validation/,
+      `Evidence mutation of ${field} must block promotion`,
+    );
+  }
+
   // Duplicate metadata keys are also ambiguous, even inside an array.
   assert.throws(
     () => rejectDuplicateObjectKeys('{"metadata":{"smokePassed":false,"smokePassed":true}}'),
