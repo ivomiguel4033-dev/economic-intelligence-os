@@ -137,6 +137,13 @@ function validateDatabaseUrl(value) {
   // clients may choose the first or last value for security-sensitive options
   // such as sslmode. Never approve migrations with conflicting connection settings.
   const seenQueryKeys = new Set();
+  // URLSearchParams silently replaces malformed percent-encoded UTF-8 with U+FFFD.
+  // Fail before parsing options so pg never receives a different connection setting.
+  try {
+    decodeURIComponent(url.search.slice(1));
+  } catch {
+    fail("DATABASE_URL query parameters must use valid percent-encoding");
+  }
   // URLSearchParams decodes percent-encoded bytes before the PostgreSQL driver
   // sees them. Reject hidden control characters in option names and values.
   for (const [key, optionValue] of url.searchParams) {

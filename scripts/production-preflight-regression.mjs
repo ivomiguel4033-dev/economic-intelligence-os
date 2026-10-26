@@ -61,6 +61,26 @@ assert.deepEqual(
   { ready: true },
 );
 
+// URLSearchParams silently substitutes U+FFFD for malformed percent escapes.
+// Reject ambiguous query bytes rather than letting pg interpret different settings.
+for (const [label, query] of [
+  ["truncated percent escape", "application_name=%"],
+  ["nonhex percent escape", "application_name=%GG"],
+  ["invalid UTF-8 byte", "application_name=%FF"],
+  ["invalid UTF-8 sequence", "application_name=%C3%28"],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, DATABASE_URL: `postgresql://app:fixture@db.internal/app?${query}` }),
+    /DATABASE_URL query parameters must use valid percent-encoding/,
+    label,
+  );
+}
+// Valid UTF-8 percent-encoded option values remain compatible with Railway.
+assert.deepEqual(
+  validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?application_name=deploy%C3%A9" }),
+  { ready: true },
+);
+
 // Distinct PostgreSQL query options remain valid; only ambiguous repeats are rejected.
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal/app?sslmode=require&application_name=eio" }),
