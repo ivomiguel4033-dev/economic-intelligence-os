@@ -22,6 +22,8 @@ let healthWwwAuthenticate = null;
 let readyWwwAuthenticate = null;
 let healthRetryAfter = null;
 let readyRetryAfter = null;
+let healthRefresh = null;
+let readyRefresh = null;
 let healthRedirect = false;
 let readyRedirect = false;
 let healthBodyStatus = "ok";
@@ -95,6 +97,8 @@ const server = createServer((request, response) => {
   if (authChallenge !== null) headers["www-authenticate"] = authChallenge;
   const retryAfter = health ? healthRetryAfter : readyRetryAfter;
   if (retryAfter !== null) headers["retry-after"] = retryAfter;
+  const refresh = health ? healthRefresh : readyRefresh;
+  if (refresh !== null) headers.refresh = refresh;
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   const date = health ? healthDate : readyDate;
@@ -203,6 +207,15 @@ try {
   assert.equal(await run(), false, "Even zero-second readiness retry hint must block promotion");
   readyRetryAfter = null;
   assert.equal(await run(), true, "Unchallenged probes without retry hints must pass");
+  // A proxy can send an HTTP Refresh redirect alongside 200 and valid JSON.
+  // Such a response must not count as proof that the release is ready.
+  healthRefresh = "0; url=/login";
+  assert.equal(await run(), false, "HTTP Refresh on liveness must block promotion");
+  healthRefresh = null;
+  readyRefresh = "30; url=https://example.com/login";
+  assert.equal(await run(), false, "Delayed HTTP Refresh on readiness must block promotion");
+  readyRefresh = null;
+  assert.equal(await run(), true, "Probes without HTTP Refresh must still pass");
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;

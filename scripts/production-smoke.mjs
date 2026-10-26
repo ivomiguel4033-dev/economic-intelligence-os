@@ -49,9 +49,9 @@ try {
     if (response.headers.has("set-cookie")) {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
-    // A 200 response carrying an authentication challenge or retry instruction is
-    // not unambiguous evidence that this deployment can serve production traffic.
-    for (const header of ["www-authenticate", "retry-after"]) {
+    // A 200 response carrying an authentication challenge, retry instruction or
+    // HTTP Refresh redirect is not unambiguous evidence of a healthy deployment.
+    for (const header of ["www-authenticate", "retry-after", "refresh"]) {
       if (response.headers.has(header)) {
         throw new Error(`${path} unexpectedly returned ${header}`);
       }
