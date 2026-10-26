@@ -292,6 +292,18 @@ try {
     readyDelegationHeader = null;
   }
   assert.equal(await run(), true, "Probes without redirect or delegation hints must still pass");
+  // Proxy-Status may report an upstream failure even when the HTTP status and
+  // health JSON look healthy. Check both endpoints and multi-hop reports.
+  healthDelegationHeader = ["proxy-status", "edge; error=connection_timeout"];
+  assert.equal(await run(), false, "Upstream proxy error on liveness must block promotion");
+  healthDelegationHeader = null;
+  readyDelegationHeader = ["proxy-status", "edge; next-hop=app, gateway; error=connection_refused"];
+  assert.equal(await run(), false, "Upstream proxy error in a later readiness hop must block promotion");
+  readyDelegationHeader = ["proxy-status", "edge; next-hop=app"];
+  healthDelegationHeader = ["proxy-status", "edge; next-hop=app"];
+  assert.equal(await run(), true, "Informational Proxy-Status without errors remains valid");
+  healthDelegationHeader = null;
+  readyDelegationHeader = null;
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;

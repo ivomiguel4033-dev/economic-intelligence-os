@@ -110,6 +110,13 @@ try {
         throw new Error(`${path} unexpectedly returned ${header}`);
       }
     }
+    // RFC 9209 Proxy-Status can expose an upstream error even when a proxy
+    // returns HTTP 200 with plausible health JSON. Fail closed on an error
+    // parameter in any hop, but permit informational successful proxy status.
+    const proxyStatus = response.headers.get("proxy-status");
+    if (proxyStatus !== null && /(?:^|[;,])\s*error(?:\s*=|\s*(?=[;,]|$))/i.test(proxyStatus)) {
+      throw new Error(`${path} reported an upstream proxy error (proxy-status)`);
+    }
     // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
