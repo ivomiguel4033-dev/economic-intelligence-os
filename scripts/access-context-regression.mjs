@@ -1,4 +1,30 @@
 import assert from "node:assert/strict";
+import { assuranceFromClaims, normalizeVerifiedIdentity } from "../src/security/oidc.ts";
+
+// ACR names are opaque identifiers. Partial text must not elevate assurance.
+for (const acr of ["no-mfa", "non-phishing-resistant", "untrusted-phr", "no-aal3",
+  "urn:example:acr:disabled-mfa", "urn:example:acr:aal2-low", "https://idp.example/acr/not-phr"]) {
+  assert.equal(assuranceFromClaims([], acr), "password", `ACR must not elevate assurance: ${acr}`);
+}
+for (const [amr, acr, expected] of [
+  [["webauthn"], "mfa", "phishing-resistant"],
+  [["FIDO2"], undefined, "phishing-resistant"],
+  [["hwk"], undefined, "phishing-resistant"],
+  [["OTP"], undefined, "mfa"],
+  [["sms"], undefined, "mfa"],
+  [[], "urn:example:acr:aal3", "phishing-resistant"],
+  [[], "urn:example:acr:phr", "phishing-resistant"],
+  [[], "urn:example:acr:aal2", "mfa"],
+  [[], "urn:example:acr:mfa", "mfa"],
+  [[42, null], "unknown", "password"],
+]) {
+  assert.equal(assuranceFromClaims(amr, acr), expected);
+}
+assert.equal(normalizeVerifiedIdentity({
+  iss: "https://identity.example", sub: "actor-a", aud: "api",
+  exp: Math.floor(Date.now() / 1000) + 120, acr: "not-mfa",
+}).assurance, "password");
+
 import { db } from "../src/infrastructure/database/postgres.ts";
 import { resolveAccessContext } from "../src/security/access-context.ts";
 import { resolveOrganizationForActor } from "../src/security/organization-selection.ts";
