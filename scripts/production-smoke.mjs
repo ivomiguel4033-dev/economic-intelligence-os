@@ -49,9 +49,9 @@ try {
     if (response.headers.has("set-cookie")) {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
-    // A 200 response carrying an authentication challenge, retry instruction,
-    // redirect hint or proxy-internal redirect is not reliable health evidence.
-    for (const header of ["www-authenticate", "retry-after", "refresh", "location", "x-accel-redirect"]) {
+    // A 200 response with authentication, redirect or proxy delegation hints
+    // is not reliable evidence of a directly healthy deployment endpoint.
+    for (const header of ["www-authenticate", "retry-after", "refresh", "location", "x-accel-redirect", "x-sendfile", "x-reproxy-url"]) {
       if (response.headers.has(header)) {
         throw new Error(`${path} unexpectedly returned ${header}`);
       }

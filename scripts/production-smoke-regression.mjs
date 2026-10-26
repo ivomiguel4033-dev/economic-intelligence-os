@@ -28,6 +28,8 @@ let healthLocation = null;
 let readyLocation = null;
 let healthXAccelRedirect = null;
 let readyXAccelRedirect = null;
+let healthDelegationHeader = null;
+let readyDelegationHeader = null;
 let healthRedirect = false;
 let readyRedirect = false;
 let healthBodyStatus = "ok";
@@ -107,6 +109,8 @@ const server = createServer((request, response) => {
   if (location !== null) headers.location = location;
   const internalRedirect = health ? healthXAccelRedirect : readyXAccelRedirect;
   if (internalRedirect !== null) headers["x-accel-redirect"] = internalRedirect;
+  const delegation = health ? healthDelegationHeader : readyDelegationHeader;
+  if (delegation !== null) headers[delegation[0]] = delegation[1];
   const age = health ? healthAge : readyAge;
   if (age !== null) headers.age = age;
   const date = health ? healthDate : readyDate;
@@ -238,7 +242,17 @@ try {
   readyXAccelRedirect = "/internal/ready";
   assert.equal(await run(), false, "Nginx internal redirect on readiness must block promotion");
   readyXAccelRedirect = null;
-  assert.equal(await run(), true, "Probes without redirect hints must still pass");
+  // Sendfile and reproxy headers delegate the actual response to another target.
+  // A valid JSON body alongside such hints cannot prove the intended service is healthy.
+  for (const [header, value] of [["x-sendfile", "/private/health.json"], ["x-reproxy-url", "https://other.example/health"]]) {
+    healthDelegationHeader = [header, value];
+    assert.equal(await run(), false, `${header} on liveness must block promotion`);
+    healthDelegationHeader = null;
+    readyDelegationHeader = [header, value];
+    assert.equal(await run(), false, `${header} on readiness must block promotion`);
+    readyDelegationHeader = null;
+  }
+  assert.equal(await run(), true, "Probes without redirect or delegation hints must still pass");
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;
