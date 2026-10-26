@@ -556,7 +556,7 @@ try {
       await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
       assert.fail("Invalid deployment origin unexpectedly passed");
     } catch (error) {
-      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes|Deployment origin must not use port 0/);
+      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes|Deployment origin must not use port 0|Local HTTP smoke origin must use a canonical loopback hostname/);
     }
   }
   await rejectsInvalidOrigin("http://example.com");
@@ -567,6 +567,11 @@ try {
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", ":@127.0.0.1"));
   await rejectsInvalidOrigin(origin.replace("://", ":///"));
   await rejectsInvalidOrigin(origin.replace("://", ":////"));
+  // URL normalization must not turn disguised hosts into permitted loopback origins.
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "%31%32%37.0.0.1"));
+  await rejectsInvalidOrigin("https://%65xample.com");
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "0x7f000001"));
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "127.1"));
   await rejectsInvalidOrigin(origin + "/unexpected-path");
   await rejectsInvalidOrigin(" " + origin);
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");

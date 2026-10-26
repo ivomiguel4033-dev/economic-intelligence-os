@@ -1,6 +1,6 @@
 # Production smoke HTTP response contract
 
-The release gate `node scripts/production-smoke.mjs https://<service-origin>` probes `/api/health` and `/api/ready`. Use only the intended deployment origin; a successful HTTP status by itself is insufficient.
+The release gate `node scripts/production-smoke.mjs https://<service-origin>` probes `/api/health` and `/api/ready`. Use only the intended deployment origin; a successful HTTP status by itself is insufficient. Encoded hostnames (`%` in the authority) are rejected rather than normalized to another target. Insecure HTTP is allowed only for explicitly spelled `localhost`, `127.0.0.1` or `[::1]` during local tests; hexadecimal and shortened IPv4 aliases are rejected.
 
 ## Required response invariants
 

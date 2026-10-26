@@ -61,8 +61,9 @@ try {
   }
   // WHATWG URL normalizes missing authority slashes and strips empty userinfo.
   // Check the literal origin before trusting the parsed hostname for promotion.
+  // Percent-encoded authority characters can silently change the target host.
   const rawAuthority = /^https?:\/\/([^/?#]+)/i.exec(input)?.[1];
-  if (!rawAuthority || rawAuthority.includes("@")) {
+  if (!rawAuthority || rawAuthority.includes("@") || rawAuthority.includes("%")) {
     throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
   }
   const origin = new URL(input);
@@ -70,6 +71,12 @@ try {
   // Fail during validation rather than treating a connection failure as smoke evidence.
   if (origin.port === "0") throw new Error("Deployment origin must not use port 0");
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
+  // WHATWG URL also normalizes hexadecimal, integer and shortened IPv4 aliases
+  // to 127.0.0.1. Only explicit loopback spellings may use insecure HTTP.
+  if (origin.protocol === "http:" && local &&
+      !/^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/i.test(rawAuthority)) {
+    throw new Error("Local HTTP smoke origin must use a canonical loopback hostname");
+  }
   if ((origin.protocol !== "https:" && !(local && origin.protocol === "http:")) ||
       origin.username || origin.password || input.includes("?") || input.includes("#") || origin.search || origin.hash ||
       origin.pathname !== "/") {
