@@ -3,6 +3,52 @@
 import process from "node:process";
 import { TextDecoder } from "node:util";
 
+// JSON.parse silently keeps the last duplicate object key. Reject ambiguous
+// health evidence, including keys disguised with JSON Unicode escapes.
+function rejectDuplicateJsonKeys(text) {
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  let keyStart = -1;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+        if (keyStart !== -1) {
+          const key = JSON.parse(text.slice(keyStart, index + 1));
+          const object = stack[stack.length - 1];
+          if (object.seen.has(key)) {
+            throw new Error("Health response contains duplicate JSON object keys");
+          }
+          object.seen.add(key);
+          object.expectingKey = false;
+          keyStart = -1;
+        }
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object" && object.expectingKey) keyStart = index;
+    } else if (character === "{") {
+      stack.push({ kind: "object", seen: new Set(), expectingKey: true });
+    } else if (character === "[") {
+      stack.push({ kind: "array" });
+    } else if (character === "}" || character === "]") {
+      stack.pop();
+    } else if (character === ",") {
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object") object.expectingKey = true;
+    }
+  }
+}
+
 const input = process.argv[2];
 if (process.argv.length !== 3) {
   console.error("Usage: node scripts/production-smoke.mjs <https://service-origin>");
@@ -185,7 +231,9 @@ try {
       chunks.push(Buffer.from(chunk));
     }
     // Malformed UTF-8 must not be silently replaced in deployment health evidence.
-    const body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+    const responseText = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+    const body = JSON.parse(responseText);
+    rejectDuplicateJsonKeys(responseText);
     // A proxy can refresh its HTTP Date while replaying an old JSON payload.
     // Require a fresh, canonical server-generated timestamp on both probes.
     const timestamp = body?.timestamp;

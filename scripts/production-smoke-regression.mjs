@@ -72,6 +72,8 @@ let invalidHealthUtf8 = false;
 let invalidReadyUtf8 = false;
 let invalidHealthJson = false;
 let invalidReadyJson = false;
+let healthBodyOverride = null;
+let readyBodyOverride = null;
 const server = createServer((request, response) => {
   if (request.url === "/api/health" || request.url === "/api/ready") {
     requestCacheHeaders.set(request.url, {
@@ -139,6 +141,7 @@ const server = createServer((request, response) => {
         checks: { application: applicationStatus }, padding: "x".repeat(healthPadding) }
     : { status: readyBodyStatus, service, timestamp: readyTimestamp ?? new Date().toISOString(),
         dependencies: { database: { status: databaseStatus, latencyMs } }, padding: "x".repeat(readyPadding) });
+  const responseBody = (health ? healthBodyOverride : readyBodyOverride) ?? body;
   if (health ? invalidHealthJson : invalidReadyJson) {
     response.end('{"status":');
   } else if (health ? invalidHealthUtf8 : invalidReadyUtf8) {
@@ -147,7 +150,7 @@ const server = createServer((request, response) => {
     const offset = body.indexOf(marker) + marker.length;
     response.end(Buffer.concat([Buffer.from(body.slice(0, offset)), Buffer.from([0xff]), Buffer.from(body.slice(offset))]));
   } else {
-    response.end(contentEncoding === "gzip" ? gzipSync(body) : body);
+    response.end(contentEncoding === "gzip" ? gzipSync(responseBody) : responseBody);
   }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -292,6 +295,36 @@ try {
   invalidReadyJson = true;
   assert.equal(await run(), false, "Malformed readiness JSON must block promotion");
   invalidReadyJson = false;
+  // Duplicate keys can make a failed probe appear healthy because JSON.parse
+  // silently keeps the last value. Reject ambiguity at every object depth.
+  const healthyJson = JSON.stringify({
+    status: "ok", service: "economic-intelligence-os",
+    timestamp: new Date().toISOString(), checks: { application: "ok" },
+  });
+  healthBodyOverride = healthyJson.replace('"status":"ok"', '"status":"degraded","status":"ok"');
+  assert.equal(await run(), false, "Duplicate top-level liveness status must block promotion");
+  healthBodyOverride = healthyJson.replace(
+    '"status":"ok"', '"status":"degraded","st' + String.fromCharCode(92) + 'u0061tus":"ok"',
+  );
+  assert.equal(await run(), false, "Escaped duplicate liveness key must block promotion");
+  healthBodyOverride = null;
+  const readyJson = JSON.stringify({
+    status: "ready", service: "economic-intelligence-os",
+    timestamp: new Date().toISOString(),
+    dependencies: { database: { status: "ok", latencyMs: 1 } },
+  });
+  readyBodyOverride = readyJson.replace(
+    '"status":"ok","latencyMs":1', '"status":"down","status":"ok","latencyMs":1',
+  );
+  assert.equal(await run(), false, "Duplicate nested database status must block promotion");
+  readyBodyOverride = null;
+  healthBodyOverride = JSON.stringify({
+    status: "ok", service: "economic-intelligence-os",
+    timestamp: new Date().toISOString(), checks: { application: "ok" },
+    metadata: [{ tag: "first" }, { tag: "second" }],
+  });
+  assert.equal(await run(), true, "Same JSON key in distinct objects remains valid");
+  healthBodyOverride = null;
   invalidHealthUtf8 = true;
   assert.equal(await run(), false, "Malformed UTF-8 liveness JSON must block promotion");
   invalidHealthUtf8 = false;
