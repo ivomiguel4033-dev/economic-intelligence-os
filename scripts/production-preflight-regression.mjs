@@ -42,6 +42,25 @@ assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal:5432/app?sslmode=require" }),
   { ready: true },
 );
+// Percent-encoded control bytes in PostgreSQL options must not bypass raw URL checks.
+for (const [label, databaseUrl] of [
+  ["NUL in option value", "postgresql://app:fixture@db.internal/app?application_name=app%00service"],
+  ["newline in option value", "postgresql://app:fixture@db.internal/app?sslmode=require%0A"],
+  ["newline in option key", "postgresql://app:fixture@db.internal/app?ssl%0Amode=require"],
+  ["DEL in option value", "postgresql://app:fixture@db.internal/app?application_name=app%7F"],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, DATABASE_URL: databaseUrl }),
+    /DATABASE_URL query parameters must not contain control characters/,
+    label,
+  );
+}
+// Legitimate encoded interior spaces are not control characters.
+assert.deepEqual(
+  validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/app?application_name=app%20service" }),
+  { ready: true },
+);
+
 // Distinct PostgreSQL query options remain valid; only ambiguous repeats are rejected.
 assert.deepEqual(
   validateProductionPreflight({ ...base, DATABASE_URL: "postgres://app:fixture@db.internal/app?sslmode=require&application_name=eio" }),

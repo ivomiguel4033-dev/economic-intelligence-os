@@ -137,7 +137,12 @@ function validateDatabaseUrl(value) {
   // clients may choose the first or last value for security-sensitive options
   // such as sslmode. Never approve migrations with conflicting connection settings.
   const seenQueryKeys = new Set();
-  for (const key of url.searchParams.keys()) {
+  // URLSearchParams decodes percent-encoded bytes before the PostgreSQL driver
+  // sees them. Reject hidden control characters in option names and values.
+  for (const [key, optionValue] of url.searchParams) {
+    if (/[\u0000-\u001f\u007f]/.test(key) || /[\u0000-\u001f\u007f]/.test(optionValue)) {
+      fail("DATABASE_URL query parameters must not contain control characters");
+    }
     const normalizedKey = key.toLowerCase();
     if (seenQueryKeys.has(normalizedKey)) {
       fail("DATABASE_URL query parameters must not repeat keys");
