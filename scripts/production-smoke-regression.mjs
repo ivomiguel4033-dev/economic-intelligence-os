@@ -239,6 +239,25 @@ try {
   readyDate = new Date(Date.now() + 30_000).toUTCString();
   assert.equal(await run(), true, "Readiness Date within thirty seconds of its body timestamp must pass");
   readyDate = null;
+  // Individually fresh timestamps and matching per-response HTTP Dates are
+  // insufficient if liveness and readiness come from different time windows.
+  const olderProbe = new Date(Date.now() - 2 * 60_000);
+  healthTimestamp = olderProbe.toISOString();
+  healthDate = olderProbe.toUTCString();
+  assert.equal(await run(), false, "Two-minute-old liveness paired with current readiness must fail");
+  healthTimestamp = null;
+  healthDate = null;
+  readyTimestamp = olderProbe.toISOString();
+  readyDate = olderProbe.toUTCString();
+  assert.equal(await run(), false, "Two-minute-old readiness paired with current liveness must fail");
+  readyTimestamp = null;
+  readyDate = null;
+  const nearbyProbe = new Date(Date.now() - 30_000);
+  healthTimestamp = nearbyProbe.toISOString();
+  healthDate = nearbyProbe.toUTCString();
+  assert.equal(await run(), true, "Probes within thirty seconds must remain valid");
+  healthTimestamp = null;
+  healthDate = null;
   healthSetCookie = "session=unexpected; Path=/; HttpOnly";
   assert.equal(await run(), false, "Liveness setting a cookie must block promotion");
   healthSetCookie = null;

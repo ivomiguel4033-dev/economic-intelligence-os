@@ -311,9 +311,16 @@ try {
     if (!dependency && body.checks?.application !== "ok") {
       throw new Error("/api/health did not confirm application liveness");
     }
+    return generatedAt;
   }
-  await check("/api/health", "ok");
-  await check("/api/ready", "ready", true);
+  const healthGeneratedAt = await check("/api/health", "ok");
+  const readyGeneratedAt = await check("/api/ready", "ready", true);
+  // A fresh readiness response cannot validate an unrelated, older liveness
+  // response. Both probes must describe the same short deployment window,
+  // even when their individual HTTP Date headers are internally consistent.
+  if (Math.abs(readyGeneratedAt - healthGeneratedAt) > 60_000) {
+    throw new Error("Liveness and readiness body timestamps differ by more than 60 seconds");
+  }
   console.log("Production smoke passed: liveness and database readiness");
 } catch (error) {
   console.error(`Production smoke FAILED: ${error instanceof Error ? error.message : String(error)}`);
