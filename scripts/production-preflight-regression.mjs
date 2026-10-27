@@ -29,6 +29,24 @@ assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "ht
 // Encoded path bytes do not change the configured host and remain supported.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%61pi" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/%6beys" }), { ready: true });
+// Reject silently normalized OIDC and AI URLs, just as database migration
+ // targets already reject dot-segment normalization.
+for (const [label, config] of [
+  ["OIDC issuer literal parent", { OIDC_ISSUER: "https://identity.example.com/tenant/../admin" }],
+  ["OIDC JWKS literal current", { OIDC_JWKS_URL: "https://identity.example.com/.well-known/./jwks.json" }],
+  ["OIDC JWKS encoded current", { OIDC_JWKS_URL: "https://identity.example.com/%2e/keys" }],
+  ["primary AI encoded parent", { AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%2e%2e/v2" }],
+  ["secondary AI mixed parent", { AI_SECONDARY_BASE_URL: "https://backup.example.com/v1/.%2E/v2", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+  ["tertiary AI trailing parent", { AI_TERTIARY_BASE_URL: "https://third.example.com/v1/..", AI_TERTIARY_API_KEY: "third-key", AI_TERTIARY_MODEL: "third-model" }],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, ...config }),
+    /must not contain normalized dot path segments/,
+    `Normalized HTTPS configuration (${label}) must fail closed`,
+  );
+}
+// Dots within real path segments are not traversal and remain valid.
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%2e2026" }), { ready: true });
 // Raw spaces in OIDC and AI URLs must be rejected before WHATWG URL silently encodes them.
 for (const [label, config] of [
   ["OIDC issuer path", { OIDC_ISSUER: "https://identity.example.com/my tenant" }],

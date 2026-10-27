@@ -33,6 +33,13 @@ function validateHttpsUrl(value, label) {
   if (authority.includes("%")) fail(`${label} must not contain percent-encoded authority characters`);
   // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
   if (value.includes("#")) fail(`${label} must not include a fragment`);
+  // WHATWG URL removes literal and percent-encoded dot segments before OIDC
+  // issuer/JWKS or AI provider URLs are used. Never silently change a configured
+  // trust boundary or provider API base path during production preflight.
+  const rawPath = /^https:\/\/[^/?#]+(\/[^?#]*)?/i.exec(value)?.[1] ?? "";
+  if (/(?:^|\/)(?:\.|%2e){1,2}(?=\/|$)/i.test(rawPath)) {
+    fail(`${label} must not contain normalized dot path segments`);
+  }
   return url;
 }
 
