@@ -48,6 +48,16 @@ export function parseOidcJwksUrl(value: string): URL {
   if (value !== value.trim() || /[\u0000-\u001f\u007f\\]/.test(value)) {
     throw new Error("OIDC JWKS URL contains unsafe characters");
   }
+  // The URL parser accepts missing authority slashes and silently removes
+  // empty userinfo or decodes escaped hostname bytes. Inspect the literal URL
+  // so standalone verifier construction enforces the same policy as preflight.
+  const authority = /^https:\/\/([^/?#]+)/i.exec(value)?.[1];
+  if (!authority || authority.includes("@")) {
+    throw new Error("OIDC JWKS URL must include an explicit authority without credentials");
+  }
+  if (authority.includes("%")) {
+    throw new Error("OIDC JWKS URL must not contain percent-encoded authority characters");
+  }
   let url: URL;
   try {
     url = new URL(value);
@@ -55,6 +65,7 @@ export function parseOidcJwksUrl(value: string): URL {
     throw new Error("OIDC JWKS URL must be a valid URL");
   }
   if (url.protocol !== "https:") throw new Error("OIDC JWKS URL must use HTTPS");
+  if (url.port === "0") throw new Error("OIDC JWKS URL must not use port 0");
   if (url.username || url.password) throw new Error("OIDC JWKS URL must not contain credentials");
   if (value.includes("#")) throw new Error("OIDC JWKS URL must not include a fragment");
   return url;

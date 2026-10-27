@@ -12,12 +12,22 @@ for (const invalidJwksUrl of [
   " https://idp.example/keys",
   "https://idp.example/keys ",
   "https://idp.example/keys\n",
+  // WHATWG URL accepts slashless HTTPS and strips empty userinfo.
+  "https:idp.example/keys",
+  "https:/idp.example/keys",
+  "https:///idp.example/keys",
+  "https://@idp.example/keys",
+  // Encoded authority bytes and bind-only port zero must never reach JWKS fetch.
+  "https://%69dp.example/keys",
+  "https://idp.example:0/keys",
   "not-a-url",
 ]) {
   assert.throws(() => parseOidcJwksUrl(invalidJwksUrl), /OIDC JWKS URL/, invalidJwksUrl);
 }
 assert.equal(parseOidcJwksUrl("https://idp.example/keys?tenant=abc").search, "?tenant=abc");
 assert.equal(parseOidcJwksUrl("https://idp.example/.well-known/jwks.json").hostname, "idp.example");
+assert.equal(parseOidcJwksUrl("https://idp.example:8443/keys").port, "8443");
+assert.equal(parseOidcJwksUrl("https://idp.example/%6beys").pathname, "/%6beys");
 
 // ACR names are opaque identifiers. Partial text must not elevate assurance.
 for (const acr of ["no-mfa", "non-phishing-resistant", "untrusted-phr", "no-aal3",
