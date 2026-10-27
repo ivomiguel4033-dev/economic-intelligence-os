@@ -169,6 +169,26 @@ for (const [label, config] of [
   );
 }
 
+// Encoded control bytes in HTTPS paths or JWKS queries must fail closed:
+// downstream identity/AI services may decode them after URL validation.
+for (const [label, config] of [
+  ["issuer encoded newline", { OIDC_ISSUER: "https://identity.example.com/tenant%0aadmin" }],
+  ["JWKS encoded CR", { OIDC_JWKS_URL: "https://identity.example.com/keys?name=one%0Dtwo" }],
+  ["JWKS encoded DEL", { OIDC_JWKS_URL: "https://identity.example.com/keys%7F" }],
+  ["primary AI encoded NUL", { AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%00chat" }],
+  ["secondary AI encoded tab", { AI_SECONDARY_BASE_URL: "https://backup.example.com/v1/%09chat", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+  ["tertiary AI encoded US", { AI_TERTIARY_BASE_URL: "https://third.example.com/v1/%1Fchat", AI_TERTIARY_API_KEY: "third-key", AI_TERTIARY_MODEL: "third-model" }],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, ...config }),
+    /must not contain percent-encoded control characters/,
+    `${label} must be rejected by production preflight`,
+  );
+}
+// Encoded printable characters remain valid in provider paths and JWKS queries.
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%20chat" }), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/keys?name=one%20two" }), { ready: true });
+
 for (const [name, env, expected] of [
   ["OIDC audience template", { ...base, OIDC_AUDIENCE: "CHANGE_ME" }, "OIDC_AUDIENCE must not be a placeholder"],
   ["OIDC audience unknown", { ...base, OIDC_AUDIENCE: "unknown" }, "OIDC_AUDIENCE must not be a placeholder"],

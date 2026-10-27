@@ -33,6 +33,11 @@ function validateHttpsUrl(value, label) {
   if (authority.includes("%")) fail(`${label} must not contain percent-encoded authority characters`);
   // An empty trailing # is invisible in URL.hash but is still not a valid configured endpoint.
   if (value.includes("#")) fail(`${label} must not include a fragment`);
+  // Percent-encoded C0/DEL bytes survive raw control checks and can be
+  // decoded by downstream OIDC or AI endpoints into a different resource.
+  if (/%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(value)) {
+    fail(`${label} must not contain percent-encoded control characters`);
+  }
   // WHATWG URL removes literal and percent-encoded dot segments before OIDC
   // issuer/JWKS or AI provider URLs are used. Never silently change a configured
   // trust boundary or provider API base path during production preflight.
