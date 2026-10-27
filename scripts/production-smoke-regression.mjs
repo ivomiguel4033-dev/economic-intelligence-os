@@ -159,15 +159,36 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
+// A negative regression is valid only when the smoke gate itself rejected
+// the response. A missing Node executable, CLI usage error, crash or timeout
+// must fail the suite rather than masquerade as a successful fail-closed check.
+function isExpectedSmokeRejection(error) {
+  return error?.code === 1 &&
+    error?.signal == null &&
+    /^Production smoke FAILED: \\S/m.test(String(error.stderr ?? ""));
+}
 async function run(candidateOrigin = origin) {
   try {
     await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
     return true;
-  } catch {
+  } catch (error) {
+    if (!isExpectedSmokeRejection(error)) throw error;
     return false;
   }
 }
 try {
+  assert.equal(isExpectedSmokeRejection({
+    code: 1, signal: null, stderr: "Production smoke FAILED: /api/ready returned HTTP 503\\n",
+  }), true, "Explicit smoke rejection must count as a negative regression");
+  for (const error of [
+    { code: 2, stderr: "Usage: production-smoke <origin>" },
+    { code: 1, stderr: "SyntaxError: Unexpected token" },
+    { code: "ETIMEDOUT", signal: "SIGTERM", stderr: "" },
+    { code: 1, stderr: "" },
+  ]) {
+    assert.equal(isExpectedSmokeRejection(error), false,
+      "Harness failures must never satisfy a negative smoke regression");
+  }
   assert.equal(await run(), true, "Healthy deployment must pass");
   for (const path of ["/api/health", "/api/ready"]) {
     assert.deepEqual(requestCacheHeaders.get(path), {
