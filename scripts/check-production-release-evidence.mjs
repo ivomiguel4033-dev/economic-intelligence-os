@@ -17,7 +17,7 @@ const validDeploymentId = (value) => typeof value === "string" &&
   !/^0+(?:[-_]0+)*$/.test(value) &&
   // Reject common template placeholders as deployment/rollback evidence.
   // These are not Railway IDs and cannot prove a recoverable release.
-  !/^(?:null|undefined|none|unknown|placeholder|todo|tbd|change[-_]?me|replace[-_]?me|example|sample|dummy|fake|test|deployment[-_]?id|rollback[-_]?id|your[-_]?deployment[-_]?id|your[-_]?railway[-_]?deployment[-_]?id)$/i.test(value);
+  !/^(?:null|undefined|none|unknown|placeholder|todo|tbd|change[-_]?me|replace[-_]?me|example|sample|dummy|fake|test|deployment[-_]?id|rollback[-_]?id|your[-_]?deployment[-_]?id|your[-_]?railway[-_]?deployment[-_]?id|deployment[-_]?example|rollback[-_]?example|previous[-_]?deployment|deploy[-_]?example)$/i.test(value);
 
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
@@ -198,7 +198,7 @@ if (process.argv[2] === "--self-test") {
   const valid = {
     commitSha: "a".repeat(40),
     ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
-    railwayDeploymentId: "deployment-example",
+    railwayDeploymentId: "railway_8f3a2",
     firstLaunch: true,
     rollbackVerified: false,
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
@@ -252,7 +252,7 @@ if (process.argv[2] === "--self-test") {
   for (const invalid of [undefined, null, 0, 1, "true", "false", {}]) {
     assert.throws(() => verify({ ...valid, firstLaunch: invalid }), /firstLaunch must be explicitly/);
   }
-  for (const invalid of [null, 0, false, " ", "previous-deployment"]) {
+  for (const invalid of [null, 0, false, " ", "railway_7b2c1"]) {
     assert.throws(() => verify({ ...valid, rollbackDeploymentId: invalid }), /First launch cannot claim/);
   }
   for (const invalidId of [" candidate", "candidate ", "candidate deployment", "candidate\nnext", "candidate\t", "candidate/next", "é", ""]) {
@@ -270,7 +270,7 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: nilId, rollbackVerified: true }), /rollback deployment ID/);
   }
   // A populated template is not proof of a real Railway deployment or rollback target.
-  for (const placeholder of ["null", "UNDEFINED", "none", "Unknown", "PLACEHOLDER", "todo", "TBD", "CHANGE_ME", "change-me", "replace_me", "REPLACE-ME", "your-deployment-id", "YOUR_DEPLOYMENT_ID", "example", "SAMPLE", "dummy", "FAKE", "test", "deployment-id", "rollback_id", "your-railway-deployment-id"]) {
+  for (const placeholder of ["null", "UNDEFINED", "none", "Unknown", "PLACEHOLDER", "todo", "TBD", "CHANGE_ME", "change-me", "replace_me", "REPLACE-ME", "your-deployment-id", "YOUR_DEPLOYMENT_ID", "example", "SAMPLE", "dummy", "FAKE", "test", "deployment-id", "rollback_id", "your-railway-deployment-id", "deployment-example", "DEPLOYMENT_EXAMPLE", "rollback-example", "deploy_example", "previous-deployment"]) {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: placeholder }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: placeholder, rollbackVerified: true }), /rollback deployment ID/);
   }
@@ -288,8 +288,8 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: invalid }), /rollbackVerified=true/);
   }
   assert.equal(verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "prior-deployment", rollbackVerified: true }), true);
-  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "deployment-example" }), /Rollback deployment must differ/);
-  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "DEPLOYMENT-EXAMPLE", rollbackVerified: true }), /Rollback deployment must differ/);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "railway_8f3a2" }), /Rollback deployment must differ/);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: "RAILWAY_8F3A2", rollbackVerified: true }), /Rollback deployment must differ/);
   // UUID punctuation and case must not disguise a rollback to the active deployment.
   const canonicalUuid = "123e4567-e89b-12d3-a456-426614174000";
   const compactUuid = "123e4567e89b12d3a456426614174000";
