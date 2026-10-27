@@ -603,6 +603,12 @@ try {
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "0x7f000001"));
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "127.1"));
   await rejectsInvalidOrigin(origin + "/unexpected-path");
+  // WHATWG URL silently resolves dot segments to the origin root. The smoke
+  // gate must reject the literal path even when the parsed URL looks valid.
+  for (const normalizedPath of ["/.", "/..", "/%2e", "/%2E", "/%2e%2e", "/a/..", "/a/%2e%2e"]) {
+    await rejectsInvalidOrigin(origin + normalizedPath);
+  }
+  assert.equal(await run(origin + "/"), true, "A single optional trailing slash remains a valid origin");
   await rejectsInvalidOrigin(" " + origin);
   assert.equal(await run(origin + "\\"), false, "Trailing backslash must not be normalized into a valid origin");
   assert.equal(await run(origin.replace("://", ":\\")), false, "Scheme backslash must not be normalized into a valid origin");
