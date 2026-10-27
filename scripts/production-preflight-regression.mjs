@@ -15,6 +15,8 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// Reject only exact template tokens, not legitimate production identifiers containing them.
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_AUDIENCE: "example-prod", AI_PRIMARY_API_KEY: "sample-provider-secret", AI_PRIMARY_MODEL: "dummy-v2" }), { ready: true });
 // Railway private networking is valid for PostgreSQL even though public OIDC/AI URLs are restricted.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@10.20.30.40/app" }), { ready: true });
 // Railway service discovery uses .internal, not mDNS .local hostnames.
@@ -170,6 +172,11 @@ for (const [label, config] of [
 for (const [name, env, expected] of [
   ["OIDC audience template", { ...base, OIDC_AUDIENCE: "CHANGE_ME" }, "OIDC_AUDIENCE must not be a placeholder"],
   ["OIDC audience unknown", { ...base, OIDC_AUDIENCE: "unknown" }, "OIDC_AUDIENCE must not be a placeholder"],
+  ["OIDC audience example", { ...base, OIDC_AUDIENCE: "EXAMPLE" }, "OIDC_AUDIENCE must not be a placeholder"],
+  ["primary AI key sample", { ...base, AI_PRIMARY_API_KEY: "sample" }, "AI_PRIMARY_API_KEY must not be a placeholder"],
+  ["primary AI model dummy", { ...base, AI_PRIMARY_MODEL: "dummy" }, "AI_PRIMARY_MODEL must not be a placeholder"],
+  ["secondary AI key fake", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "FAKE", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_API_KEY must not be a placeholder"],
+  ["database sample password", { ...base, DATABASE_URL: "postgresql://app:sample@db.internal/app" }, "DATABASE_URL credentials must not be placeholders"],
   ["primary AI key template", { ...base, AI_PRIMARY_API_KEY: "replace_me" }, "AI_PRIMARY_API_KEY must not be a placeholder"],
   ["primary AI model template", { ...base, AI_PRIMARY_MODEL: "TODO" }, "AI_PRIMARY_MODEL must not be a placeholder"],
   ["secondary AI key template", { ...base, AI_SECONDARY_BASE_URL: "https://backup.example.com/v1", AI_SECONDARY_API_KEY: "placeholder", AI_SECONDARY_MODEL: "backup-model" }, "AI_SECONDARY_API_KEY must not be a placeholder"],

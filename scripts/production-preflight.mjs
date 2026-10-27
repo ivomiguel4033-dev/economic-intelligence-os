@@ -5,7 +5,7 @@ function fail(message) {
 // Reject copied template values that would otherwise satisfy presence checks.
 // A configured-but-fake audience, API key or model must never pass preflight.
 function isPlaceholder(value) {
-  return /^(?:change[-_]?me|replace[-_]?me|placeholder|todo|tbd|undefined|null|none|unknown)$/i.test(value);
+  return /^(?:change[-_]?me|replace[-_]?me|placeholder|todo|tbd|undefined|null|none|unknown|example|sample|dummy|fake)$/i.test(value);
 }
 
 function validateHttpsUrl(value, label) {
