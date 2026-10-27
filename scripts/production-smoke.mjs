@@ -290,6 +290,12 @@ try {
         Math.abs(Date.now() - generatedAt) > 5 * 60 * 1000) {
       throw new Error(`${path} returned a stale or invalid body timestamp`);
     }
+    // A proxy can refresh HTTP Date while replaying an older health payload.
+    // Both timestamps may individually be within the five-minute freshness window,
+    // but their disagreement still makes the deployment evidence unreliable.
+    if (responseDate !== null && Math.abs(generatedAt - Date.parse(responseDate)) > 60_000) {
+      throw new Error(`${path} returned a body timestamp inconsistent with HTTP Date`);
+    }
     if (body.service !== "economic-intelligence-os" || body.status !== status) {
       throw new Error(`${path} returned an unexpected service or status`);
     }

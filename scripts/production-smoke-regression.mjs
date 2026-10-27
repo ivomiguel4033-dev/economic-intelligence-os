@@ -227,6 +227,18 @@ try {
   assert.equal(await run(), false, "Empty readiness body timestamp must block promotion");
   readyTimestamp = null;
   assert.equal(await run(), true, "Fresh canonical body timestamps must pass");
+  // A proxy-rewritten HTTP Date must not mask a replayed JSON timestamp.
+  // Each timestamp is individually fresh here; only cross-checking catches drift.
+  healthDate = new Date(Date.now() - 2 * 60_000).toUTCString();
+  assert.equal(await run(), false, "Liveness body and HTTP Date differing by two minutes must block promotion");
+  healthDate = new Date(Date.now() - 30_000).toUTCString();
+  assert.equal(await run(), true, "Liveness Date within thirty seconds of its body timestamp must pass");
+  healthDate = null;
+  readyDate = new Date(Date.now() + 2 * 60_000).toUTCString();
+  assert.equal(await run(), false, "Readiness body and HTTP Date differing by two minutes must block promotion");
+  readyDate = new Date(Date.now() + 30_000).toUTCString();
+  assert.equal(await run(), true, "Readiness Date within thirty seconds of its body timestamp must pass");
+  readyDate = null;
   healthSetCookie = "session=unexpected; Path=/; HttpOnly";
   assert.equal(await run(), false, "Liveness setting a cookie must block promotion");
   healthSetCookie = null;
