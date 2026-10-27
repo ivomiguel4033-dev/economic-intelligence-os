@@ -56,7 +56,7 @@ try {
   const validRecord = {
     commitSha: "a".repeat(40),
     ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
-    railwayDeploymentId: "deployment-example",
+    railwayDeploymentId: "railway_8f3a2",
     firstLaunch: true,
     rollbackVerified: false,
     ciPassed: true,
@@ -70,6 +70,19 @@ try {
     smokePassed: true,
     postReleaseObservationPassed: true,
   };
+
+  // Template deployment IDs must fail at the CLI boundary, even with all gates true.
+  const placeholderPath = join(directory, "placeholder-deployment.json");
+  writeFileSync(placeholderPath, JSON.stringify({
+    ...validRecord, railwayDeploymentId: "deployment-example",
+  }));
+  expectRejected(placeholderPath, "Placeholder deployment ID", /Railway deployment ID is required/);
+  const placeholderRollbackPath = join(directory, "placeholder-rollback.json");
+  writeFileSync(placeholderRollbackPath, JSON.stringify({
+    ...validRecord, firstLaunch: false, rollbackVerified: true,
+    rollbackDeploymentId: "previous-deployment",
+  }));
+  expectRejected(placeholderRollbackPath, "Placeholder rollback ID", /Upgrades require a recorded rollback deployment ID/);
 
   // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
