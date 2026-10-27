@@ -114,6 +114,9 @@ function validateDatabaseUrl(value) {
   if (/[\u0000-\u001f\u007f]/.test(value)) fail("DATABASE_URL must not contain control characters");
   // PostgreSQL URL parsing can encode a backslash in the authority or preserve it in the path.
   if (value.includes("\\")) fail("DATABASE_URL must not contain backslashes");
+  // WHATWG URL silently converts literal spaces in credentials, paths and options to %20.
+  // Require explicit encoding so migration targets cannot change during parsing.
+  if (value.includes(" ")) fail("DATABASE_URL must not contain literal spaces");
   if (value !== value.trim()) fail("DATABASE_URL must not contain surrounding whitespace");
   let url;
   try {

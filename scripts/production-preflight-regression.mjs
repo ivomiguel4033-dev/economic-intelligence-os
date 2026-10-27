@@ -46,6 +46,19 @@ assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresq
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app%20user:pass%20word@db.internal/app" }), { ready: true });
 // Internal spaces in an explicitly encoded PostgreSQL database name remain valid.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/report%20archive" }), { ready: true });
+// PostgreSQL URLs must not be silently rewritten by WHATWG URL parsing.
+// Explicitly percent-encoded interior spaces above remain supported.
+for (const [label, databaseUrl] of [
+  ["password", "postgresql://app:pa ss@db.internal/app"],
+  ["database name", "postgresql://app:fixture@db.internal/report archive"],
+  ["query option", "postgresql://app:fixture@db.internal/app?application_name=release gate"],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, DATABASE_URL: databaseUrl }),
+    /DATABASE_URL must not contain literal spaces/,
+    `Raw space in PostgreSQL ${label} must be rejected`,
+  );
+}
 // Legitimate credentials containing a placeholder substring are not templates.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:todo-service@db.internal/app" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://8.8.8.8/v1" }), { ready: true });
