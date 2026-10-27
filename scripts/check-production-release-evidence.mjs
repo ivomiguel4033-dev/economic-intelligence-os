@@ -13,8 +13,8 @@ const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-
 // The generous bound permits opaque provider IDs without accepting unbounded labels.
 const validDeploymentId = (value) => typeof value === "string" &&
   /^(?=.{1,128}$)[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/.test(value) &&
-  // Nil UUIDs and all-zero sentinels cannot identify real Railway deployments.
-  !/^0+(?:-0+)*$/.test(value) &&
+  // Nil UUIDs and all-zero sentinels (including mixed -/_ separators) cannot identify real Railway deployments.
+  !/^0+(?:[-_]0+)*$/.test(value) &&
   // Reject common template placeholders as deployment/rollback evidence.
   // These are not Railway IDs and cannot prove a recoverable release.
   !/^(?:null|undefined|none|unknown|placeholder|todo|tbd|change[-_]?me|replace[-_]?me|example|sample|dummy|fake|test|deployment[-_]?id|rollback[-_]?id|your[-_]?deployment[-_]?id|your[-_]?railway[-_]?deployment[-_]?id)$/i.test(value);
@@ -265,7 +265,7 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: invalidId }), /rollback deployment ID/);
   }
   // Never accept placeholder all-zero IDs as deployment or rollback evidence.
-  for (const nilId of ["0", "000", "00000000-0000-0000-0000-000000000000"]) {
+  for (const nilId of ["0", "000", "000_000", "00-00_00", "0_0-0", "00000000-0000-0000-0000-000000000000"]) {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: nilId }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: nilId, rollbackVerified: true }), /rollback deployment ID/);
   }
