@@ -313,9 +313,9 @@ try {
   readyXAccelRedirect = "/internal/ready";
   assert.equal(await run(), false, "Nginx internal redirect on readiness must block promotion");
   readyXAccelRedirect = null;
-  // Sendfile and reproxy headers delegate the actual response to another target.
-  // A valid JSON body alongside such hints cannot prove the intended service is healthy.
-  for (const [header, value] of [["x-sendfile", "/private/health.json"], ["x-reproxy-url", "https://other.example/health"]]) {
+  // Sendfile/reproxy delegate responses; Content-Location can identify a different resource.
+  // A valid JSON body alongside these hints cannot prove the intended endpoint is healthy.
+  for (const [header, value] of [["x-sendfile", "/private/health.json"], ["x-reproxy-url", "https://other.example/health"], ["content-location", "/api/health-from-cache"]]) {
     healthDelegationHeader = [header, value];
     assert.equal(await run(), false, `${header} on liveness must block promotion`);
     healthDelegationHeader = null;

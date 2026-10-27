@@ -121,7 +121,7 @@ try {
     }
     // A 200 response with authentication, redirect or proxy delegation hints
     // is not reliable evidence of a directly healthy deployment endpoint.
-    for (const header of ["www-authenticate", "authentication-info", "proxy-authenticate", "proxy-authentication-info", "retry-after", "refresh", "location", "x-accel-redirect", "x-sendfile", "x-reproxy-url"]) {
+    for (const header of ["www-authenticate", "authentication-info", "proxy-authenticate", "proxy-authentication-info", "retry-after", "refresh", "location", "content-location", "x-accel-redirect", "x-sendfile", "x-reproxy-url"]) {
       if (response.headers.has(header)) {
         throw new Error(`${path} unexpectedly returned ${header}`);
       }
