@@ -62,7 +62,9 @@ try {
   // WHATWG URL normalizes missing authority slashes and strips empty userinfo.
   // Check the literal origin before trusting the parsed hostname for promotion.
   // Percent-encoded authority characters can silently change the target host.
-  const rawAuthority = /^https?:\/\/([^/?#]+)/i.exec(input)?.[1];
+  // Match the entire literal origin: WHATWG URL collapses /., /.. and /%2e to /.
+  // A normalized path must never be accepted as a deployment origin.
+  const rawAuthority = /^https?:\/\/([^/?#]+)\/?$/i.exec(input)?.[1];
   if (!rawAuthority || rawAuthority.includes("@") || rawAuthority.includes("%")) {
     throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
   }
