@@ -133,6 +133,13 @@ function validateDatabaseUrl(value) {
   if (isUnsafeDatabaseHostname(url.hostname)) fail("DATABASE_URL must not use a loopback or link-local hostname");
   // Reject unusable database endpoints before attempting production migrations.
   if (url.port === "0") fail("DATABASE_URL must not use port 0");
+  // WHATWG URL removes literal and percent-encoded dot path segments before
+  // the migration driver sees the database name. Reject that silent rewrite:
+  // /staging/../production must never pass as an intentional production target.
+  const rawDatabasePath = /^postgres(?:ql)?:\\/\\/[^/?#]+(\\/[^?#]*)?/i.exec(value)?.[1] ?? "";
+  if (/(?:^|\\/)(?:\\.|%2e){1,2}(?=\\/|$)/i.test(rawDatabasePath)) {
+    fail("DATABASE_URL must not contain normalized dot path segments");
+  }
   if (!url.pathname || url.pathname === "/") fail("DATABASE_URL must include a database name");
   if (value.includes("#")) fail("DATABASE_URL must not include a fragment");
   // Query parameters must not redefine the connection identity or override

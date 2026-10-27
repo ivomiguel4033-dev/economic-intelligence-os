@@ -46,6 +46,26 @@ assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresq
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app%20user:pass%20word@db.internal/app" }), { ready: true });
 // Internal spaces in an explicitly encoded PostgreSQL database name remain valid.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/report%20archive" }), { ready: true });
+// PostgreSQL migration targets must not be silently changed by URL dot-segment normalization.
+for (const [label, databaseUrl] of [
+  ["literal parent", "postgresql://app:fixture@db.internal/staging/../production"],
+  ["encoded parent", "postgresql://app:fixture@db.internal/staging/%2e%2e/production"],
+  ["mixed encoded parent", "postgresql://app:fixture@db.internal/staging/.%2E/production"],
+  ["literal current", "postgresql://app:fixture@db.internal/./production"],
+  ["encoded current", "postgresql://app:fixture@db.internal/%2e/production"],
+  ["trailing parent", "postgresql://app:fixture@db.internal/production/.."],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, DATABASE_URL: databaseUrl }),
+    /DATABASE_URL must not contain normalized dot path segments/,
+    `Normalized PostgreSQL database path (${label}) must fail closed`,
+  );
+}
+// A dot within an actual database name is not a path traversal segment.
+assert.deepEqual(
+  validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.internal/report%2E2026" }),
+  { ready: true },
+);
 // PostgreSQL URLs must not be silently rewritten by WHATWG URL parsing.
 // Explicitly percent-encoded interior spaces above remain supported.
 for (const [label, databaseUrl] of [
