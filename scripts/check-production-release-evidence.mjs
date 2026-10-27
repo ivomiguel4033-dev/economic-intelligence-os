@@ -139,14 +139,15 @@ function rejectDuplicateObjectKeys(text) {
 // Bound evidence input to 64 KiB before JSON parsing. A size-limited read
 // avoids loading untrusted or accidentally huge evidence files into memory.
 const maxEvidenceBytes = 64 * 1024;
-// Validate the same open inode before and after reading release evidence.
+// Validate the same open inode, device and ownership before and after reading.
 // A writable owner process could otherwise truncate or replace the contents
 // while the gate reads them, yielding an inconsistent approval record.
 function assertEvidenceStable(before, after, bytesRead) {
   if (bytesRead !== before.size || after.size !== before.size ||
       after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs ||
-      after.ino !== before.ino || after.mode !== before.mode ||
-      after.nlink !== before.nlink) {
+      after.ino !== before.ino || after.dev !== before.dev ||
+      after.uid !== before.uid || after.gid !== before.gid ||
+      after.mode !== before.mode || after.nlink !== before.nlink) {
     throw new Error("Release evidence changed during validation");
   }
 }
@@ -206,12 +207,13 @@ if (process.argv[2] === "--self-test") {
   assert.equal(verify(valid), true);
   // File identity and metadata must remain stable for the entire evidence read.
   // Use synthetic fstat snapshots to cover races deterministically without timing sleeps.
-  const stableStats = { size: 42, mtimeMs: 1000, ctimeMs: 1000, ino: 123, mode: 0o100600, nlink: 1 };
+  const stableStats = { size: 42, mtimeMs: 1000, ctimeMs: 1000, ino: 123, dev: 1, uid: 1000, gid: 1000, mode: 0o100600, nlink: 1 };
   assert.doesNotThrow(() => assertEvidenceStable(stableStats, { ...stableStats }, 42));
   assert.throws(() => assertEvidenceStable(stableStats, stableStats, 41), /changed during validation/);
   for (const [field, changed] of [
     ["size", 41], ["mtimeMs", 1001], ["ctimeMs", 1001],
-    ["ino", 124], ["mode", 0o100666], ["nlink", 2],
+    ["ino", 124], ["dev", 2], ["uid", 1001], ["gid", 1001],
+    ["mode", 0o100666], ["nlink", 2],
   ]) {
     assert.throws(
       () => assertEvidenceStable(stableStats, { ...stableStats, [field]: changed }, 42),
