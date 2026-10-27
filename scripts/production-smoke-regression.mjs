@@ -336,6 +336,17 @@ try {
     readyDelegationHeader = null;
   }
   assert.equal(await run(), true, "Probes without redirect or delegation hints must still pass");
+  // Content-Disposition indicates a downloadable or browser-oriented response,
+  // not a direct API health representation. Fail closed on either endpoint.
+  for (const disposition of ["attachment; filename=health.json", "inline; filename=ready.json"]) {
+    healthDelegationHeader = ["content-disposition", disposition];
+    assert.equal(await run(), false, "Content-Disposition on liveness must block promotion");
+    healthDelegationHeader = null;
+    readyDelegationHeader = ["content-disposition", disposition];
+    assert.equal(await run(), false, "Content-Disposition on readiness must block promotion");
+    readyDelegationHeader = null;
+  }
+  assert.equal(await run(), true, "Direct health JSON without Content-Disposition must pass");
   // Proxy-Status may report an upstream failure even when the HTTP status and
   // health JSON look healthy. Check both endpoints and multi-hop reports.
   healthDelegationHeader = ["proxy-status", "edge; error=connection_timeout"];
