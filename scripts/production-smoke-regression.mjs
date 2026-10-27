@@ -315,6 +315,15 @@ try {
   assert.equal(await run(), true, "Informational Proxy-Status without errors remains valid");
   healthDelegationHeader = null;
   readyDelegationHeader = null;
+  // Deferred HTTP trailers can carry proxy failures after the initial 200.
+  // The fetch smoke gate cannot inspect them, so both probes must reject them.
+  healthDelegationHeader = ["trailer", "proxy-status"];
+  assert.equal(await run(), false, "Deferred liveness proxy metadata must block promotion");
+  healthDelegationHeader = null;
+  readyDelegationHeader = ["trailer", "grpc-status"];
+  assert.equal(await run(), false, "Deferred readiness error metadata must block promotion");
+  readyDelegationHeader = null;
+  assert.equal(await run(), true, "Responses without trailers must remain valid");
   healthContentRange = "bytes 0-10/100";
   assert.equal(await run(), false, "HTTP 200 partial liveness must block promotion");
   healthContentRange = null;

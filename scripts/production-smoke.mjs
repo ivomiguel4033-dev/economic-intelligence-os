@@ -131,6 +131,12 @@ try {
     if (proxyStatus !== null && /(?:^|[;,])\s*error(?:\s*=|\s*(?=[;,]|$))/i.test(proxyStatus)) {
       throw new Error(`${path} reported an upstream proxy error (proxy-status)`);
     }
+    // HTTP trailers arrive after the initial headers and can carry deferred
+    // upstream errors that fetch does not expose to this gate. Do not approve
+    // a deployment based on incomplete response metadata.
+    if (response.headers.has("trailer")) {
+      throw new Error(`${path} returned unexpected HTTP trailers`);
+    }
     // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
     if (response.headers.has("content-range")) {
       throw new Error(`${path} returned an unexpected partial response (content-range)`);
