@@ -183,7 +183,10 @@ try {
     // differently by intermediaries; never approve promotion on ambiguous policy.
     const malformedNoStore = cacheDirectives.some((directive) =>
       /^no-store(?:\s|=|;)/.test(directive) && directive !== "no-store");
-    // Empty comma-separated members are invalid HTTP directives. Intermediaries\n    // may interpret them differently, so never promote on ambiguous policy.\n    if (!cacheDirectives.includes("no-store") || cacheDirectives.some((directive) => directive.length === 0) ||\n        cacheDirectives.some((directive) => /^public(?:\s|=|;|$)/.test(directive)) ||
+    // Empty comma-separated members are invalid HTTP directives. Intermediaries
+    // may interpret them differently, so never promote on ambiguous policy.
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.some((directive) => directive.length === 0) ||
+        cacheDirectives.some((directive) => /^public(?:\s|=|;|$)/.test(directive)) ||
         conflictingCaching || staleServing || malformedNoStore) {
       throw new Error(`${path} must disable caching`);
     }
