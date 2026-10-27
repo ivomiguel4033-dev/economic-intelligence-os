@@ -154,6 +154,21 @@ assert.deepEqual(
   { ready: true },
 );
 
+// PostgreSQL migration destinations must not depend on URL-parser rewrites.
+// Encoded @ in credentials is already covered by the positive compatibility test.
+for (const [label, databaseUrl, expected] of [
+  ["extra raw @ in password", "postgresql://app:fixt@ure@db.internal/app", /multiple unescaped @ separators/],
+  ["extra raw @ in username", "postgresql://app@tenant:fixture@db.internal/app", /multiple unescaped @ separators/],
+  ["encoded loopback hostname", "postgresql://app:fixture@%31%32%37.0.0.1/app", /percent-encoded hostname characters/],
+  ["encoded internal hostname", "postgresql://app:fixture@db%2einternal/app", /percent-encoded hostname characters/],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, DATABASE_URL: databaseUrl }),
+    expected,
+    `Ambiguous PostgreSQL migration authority (${label}) must fail closed`,
+  );
+}
+
 // The WHATWG parser silently decodes escaped hostnames. Reject those raw
 // authorities before accepting OIDC or AI endpoints for production.
 for (const [label, config] of [

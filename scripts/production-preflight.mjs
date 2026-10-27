@@ -142,6 +142,18 @@ function validateDatabaseUrl(value) {
     fail("DATABASE_URL must use postgres:// or postgresql://");
   }
   if (!url.hostname) fail("DATABASE_URL must include a hostname");
+  // WHATWG URL silently encodes a second raw @ in credentials. Require
+  // explicit %40 to avoid changing the migration login during URL parsing.
+  // PostgreSQL is a non-special URL scheme: encoded hostname bytes can be
+  // interpreted differently by URL parsing and the database driver.
+  const rawAuthority = /^postgres(?:ql)?:\/\/([^/?#]+)/i.exec(value)?.[1] ?? "";
+  if ((rawAuthority.match(/@/g) ?? []).length > 1) {
+    fail("DATABASE_URL must not contain multiple unescaped @ separators");
+  }
+  if (rawAuthority.slice(rawAuthority.lastIndexOf("@") + 1).includes("%")) {
+    fail("DATABASE_URL must not contain percent-encoded hostname characters");
+  }
+
   if (isUnsafeDatabaseHostname(url.hostname)) fail("DATABASE_URL must not use a loopback or link-local hostname");
   // Reject unusable database endpoints before attempting production migrations.
   if (url.port === "0") fail("DATABASE_URL must not use port 0");
