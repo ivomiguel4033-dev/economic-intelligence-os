@@ -165,7 +165,7 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 function isExpectedSmokeRejection(error) {
   return error?.code === 1 &&
     error?.signal == null &&
-    /^Production smoke FAILED: \\S/m.test(String(error.stderr ?? ""));
+    /^Production smoke FAILED: \S/m.test(String(error.stderr ?? ""));
 }
 async function run(candidateOrigin = origin) {
   try {
@@ -178,7 +178,7 @@ async function run(candidateOrigin = origin) {
 }
 try {
   assert.equal(isExpectedSmokeRejection({
-    code: 1, signal: null, stderr: "Production smoke FAILED: /api/ready returned HTTP 503\\n",
+    code: 1, signal: null, stderr: "Production smoke FAILED: /api/ready returned HTTP 503\n",
   }), true, "Explicit smoke rejection must count as a negative regression");
   for (const error of [
     { code: 2, stderr: "Usage: production-smoke <origin>" },
