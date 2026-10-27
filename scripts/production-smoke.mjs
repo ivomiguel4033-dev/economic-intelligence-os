@@ -270,6 +270,11 @@ try {
       }
       chunks.push(Buffer.from(chunk));
     }
+    // HTTP framing must agree with the complete body used as release evidence.
+    // A proxy reporting a different byte count cannot establish a reliable probe.
+    if (declaredLength !== null && totalBytes !== Number(declaredLength)) {
+      throw new Error(`${path} Content-Length did not match the response body`);
+    }
     // Malformed UTF-8 must not be silently replaced in deployment health evidence.
     const responseText = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
     const body = JSON.parse(responseText);

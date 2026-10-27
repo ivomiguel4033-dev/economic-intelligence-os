@@ -363,6 +363,31 @@ try {
   assert.equal(await run(), false, "Zero declared readiness response length must block promotion");
   readyDeclaredContentLength = null;
   assert.equal(await run(), true, "Normal probes without declared content length must pass");
+  // When a proxy supplies Content-Length, it must agree with the JSON body.
+  // Include a positive control so the gate does not reject valid framed probes.
+  const lengthMatchedHealth = JSON.stringify({
+    status: "ok", service: "economic-intelligence-os",
+    timestamp: new Date().toISOString(), checks: { application: "ok" }, padding: "",
+  });
+  healthBodyOverride = lengthMatchedHealth;
+  healthDeclaredContentLength = String(Buffer.byteLength(lengthMatchedHealth));
+  assert.equal(await run(), true, "Accurate liveness Content-Length must pass");
+  healthDeclaredContentLength = String(Buffer.byteLength(lengthMatchedHealth) + 1);
+  assert.equal(await run(), false, "Overstated liveness Content-Length must block promotion");
+  healthDeclaredContentLength = null;
+  healthBodyOverride = null;
+  const lengthMatchedReady = JSON.stringify({
+    status: "ready", service: "economic-intelligence-os",
+    timestamp: new Date().toISOString(),
+    dependencies: { database: { status: "ok", latencyMs: 1 } }, padding: "",
+  });
+  readyBodyOverride = lengthMatchedReady;
+  readyDeclaredContentLength = String(Buffer.byteLength(lengthMatchedReady));
+  assert.equal(await run(), true, "Accurate readiness Content-Length must pass");
+  readyDeclaredContentLength = String(Buffer.byteLength(lengthMatchedReady) + 1);
+  assert.equal(await run(), false, "Overstated readiness Content-Length must block promotion");
+  readyDeclaredContentLength = null;
+  readyBodyOverride = null;
   invalidHealthJson = true;
   assert.equal(await run(), false, "Malformed liveness JSON must block promotion");
   invalidHealthJson = false;
