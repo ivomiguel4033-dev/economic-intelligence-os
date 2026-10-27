@@ -29,6 +29,17 @@ assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "ht
 // Encoded path bytes do not change the configured host and remain supported.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%61pi" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/%6beys" }), { ready: true });
+// Raw spaces in OIDC and AI URLs must be rejected before WHATWG URL silently encodes them.
+for (const [label, config] of [
+  ["OIDC issuer path", { OIDC_ISSUER: "https://identity.example.com/my tenant" }],
+  ["OIDC JWKS query", { OIDC_JWKS_URL: "https://identity.example.com/keys?tenant=my tenant" }],
+  ["primary AI path", { AI_PRIMARY_BASE_URL: "https://api.example.com/v1 /models" }],
+  ["secondary AI path", { AI_SECONDARY_BASE_URL: "https://backup.example.com/v1 /models", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+]) {
+  assert.throws(() => validateProductionPreflight({ ...base, ...config }), /must not contain literal spaces/, label);
+}
+assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/keys?tenant=my%20tenant" }), { ready: true });
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1%20beta" }), { ready: true });
 // Percent-encoded punctuation is valid in a PostgreSQL password.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:pa%40ss@db.internal/app" }), { ready: true });
 // Explicitly encoded interior spaces in PostgreSQL credentials remain valid.

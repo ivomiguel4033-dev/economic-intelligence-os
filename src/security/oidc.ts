@@ -48,6 +48,8 @@ export function parseOidcJwksUrl(value: string): URL {
   if (value !== value.trim() || /[\u0000-\u001f\u007f\\]/.test(value)) {
     throw new Error("OIDC JWKS URL contains unsafe characters");
   }
+  // URL parsing percent-encodes raw spaces, hiding configuration typos.
+  if (value.includes(" ")) throw new Error("OIDC JWKS URL must not contain literal spaces");
   // The URL parser accepts missing authority slashes and silently removes
   // empty userinfo or decodes escaped hostname bytes. Inspect the literal URL
   // so standalone verifier construction enforces the same policy as preflight.

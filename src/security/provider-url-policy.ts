@@ -102,6 +102,8 @@ export function assertSafeProviderUrl(value: string): URL {
   if (/[\u0000-\u001f\u007f]/.test(value) || value !== value.trim() || value.includes("\\")) {
     throw new Error("AI provider endpoint must not contain whitespace, control characters or backslashes");
   }
+  // Require explicit percent-encoding instead of silently rewriting spaces in paths.
+  if (value.includes(" ")) throw new Error("AI provider endpoint must not contain literal spaces");
   const authority = /^https:\/\/([^/?#]+)/i.exec(value)?.[1];
   if (!authority || authority.includes("@")) {
     throw new Error("AI provider endpoint must include an explicit authority without credentials");

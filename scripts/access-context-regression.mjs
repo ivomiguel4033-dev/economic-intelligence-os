@@ -12,6 +12,8 @@ for (const invalidJwksUrl of [
   " https://idp.example/keys",
   "https://idp.example/keys ",
   "https://idp.example/keys\n",
+  "https://idp.example/keys with space",
+  "https://idp.example/keys?tenant=my tenant",
   // WHATWG URL accepts slashless HTTPS and strips empty userinfo.
   "https:idp.example/keys",
   "https:/idp.example/keys",

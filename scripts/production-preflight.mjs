@@ -11,6 +11,8 @@ function isPlaceholder(value) {
 function validateHttpsUrl(value, label) {
   // WHATWG URL silently removes embedded tabs and newlines; reject raw control bytes first.
   if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${label} must not contain control characters`);
+  // Literal spaces are silently percent-encoded by URL parsing; require explicit encoding.
+  if (value.includes(" ")) fail(`${label} must not contain literal spaces`);
   // WHATWG URL normalizes backslashes into slashes for HTTPS URLs; reject raw input.
   if (value.includes("\\")) fail(`${label} must not contain backslashes`);
   let url;

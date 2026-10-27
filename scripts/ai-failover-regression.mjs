@@ -150,6 +150,8 @@ for (const unsafeUrl of [
   "https://api.example.com/v1#",
   "https://api.example.com/v1\\\\extra",
   "https://api.example.com/v1\n",
+  "https://api.example.com/v1 beta",
+  "https://api.example.com/v1?tenant=my tenant",
   "https://api.example.com/\tv1",
   " https://api.example.com/v1",
   "https://api.example.com/v1 ",
