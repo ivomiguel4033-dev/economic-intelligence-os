@@ -17,7 +17,7 @@ const validDeploymentId = (value) => typeof value === "string" &&
   !/^0+(?:-0+)*$/.test(value) &&
   // Reject common template placeholders as deployment/rollback evidence.
   // These are not Railway IDs and cannot prove a recoverable release.
-  !/^(?:null|undefined|none|unknown|placeholder|todo|tbd|change[-_]?me|replace[-_]?me|your[-_]?deployment[-_]?id)$/i.test(value);
+  !/^(?:null|undefined|none|unknown|placeholder|todo|tbd|change[-_]?me|replace[-_]?me|example|sample|dummy|fake|test|deployment[-_]?id|rollback[-_]?id|your[-_]?deployment[-_]?id|your[-_]?railway[-_]?deployment[-_]?id)$/i.test(value);
 
 const requiredChecks = [
   "ciPassed", "stagedChangesReviewed", "preflightPassed",
@@ -270,7 +270,7 @@ if (process.argv[2] === "--self-test") {
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: nilId, rollbackVerified: true }), /rollback deployment ID/);
   }
   // A populated template is not proof of a real Railway deployment or rollback target.
-  for (const placeholder of ["null", "UNDEFINED", "none", "Unknown", "PLACEHOLDER", "todo", "TBD", "CHANGE_ME", "change-me", "replace_me", "REPLACE-ME", "your-deployment-id", "YOUR_DEPLOYMENT_ID"]) {
+  for (const placeholder of ["null", "UNDEFINED", "none", "Unknown", "PLACEHOLDER", "todo", "TBD", "CHANGE_ME", "change-me", "replace_me", "REPLACE-ME", "your-deployment-id", "YOUR_DEPLOYMENT_ID", "example", "SAMPLE", "dummy", "FAKE", "test", "deployment-id", "rollback_id", "your-railway-deployment-id"]) {
     assert.throws(() => verify({ ...valid, railwayDeploymentId: placeholder }), /Railway deployment ID/);
     assert.throws(() => verify({ ...valid, firstLaunch: false, rollbackDeploymentId: placeholder, rollbackVerified: true }), /rollback deployment ID/);
   }
