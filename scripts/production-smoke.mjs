@@ -118,11 +118,14 @@ try {
       // Malformed members (quotes, semicolons, empty entries) can disguise
       // credential-dependent responses from a naive exact-match check.
       const fields = vary.split(",").map((field) => field.trim().toLowerCase());
+      // Health evidence must be invariant under arbitrary client/proxy headers.
+      // An allowlist prevents new routing hints from silently bypassing a
+      // continuously growing denylist. Origin is permitted for CORS, and
+      // Accept-Encoding for normal transport negotiation.
+      const allowedFields = new Set(["accept-encoding", "origin"]);
       if (fields.some((field) =>
-        !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) ||
-        ["accept", "authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip",
-         "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "x-forwarded-prefix", "x-forwarded-scheme", "x-forwarded-ssl", "x-forwarded-server", "x-original-host", "user-agent", "accept-language", "*"].includes(field))) {
-        throw new Error(`${path} returned an invalid or credential-dependent Vary header`);
+        !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) || !allowedFields.has(field))) {
+        throw new Error(`${path} returned an invalid or unsupported Vary header`);
       }
     }
     // A 200 response with authentication, redirect or proxy delegation hints

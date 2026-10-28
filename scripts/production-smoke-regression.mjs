@@ -321,6 +321,19 @@ try {
   assert.equal(await run(), true, "Non-authentication Vary headers remain valid");
   healthVary = null;
   readyVary = null;
+  // An unknown Vary token may refer to a future proxy routing hint. The
+  // promotion gate must reject it without needing another denylist update.
+  healthVary = "Accept-Encoding, X-Original-URI";
+  assert.equal(await run(), false, "Unknown liveness Vary token must block promotion");
+  healthVary = null;
+  readyVary = "X-Rewrite-URL";
+  assert.equal(await run(), false, "Unknown readiness Vary token must block promotion");
+  readyVary = null;
+  healthVary = "ACCEPT-ENCODING";
+  readyVary = "oRiGiN";
+  assert.equal(await run(), true, "Allowlisted Vary fields must remain case-insensitive");
+  healthVary = null;
+  readyVary = null;
   healthWwwAuthenticate = 'Bearer realm="deployment"';
   assert.equal(await run(), false, "Liveness auth challenge must block promotion despite HTTP 200");
   healthWwwAuthenticate = null;
