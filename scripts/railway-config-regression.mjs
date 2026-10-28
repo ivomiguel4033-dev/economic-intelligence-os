@@ -115,9 +115,19 @@ assert.ok(
  // A 200 header followed by a truncated response must never mark a container healthy.
  const healthcheckLine = dockerfile.split("\n").find((line) => line.startsWith("HEALTHCHECK "));
  assert.ok(healthcheckLine, "Docker liveness healthcheck must be configured");
- const healthcheckCommand = /\bCMD (\["node", "-e", .+\])$/.exec(healthcheckLine);
- assert.ok(healthcheckCommand, "Docker healthcheck must execute a Node inline probe");
- const [binary, flag, probeScript] = JSON.parse(healthcheckCommand[1]);
+ const cmdMarker = " CMD ";
+ assert.ok(healthcheckLine.includes(cmdMarker), "Docker healthcheck must use exec-form CMD");
+ const healthcheckJson = healthcheckLine.slice(healthcheckLine.indexOf(cmdMarker) + cmdMarker.length);
+ let healthcheckArgs;
+ try {
+   healthcheckArgs = JSON.parse(healthcheckJson);
+ } catch {
+   assert.fail("Docker healthcheck CMD must be valid JSON exec form");
+ }
+ assert.ok(Array.isArray(healthcheckArgs) && healthcheckArgs.length === 3,
+   "Docker healthcheck must execute a Node inline probe");
+ const [binary, flag, probeScript] = healthcheckArgs;
+ assert.equal(typeof probeScript, "string", "Docker healthcheck probe must be a script string");
  assert.deepEqual([binary, flag], ["node", "-e"], "Docker healthcheck must use node -e");
  let responseMode = "complete";
  const probeServer = createServer((request, response) => {
