@@ -171,6 +171,26 @@ assert.ok(
  });
  await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
  const exec = promisify(execFile);
+ // Only an intentional silent exit(1) proves the healthcheck rejected a bad
+ // response. A JavaScript crash, missing runtime or timeout must fail CI,
+ // not masquerade as a successful negative regression.
+ function isExpectedProbeRejection(error) {
+   return error?.code === 1 &&
+     error?.signal == null &&
+     error?.killed !== true &&
+     String(error?.stderr ?? "") === "";
+ }
+ assert.equal(isExpectedProbeRejection({ code: 1, stderr: "" }), true,
+   "A silent healthcheck exit(1) must count as a rejection");
+ for (const error of [
+   { code: 1, stderr: "SyntaxError: Unexpected token" },
+   { code: 2, stderr: "" },
+   { code: "ENOENT", stderr: "" },
+   { code: 1, signal: "SIGTERM", killed: true, stderr: "" },
+ ]) {
+   assert.equal(isExpectedProbeRejection(error), false,
+     "Harness errors must never satisfy a negative healthcheck regression");
+ }
  async function runHealthcheck() {
    try {
      await exec(process.execPath, ["-e", probeScript], {
@@ -179,8 +199,7 @@ assert.ok(
      });
      return true;
    } catch (error) {
-     // A harness timeout, signal or missing runtime is not a valid negative test.
-     if (error.killed || error.signal || typeof error.code !== "number") throw error;
+     if (!isExpectedProbeRejection(error)) throw error;
      return false;
    }
  }
