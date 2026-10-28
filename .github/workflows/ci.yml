@@ -120,6 +120,11 @@ jobs:
       - name: Build production Docker image
         timeout-minutes: 5
         run: docker build --tag economic-intelligence-os:ci .
+      - name: Verify built production Docker image runtime contract
+        timeout-minutes: 1
+        run: |
+          node scripts/production-image-contract.mjs --self-test
+          node scripts/production-image-contract.mjs economic-intelligence-os:ci
       - name: Smoke production Docker image preflight
         timeout-minutes: 2
         run: |
