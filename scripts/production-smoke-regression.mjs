@@ -289,7 +289,7 @@ try {
   readyVary = null;
   // Client identity, locale and proxy routing can also select a different
   // response for the smoke probe than for real production traffic.
-  for (const field of ["User-Agent", "Accept-Language", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port", "X-Forwarded-Prefix"]) {
+  for (const field of ["User-Agent", "Accept-Language", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port", "X-Forwarded-Prefix", "X-Forwarded-Scheme", "X-Forwarded-Ssl", "X-Forwarded-Server", "X-Original-Host"]) {
     healthVary = `Accept-Encoding, ${field}`;
     assert.equal(await run(), false, `${field}-dependent liveness must block promotion`);
     healthVary = null;
