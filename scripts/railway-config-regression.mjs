@@ -102,7 +102,7 @@ assert.match(
 // Railway separately gates traffic on /api/ready; Docker's probe is liveness only.
 assert.match(
   dockerfile,
-  /res\.complete&&res\.statusCode===200\?0:1/,
+  /res\.complete&&bytes<=65536&&res\.statusCode===200\?0:1/,
   "Docker liveness healthcheck must require exactly HTTP 200",
 );
 
