@@ -105,7 +105,8 @@ try {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
     // Public health probes must not vary by caller credentials or identity/routing hints.
-    // Forwarded port/prefix can also route probes to a different backend.
+    // Forwarded port/prefix, alternate scheme/SSL, upstream server and original-host
+    // routing hints can also select a different backend for the smoke client.
     // User-Agent and Accept-Language may make smoke see a healthy response while
     // other clients see a different one; forwarded host/proto may select another backend.
     // A proxy can
@@ -120,7 +121,7 @@ try {
       if (fields.some((field) =>
         !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) ||
         ["authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip",
-         "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "x-forwarded-prefix", "user-agent", "accept-language", "*"].includes(field))) {
+         "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "x-forwarded-prefix", "x-forwarded-scheme", "x-forwarded-ssl", "x-forwarded-server", "x-original-host", "user-agent", "accept-language", "*"].includes(field))) {
         throw new Error(`${path} returned an invalid or credential-dependent Vary header`);
       }
     }
