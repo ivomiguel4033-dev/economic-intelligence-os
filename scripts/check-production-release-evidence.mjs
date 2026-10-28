@@ -62,12 +62,12 @@ function verify(record) {
       throw new Error("Upgrades require a recorded rollback deployment ID");
     }
     // Railway deployment identifiers may be UUIDs; letter case cannot make a deployment a valid rollback target.
-    // Railway UUIDs may be recorded in canonical or compact form. Both
-    // representations identify the same deployment and are not a rollback.
+    // Canonical, compact and underscore/mixed-separator transcriptions of a
+    // UUID all identify the same deployment, not a usable rollback target.
     const normalizedUuid = (id) => {
       if (/^[a-f0-9]{32}$/i.test(id)) return id.toLowerCase();
-      if (/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) {
-        return id.replace(/-/g, "").toLowerCase();
+      if (/^[a-f0-9]{8}(?:[-_][a-f0-9]{4}){3}[-_][a-f0-9]{12}$/i.test(id)) {
+        return id.replace(/[-_]/g, "").toLowerCase();
       }
       return null;
     };
@@ -297,6 +297,11 @@ if (process.argv[2] === "--self-test") {
   const compactUuid = "123e4567e89b12d3a456426614174000";
   assert.throws(() => verify({ ...valid, firstLaunch: false, railwayDeploymentId: canonicalUuid, rollbackDeploymentId: compactUuid, rollbackVerified: true }), /Rollback deployment must differ/);
   assert.throws(() => verify({ ...valid, firstLaunch: false, railwayDeploymentId: compactUuid.toUpperCase(), rollbackDeploymentId: canonicalUuid, rollbackVerified: true }), /Rollback deployment must differ/);
+  const underscoredUuid = canonicalUuid.replace(/-/g, "_");
+  const mixedUuid = "123e4567_e89b-12d3_a456-426614174000";
+  assert.throws(() => verify({ ...valid, firstLaunch: false, railwayDeploymentId: canonicalUuid, rollbackDeploymentId: underscoredUuid, rollbackVerified: true }), /Rollback deployment must differ/);
+  assert.throws(() => verify({ ...valid, firstLaunch: false, railwayDeploymentId: mixedUuid, rollbackDeploymentId: compactUuid, rollbackVerified: true }), /Rollback deployment must differ/);
+  assert.equal(verify({ ...valid, firstLaunch: false, railwayDeploymentId: underscoredUuid, rollbackDeploymentId: "123e4567-e89b-12d3-a456-426614174001", rollbackVerified: true }), true);
   assert.equal(verify({ ...valid, firstLaunch: false, railwayDeploymentId: canonicalUuid, rollbackDeploymentId: "123e4567-e89b-12d3-a456-426614174001", rollbackVerified: true }), true);
   console.log("Release evidence validation self-test passed");
 } else {

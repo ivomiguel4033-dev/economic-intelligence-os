@@ -64,6 +64,12 @@ try {
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "previous", rollbackVerified: true }, 0, "Upgrade with verified rollback target");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: "candidate-deployment" }, 1, "Upgrade cannot roll back to current deployment");
   check({ ...valid, firstLaunch: false, rollbackDeploymentId: " candidate-deployment " }, 1, "Rollback ID whitespace cannot bypass self-rollback rejection");
+  // A transcription using underscores or mixed UUID separators is still the current deployment.
+  const currentUuid = "123e4567-e89b-12d3-a456-426614174000";
+  const compactUuid = "123e4567e89b12d3a456426614174000";
+  check({ ...valid, firstLaunch: false, railwayDeploymentId: currentUuid, rollbackDeploymentId: currentUuid.replace(/-/g, "_"), rollbackVerified: true }, 1, "Underscore UUID alias cannot masquerade as rollback");
+  check({ ...valid, firstLaunch: false, railwayDeploymentId: compactUuid, rollbackDeploymentId: "123e4567_e89b-12d3_a456-426614174000", rollbackVerified: true }, 1, "Mixed UUID separators cannot masquerade as rollback");
+  check({ ...valid, firstLaunch: false, railwayDeploymentId: currentUuid, rollbackDeploymentId: "123e4567-e89b-12d3-a456-426614174001", rollbackVerified: true }, 0, "Distinct UUID rollback target remains valid");
   const missingArgument = spawnSync(process.execPath, [validator], { encoding: "utf8", timeout: 5000 });
   assert.equal(missingArgument.status, 2, "Missing CLI argument must exit with usage error");
   console.log("Production release evidence CLI regression checks passed.");
