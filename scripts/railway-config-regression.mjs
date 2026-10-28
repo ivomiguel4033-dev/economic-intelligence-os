@@ -125,6 +125,12 @@ assert.match(
      setTimeout(() => response.socket?.destroy(), 50);
      return;
    }
+   if (responseMode === "boundary" || responseMode === "oversized") {
+     const size = responseMode === "boundary" ? 65536 : 65537;
+     response.writeHead(200, { "Content-Length": String(size) });
+     response.end("x".repeat(size));
+     return;
+   }
    const noContent = responseMode === "no-content";
    response.writeHead(noContent ? 204 : 200, { "Content-Length": noContent ? "0" : "2" });
    response.end(noContent ? undefined : "ok");
@@ -147,6 +153,8 @@ assert.match(
  try {
    for (const [mode, expected] of [
      ["complete", true],
+     ["boundary", true],
+     ["oversized", false],
      ["no-content", false],
      ["truncated", false],
    ]) {
