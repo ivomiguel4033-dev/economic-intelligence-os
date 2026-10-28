@@ -102,7 +102,7 @@ assert.match(
 // Railway separately gates traffic on /api/ready; Docker's probe is liveness only.
 assert.match(
   dockerfile,
-  /res\.complete&&bytes<=65536&&res\.statusCode===200\?0:1/,
+  /res\.complete&&bytes>0&&bytes<=65536&&res\.statusCode===200\?0:1/,
   "Docker liveness healthcheck must require exactly HTTP 200",
 );
 
@@ -132,8 +132,9 @@ assert.match(
      return;
    }
    const noContent = responseMode === "no-content";
-   response.writeHead(noContent ? 204 : 200, { "Content-Length": noContent ? "0" : "2" });
-   response.end(noContent ? undefined : "ok");
+   const empty = responseMode === "empty";
+   response.writeHead(noContent ? 204 : 200, { "Content-Length": noContent || empty ? "0" : "2" });
+   response.end(noContent || empty ? undefined : "ok");
  });
  await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
  const exec = promisify(execFile);
@@ -155,6 +156,7 @@ assert.match(
      ["complete", true],
      ["boundary", true],
      ["oversized", false],
+     ["empty", false],
      ["no-content", false],
      ["truncated", false],
    ]) {
