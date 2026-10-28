@@ -277,6 +277,16 @@ try {
   readyVary = "*";
   assert.equal(await run(), false, "Wildcard readiness variation must block promotion");
   readyVary = null;
+  // Client-address headers can make a proxy serve different health results to
+  // the smoke client and real users. Do not promote on caller-dependent probes.
+  healthVary = "Accept-Encoding, X-Forwarded-For";
+  assert.equal(await run(), false, "Client-IP-dependent liveness must block promotion");
+  healthVary = null;
+  readyVary = "Forwarded";
+  assert.equal(await run(), false, "RFC 7239 client-dependent readiness must block promotion");
+  readyVary = "X-Real-IP";
+  assert.equal(await run(), false, "Proxy client-IP-dependent readiness must block promotion");
+  readyVary = null;
   // Invalid Vary syntax must not bypass credential-sensitive token detection.
   healthVary = '"Authorization"';
   assert.equal(await run(), false, "Quoted Authorization must not bypass Vary validation");
