@@ -79,6 +79,10 @@ let readyBodyOverride = null;
 const server = createServer((request, response) => {
   if (request.url === "/api/health" || request.url === "/api/ready") {
     requestCacheHeaders.set(request.url, {
+      method: request.method,
+      accept: request.headers.accept,
+      authorization: request.headers.authorization,
+      cookie: request.headers.cookie,
       cacheControl: request.headers["cache-control"],
       pragma: request.headers.pragma,
       acceptEncoding: request.headers["accept-encoding"],
@@ -192,10 +196,14 @@ try {
   assert.equal(await run(), true, "Healthy deployment must pass");
   for (const path of ["/api/health", "/api/ready"]) {
     assert.deepEqual(requestCacheHeaders.get(path), {
+      method: "GET",
+      accept: "application/json",
+      authorization: undefined,
+      cookie: undefined,
       cacheControl: "no-store",
       pragma: "no-cache",
       acceptEncoding: "identity",
-    }, `${path} must request an uncached response from intermediaries`);
+    }, `${path} must use an unauthenticated JSON GET and bypass intermediary caches`);
   }
   // A reverse proxy must not override the identity encoding requested by smoke.
   // Node fetch transparently decompresses gzip, so a compressed valid JSON body
