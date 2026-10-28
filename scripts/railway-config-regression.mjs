@@ -134,7 +134,7 @@ assert.ok(
    assert.equal(request.url, "/api/health", "Docker healthcheck must target liveness");
 
    const contentType = responseMode === "html" ? "text/html" : "application/json; charset=utf-8";
-   const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" } };
+   const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, timestamp: new Date().toISOString() };
    if (responseMode === "truncated") {
      response.writeHead(200, { "Content-Length": "100", "Content-Type": contentType });
      response.flushHeaders();
@@ -156,6 +156,10 @@ assert.ok(
      "wrong-service": JSON.stringify({ ...healthy, service: "other-service" }),
      "wrong-status": JSON.stringify({ ...healthy, status: "degraded" }),
      "wrong-check": JSON.stringify({ ...healthy, checks: { application: "failed" } }),
+    "missing-timestamp": JSON.stringify({ ...healthy, timestamp: undefined }),
+    "stale-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() - 600_000).toISOString() }),
+    "future-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() + 600_000).toISOString() }),
+    "invalid-timestamp": JSON.stringify({ ...healthy, timestamp: "not-a-date" }),
    };
    const body = variants[responseMode] ?? JSON.stringify(healthy);
    const noContent = responseMode === "no-content";
@@ -193,6 +197,10 @@ assert.ok(
      ["wrong-service", false],
      ["wrong-status", false],
      ["wrong-check", false],
+     ["missing-timestamp", false],
+     ["stale-timestamp", false],
+     ["future-timestamp", false],
+     ["invalid-timestamp", false],
      ["truncated", false],
    ]) {
      responseMode = mode;
