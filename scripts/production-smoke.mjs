@@ -104,7 +104,10 @@ try {
     if (response.headers.has("set-cookie")) {
       throw new Error(`${path} unexpectedly set a cookie`);
     }
-    // Public health probes must not vary by caller credentials. A proxy can
+    // Public health probes must not vary by caller credentials or identity/routing hints.
+    // User-Agent and Accept-Language may make smoke see a healthy response while
+    // other clients see a different one; forwarded host/proto may select another backend.
+    // A proxy can
     // return healthy JSON for the smoke client while serving login content to
     // other callers; wildcard Vary is similarly unverifiable.
     const vary = response.headers.get("vary");
@@ -115,7 +118,8 @@ try {
       const fields = vary.split(",").map((field) => field.trim().toLowerCase());
       if (fields.some((field) =>
         !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) ||
-        ["authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip", "*"].includes(field))) {
+        ["authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip",
+         "x-forwarded-host", "x-forwarded-proto", "user-agent", "accept-language", "*"].includes(field))) {
         throw new Error(`${path} returned an invalid or credential-dependent Vary header`);
       }
     }

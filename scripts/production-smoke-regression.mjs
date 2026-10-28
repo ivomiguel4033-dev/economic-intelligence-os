@@ -287,6 +287,16 @@ try {
   readyVary = "X-Real-IP";
   assert.equal(await run(), false, "Proxy client-IP-dependent readiness must block promotion");
   readyVary = null;
+  // Client identity, locale and proxy routing can also select a different
+  // response for the smoke probe than for real production traffic.
+  for (const field of ["User-Agent", "Accept-Language", "X-Forwarded-Host", "X-Forwarded-Proto"]) {
+    healthVary = `Accept-Encoding, ${field}`;
+    assert.equal(await run(), false, `${field}-dependent liveness must block promotion`);
+    healthVary = null;
+    readyVary = field;
+    assert.equal(await run(), false, `${field}-dependent readiness must block promotion`);
+    readyVary = null;
+  }
   // Invalid Vary syntax must not bypass credential-sensitive token detection.
   healthVary = '"Authorization"';
   assert.equal(await run(), false, "Quoted Authorization must not bypass Vary validation");
