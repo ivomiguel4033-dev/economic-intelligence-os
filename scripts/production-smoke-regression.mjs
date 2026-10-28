@@ -297,6 +297,14 @@ try {
     assert.equal(await run(), false, `${field}-dependent readiness must block promotion`);
     readyVary = null;
   }
+  // The probe sends Accept: application/json. A backend that varies by Accept
+  // can serve healthy JSON to smoke while serving different content to users.
+  healthVary = "Accept";
+  assert.equal(await run(), false, "Content-negotiated liveness must block promotion");
+  healthVary = null;
+  readyVary = "Accept-Encoding, aCcEpT";
+  assert.equal(await run(), false, "Case-insensitive content-negotiated readiness must block promotion");
+  readyVary = null;
   // Invalid Vary syntax must not bypass credential-sensitive token detection.
   healthVary = '"Authorization"';
   assert.equal(await run(), false, "Quoted Authorization must not bypass Vary validation");

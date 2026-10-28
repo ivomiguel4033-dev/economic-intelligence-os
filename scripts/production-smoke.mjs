@@ -120,7 +120,7 @@ try {
       const fields = vary.split(",").map((field) => field.trim().toLowerCase());
       if (fields.some((field) =>
         !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) ||
-        ["authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip",
+        ["accept", "authorization", "proxy-authorization", "cookie", "forwarded", "x-forwarded-for", "x-real-ip",
          "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "x-forwarded-prefix", "x-forwarded-scheme", "x-forwarded-ssl", "x-forwarded-server", "x-original-host", "user-agent", "accept-language", "*"].includes(field))) {
         throw new Error(`${path} returned an invalid or credential-dependent Vary header`);
       }
