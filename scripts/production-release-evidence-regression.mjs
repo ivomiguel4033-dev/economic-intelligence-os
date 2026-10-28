@@ -25,7 +25,7 @@ const valid = {
 // must never make a fail-closed regression appear to pass.
 function isExpectedValidationFailure(result) {
   return result.error === undefined && result.signal == null && result.status === 1 &&
-    /^Release evidence gate FAILED: \\S/m.test(String(result.stderr ?? ""));
+    /^Release evidence gate FAILED: \S/m.test(String(result.stderr ?? ""));
 }
 
 let index = 0;
@@ -47,7 +47,7 @@ function check(record, expectedExit, message) {
 
 try {
   assert.equal(isExpectedValidationFailure({
-    error: undefined, signal: null, status: 1, stderr: "Release evidence gate FAILED: invalid record\\n",
+    error: undefined, signal: null, status: 1, stderr: "Release evidence gate FAILED: invalid record\n",
   }), true, "Controlled validation failure must satisfy a negative regression");
   for (const outcome of [
     { status: 1, signal: null, stderr: "SyntaxError: unexpected token" },
