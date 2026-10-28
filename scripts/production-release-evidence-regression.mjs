@@ -20,16 +20,45 @@ const valid = {
   rollbackVerified: false,
   ...Object.fromEntries(checks.map((check) => [check, true])),
 };
+// A rejected evidence record counts as a negative test only when the validator
+// reports its own controlled gate failure. A crash, timeout or CLI usage error
+// must never make a fail-closed regression appear to pass.
+function isExpectedValidationFailure(result) {
+  return result.error === undefined && result.signal == null && result.status === 1 &&
+    /^Release evidence gate FAILED: \\S/m.test(String(result.stderr ?? ""));
+}
+
 let index = 0;
 function check(record, expectedExit, message) {
   const path = join(directory, `evidence-${index++}.json`);
   writeFileSync(path, JSON.stringify(record));
   const result = spawnSync(process.execPath, [validator, path], { encoding: "utf8", timeout: 5000 });
-  assert.equal(result.error, undefined, "Validator process should execute");
-  assert.equal(result.status, expectedExit, `${message}: ${result.stderr}`);
+  assert.equal(result.error, undefined, `${message}: validator process should execute`);
+  if (expectedExit === 1) {
+    assert.equal(isExpectedValidationFailure(result), true,
+      `${message}: expected a controlled release evidence rejection, got ${result.stderr}`);
+  } else {
+    assert.equal(result.signal, null, `${message}: validator terminated by signal`);
+    assert.equal(result.status, expectedExit, `${message}: ${result.stderr}`);
+    assert.match(result.stdout, /Release evidence fields complete/,
+      `${message}: expected successful evidence validation`);
+  }
 }
 
 try {
+  assert.equal(isExpectedValidationFailure({
+    error: undefined, signal: null, status: 1, stderr: "Release evidence gate FAILED: invalid record\\n",
+  }), true, "Controlled validation failure must satisfy a negative regression");
+  for (const outcome of [
+    { status: 1, signal: null, stderr: "SyntaxError: unexpected token" },
+    { status: 2, signal: null, stderr: "Usage: node validator" },
+    { status: null, signal: "SIGTERM", stderr: "Release evidence gate FAILED: timeout" },
+    { status: 1, signal: null, error: new Error("spawn failed"), stderr: "Release evidence gate FAILED: unavailable" },
+    { status: 1, signal: null, stderr: "" },
+  ]) {
+    assert.equal(isExpectedValidationFailure(outcome), false,
+      "A crash, usage error, signal, spawn failure or empty rejection must fail the regression harness");
+  }
   check(valid, 0, "Complete first-launch evidence");
   for (const gate of checks) {
     check({ ...valid, [gate]: false }, 1, `Failed ${gate} gate`);
