@@ -12,6 +12,15 @@ function validate(config) {
   for (const variable of ["NODE_ENV=production", "PORT=3000"]) {
     assert.ok(config.Env.includes(variable), `Production image is missing ${variable}`);
   }
+  // These image-level environment variables are inherited by the web process
+  // and pre-deploy commands. A release artifact must not ship with Node
+  // inspector/preload overrides or disabled TLS certificate verification.
+  assert.ok(!config.Env.some((variable) => variable.startsWith("NODE_OPTIONS=")),
+    "Production image must not bake NODE_OPTIONS into its runtime");
+  assert.ok(!config.Env.includes("NODE_TLS_REJECT_UNAUTHORIZED=0"),
+    "Production image must not disable Node TLS verification");
+  assert.ok(config.Env.includes("NEXT_TELEMETRY_DISABLED=1"),
+    "Production image must disable Next.js telemetry");
   assert.deepEqual(Object.keys(config.ExposedPorts ?? {}), ["3000/tcp"],
     "Production image must expose only the application port");
   const probe = config.Healthcheck;
@@ -33,7 +42,7 @@ if (process.argv.length !== 3) {
   const fixture = {
     User: "node", WorkingDir: "/app",
     Cmd: ["node", "node_modules/next/dist/bin/next", "start"],
-    Env: ["NODE_ENV=production", "PORT=3000"],
+    Env: ["NODE_ENV=production", "PORT=3000", "NEXT_TELEMETRY_DISABLED=1"],
     ExposedPorts: { "3000/tcp": {} },
     Healthcheck: { Test: ["CMD", "node", "-e", "http.get({path:'/api/health'})"],
       Interval: 30_000_000_000, Timeout: 5_000_000_000,
@@ -42,6 +51,9 @@ if (process.argv.length !== 3) {
   validate(fixture);
   for (const mutate of [
     (value) => { value.User = "root"; },
+    (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
+    (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=0"); },
+    (value) => { value.Env = value.Env.filter((entry) => entry !== "NEXT_TELEMETRY_DISABLED=1"); },
     (value) => { value.Cmd = ["node", "server.js"]; },
     (value) => { delete value.Healthcheck; },
     (value) => { value.Healthcheck.Test[3] = "http.get({path:'/api/ready'})"; },
