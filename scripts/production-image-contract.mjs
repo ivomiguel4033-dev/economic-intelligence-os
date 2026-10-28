@@ -21,6 +21,14 @@ function validate(config) {
     "Production image must not disable Node TLS verification");
   assert.ok(config.Env.includes("NEXT_TELEMETRY_DISABLED=1"),
     "Production image must disable Next.js telemetry");
+  // OIDC trust configuration, provider credentials and database/Stripe secrets
+  // must be injected by Railway at runtime, never baked into a reusable image.
+  const runtimeOnly = /^(?:DATABASE_URL|OIDC_(?:ISSUER|AUDIENCE|JWKS_URL)|SECURITY_EVENT_HASH_PEPPER|METRICS_TOKEN|AI_(?:PRIMARY|SECONDARY|FALLBACK)_(?:BASE_URL|API_KEY|MODEL)|STRIPE_(?:SECRET_KEY|WEBHOOK_SECRET))$/;
+  for (const variable of config.Env) {
+    const name = variable.split("=", 1)[0];
+    assert.ok(!runtimeOnly.test(name),
+      `Production image must not bake deployment-specific ${name}`);
+  }
   assert.deepEqual(Object.keys(config.ExposedPorts ?? {}), ["3000/tcp"],
     "Production image must expose only the application port");
   const probe = config.Healthcheck;
@@ -54,6 +62,9 @@ if (process.argv.length !== 3) {
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
     (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=0"); },
     (value) => { value.Env = value.Env.filter((entry) => entry !== "NEXT_TELEMETRY_DISABLED=1"); },
+    ...["DATABASE_URL", "OIDC_ISSUER", "OIDC_JWKS_URL", "AI_PRIMARY_API_KEY", "AI_FALLBACK_BASE_URL", "METRICS_TOKEN", "STRIPE_WEBHOOK_SECRET"].map(
+      (name) => (value) => { value.Env.push(`${name}=test-value`); },
+    ),
     (value) => { value.Cmd = ["node", "server.js"]; },
     (value) => { delete value.Healthcheck; },
     (value) => { value.Healthcheck.Test[3] = "http.get({path:'/api/ready'})"; },
