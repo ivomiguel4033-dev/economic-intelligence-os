@@ -106,7 +106,7 @@ assert.match(
   "Docker liveness healthcheck must require exactly HTTP 200",
 );
 assert.ok(
-  dockerfile.includes("(res.headers['content-type']||'').split(';')[0].trim().toLowerCase()==='application/json'?0:1"),
+  dockerfile.includes("(res.headers['content-type']||'').split(';')[0].trim().toLowerCase()==='application/json'&&valid?0:1"),
   "Docker liveness healthcheck must reject HTTP 200 non-JSON responses",
 );
 
@@ -122,7 +122,9 @@ assert.ok(
  let responseMode = "complete";
  const probeServer = createServer((request, response) => {
    assert.equal(request.url, "/api/health", "Docker healthcheck must target liveness");
+
    const contentType = responseMode === "html" ? "text/html" : "application/json; charset=utf-8";
+   const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" } };
    if (responseMode === "truncated") {
      response.writeHead(200, { "Content-Length": "100", "Content-Type": contentType });
      response.flushHeaders();
@@ -132,16 +134,26 @@ assert.ok(
    }
    if (responseMode === "boundary" || responseMode === "oversized") {
      const size = responseMode === "boundary" ? 65536 : 65537;
+     const emptyPadding = JSON.stringify({ ...healthy, padding: "" });
+     const body = JSON.stringify({ ...healthy, padding: "x".repeat(size - Buffer.byteLength(emptyPadding)) });
+     assert.equal(Buffer.byteLength(body), size, "Boundary test must use the exact byte count");
      response.writeHead(200, { "Content-Length": String(size), "Content-Type": contentType });
-     response.end("x".repeat(size));
+     response.end(body);
      return;
    }
+   const variants = {
+     "invalid-json": "{",
+     "wrong-service": JSON.stringify({ ...healthy, service: "other-service" }),
+     "wrong-status": JSON.stringify({ ...healthy, status: "degraded" }),
+     "wrong-check": JSON.stringify({ ...healthy, checks: { application: "failed" } }),
+   };
+   const body = variants[responseMode] ?? JSON.stringify(healthy);
    const noContent = responseMode === "no-content";
    const empty = responseMode === "empty";
-   const headers = { "Content-Length": noContent || empty ? "0" : "2" };
+   const headers = { "Content-Length": noContent || empty ? "0" : String(Buffer.byteLength(body)) };
    if (responseMode !== "missing-type") headers["Content-Type"] = contentType;
    response.writeHead(noContent ? 204 : 200, headers);
-   response.end(noContent || empty ? undefined : "ok");
+   response.end(noContent || empty ? undefined : body);
  });
  await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
  const exec = promisify(execFile);
@@ -167,6 +179,10 @@ assert.ok(
      ["no-content", false],
      ["html", false],
      ["missing-type", false],
+     ["invalid-json", false],
+     ["wrong-service", false],
+     ["wrong-status", false],
+     ["wrong-check", false],
      ["truncated", false],
    ]) {
      responseMode = mode;
