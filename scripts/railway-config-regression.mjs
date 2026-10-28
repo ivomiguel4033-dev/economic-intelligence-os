@@ -1,5 +1,8 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const railway = JSON.parse(fs.readFileSync("railway.json", "utf8"));
 const dockerfile = fs.readFileSync("Dockerfile", "utf8");
@@ -99,8 +102,60 @@ assert.match(
 // Railway separately gates traffic on /api/ready; Docker's probe is liveness only.
 assert.match(
   dockerfile,
-  /res\.statusCode===200\?0:1/,
+  /res\.complete&&res\.statusCode===200\?0:1/,
   "Docker liveness healthcheck must require exactly HTTP 200",
 );
+
+
+ // Exercise the actual Docker HEALTHCHECK command, not a reimplementation.
+ // A 200 header followed by a truncated response must never mark a container healthy.
+ const healthcheckLine = dockerfile.split("\n").find((line) => line.startsWith("HEALTHCHECK "));
+ assert.ok(healthcheckLine, "Docker liveness healthcheck must be configured");
+ const healthcheckCommand = /\bCMD (\["node", "-e", .+\])$/.exec(healthcheckLine);
+ assert.ok(healthcheckCommand, "Docker healthcheck must execute a Node inline probe");
+ const [binary, flag, probeScript] = JSON.parse(healthcheckCommand[1]);
+ assert.deepEqual([binary, flag], ["node", "-e"], "Docker healthcheck must use node -e");
+ let responseMode = "complete";
+ const probeServer = createServer((request, response) => {
+   assert.equal(request.url, "/api/health", "Docker healthcheck must target liveness");
+   if (responseMode === "truncated") {
+     response.writeHead(200, { "Content-Length": "100" });
+     response.flushHeaders();
+     response.write("partial");
+     setTimeout(() => response.socket?.destroy(), 50);
+     return;
+   }
+   const noContent = responseMode === "no-content";
+   response.writeHead(noContent ? 204 : 200, { "Content-Length": noContent ? "0" : "2" });
+   response.end(noContent ? undefined : "ok");
+ });
+ await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
+ const exec = promisify(execFile);
+ async function runHealthcheck() {
+   try {
+     await exec(process.execPath, ["-e", probeScript], {
+       env: { ...process.env, PORT: String(probeServer.address().port) },
+       timeout: 6500,
+     });
+     return true;
+   } catch (error) {
+     // A harness timeout, signal or missing runtime is not a valid negative test.
+     if (error.killed || error.signal || typeof error.code !== "number") throw error;
+     return false;
+   }
+ }
+ try {
+   for (const [mode, expected] of [
+     ["complete", true],
+     ["no-content", false],
+     ["truncated", false],
+   ]) {
+     responseMode = mode;
+     assert.equal(await runHealthcheck(), expected,
+       `Docker healthcheck must ${expected ? "accept" : "reject"} ${mode} response`);
+   }
+ } finally {
+   await new Promise((resolve) => probeServer.close(resolve));
+ }
 
 console.log("Railway deployment configuration regression checks passed.");
