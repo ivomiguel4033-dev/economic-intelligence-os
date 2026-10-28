@@ -102,8 +102,12 @@ assert.match(
 // Railway separately gates traffic on /api/ready; Docker's probe is liveness only.
 assert.match(
   dockerfile,
-  /res\.complete&&bytes>0&&bytes<=65536&&res\.statusCode===200\?0:1/,
+  /res\.complete&&bytes>0&&bytes<=65536&&res\.statusCode===200&&/,
   "Docker liveness healthcheck must require exactly HTTP 200",
+);
+assert.ok(
+  dockerfile.includes("(res.headers['content-type']||'').split(';')[0].trim().toLowerCase()==='application/json'?0:1"),
+  "Docker liveness healthcheck must reject HTTP 200 non-JSON responses",
 );
 
 
@@ -118,8 +122,9 @@ assert.match(
  let responseMode = "complete";
  const probeServer = createServer((request, response) => {
    assert.equal(request.url, "/api/health", "Docker healthcheck must target liveness");
+   const contentType = responseMode === "html" ? "text/html" : "application/json; charset=utf-8";
    if (responseMode === "truncated") {
-     response.writeHead(200, { "Content-Length": "100" });
+     response.writeHead(200, { "Content-Length": "100", "Content-Type": contentType });
      response.flushHeaders();
      response.write("partial");
      setTimeout(() => response.socket?.destroy(), 50);
@@ -127,13 +132,15 @@ assert.match(
    }
    if (responseMode === "boundary" || responseMode === "oversized") {
      const size = responseMode === "boundary" ? 65536 : 65537;
-     response.writeHead(200, { "Content-Length": String(size) });
+     response.writeHead(200, { "Content-Length": String(size), "Content-Type": contentType });
      response.end("x".repeat(size));
      return;
    }
    const noContent = responseMode === "no-content";
    const empty = responseMode === "empty";
-   response.writeHead(noContent ? 204 : 200, { "Content-Length": noContent || empty ? "0" : "2" });
+   const headers = { "Content-Length": noContent || empty ? "0" : "2" };
+   if (responseMode !== "missing-type") headers["Content-Type"] = contentType;
+   response.writeHead(noContent ? 204 : 200, headers);
    response.end(noContent || empty ? undefined : "ok");
  });
  await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
@@ -158,6 +165,8 @@ assert.match(
      ["oversized", false],
      ["empty", false],
      ["no-content", false],
+     ["html", false],
+     ["missing-type", false],
      ["truncated", false],
    ]) {
      responseMode = mode;

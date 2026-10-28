@@ -25,6 +25,6 @@ COPY --chown=node:node --from=builder /app/scripts ./scripts
 COPY --chown=node:node --from=builder /app/db ./db
 USER node
 EXPOSE 3000
-# Limit the Docker liveness response to 64 KiB; /api/ready remains the Railway traffic gate.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "const http=require('http');const req=http.get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/api/health',timeout:4000},res=>{res.on('error',()=>process.exit(1));res.on('aborted',()=>process.exit(1));let bytes=0;res.on('data',chunk=>{bytes+=chunk.length;if(bytes>65536)req.destroy(new Error('health body too large'))});res.on('end',()=>process.exit(res.complete&&bytes>0&&bytes<=65536&&res.statusCode===200?0:1));res.resume()});req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',()=>process.exit(1));"]
+# Bound Docker liveness to 64 KiB of JSON with HTTP 200; /api/ready remains the Railway traffic gate.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "const http=require('http');const req=http.get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/api/health',timeout:4000},res=>{res.on('error',()=>process.exit(1));res.on('aborted',()=>process.exit(1));let bytes=0;res.on('data',chunk=>{bytes+=chunk.length;if(bytes>65536)req.destroy(new Error('health body too large'))});res.on('end',()=>process.exit(res.complete&&bytes>0&&bytes<=65536&&res.statusCode===200&&(res.headers['content-type']||'').split(';')[0].trim().toLowerCase()==='application/json'?0:1));res.resume()});req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',()=>process.exit(1));"]
 CMD ["node", "node_modules/next/dist/bin/next", "start"]
