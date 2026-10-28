@@ -95,4 +95,12 @@ assert.match(
   "Docker image command must match Railway production startup",
 );
 
+// Container liveness must not report 204/206 or other 2xx responses as healthy.
+// Railway separately gates traffic on /api/ready; Docker's probe is liveness only.
+assert.match(
+  dockerfile,
+  /res\\.statusCode===200\\?0:1/,
+  "Docker liveness healthcheck must require exactly HTTP 200",
+);
+
 console.log("Railway deployment configuration regression checks passed.");
