@@ -2,6 +2,19 @@
 // Verify the effective runtime metadata of the built production image, not only Dockerfile text.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+// Pin the built image healthcheck to the exact Dockerfile probe. Checking only
+// its path allows a changed probe to always exit 0 while mentioning /api/health.
+const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const healthcheckLines = dockerfile.split(/\r?\n/).filter((line) => line.startsWith("HEALTHCHECK "));
+assert.equal(healthcheckLines.length, 1, "Dockerfile must define exactly one healthcheck");
+const commandMarker = " CMD ";
+assert.ok(healthcheckLines[0].includes(commandMarker), "Dockerfile healthcheck must use exec-form CMD");
+const expectedProbeArgs = JSON.parse(healthcheckLines[0].slice(healthcheckLines[0].indexOf(commandMarker) + commandMarker.length));
+assert.ok(Array.isArray(expectedProbeArgs) && expectedProbeArgs.length === 3,
+  "Dockerfile healthcheck must use a single Node inline probe");
+const expectedHealthcheckTest = ["CMD", ...expectedProbeArgs];
 
 function validate(config) {
   assert.equal(config.User, "node", "Production image must not run as root");
@@ -59,6 +72,8 @@ function validate(config) {
   assert.deepEqual(probe?.Test?.slice(0, 3), ["CMD", "node", "-e"],
     "Production image must retain its exec-form Node healthcheck");
   assert.equal(probe.Test.length, 4, "Production healthcheck must contain exactly one probe script");
+  assert.deepEqual(probe.Test, expectedHealthcheckTest,
+    "Built image healthcheck must match the audited Dockerfile probe exactly");
   assert.match(probe.Test[3], /path:\s*['"]\/api\/health['"]/, "Docker liveness must target /api/health");
   assert.equal(probe.Interval, 30_000_000_000, "Healthcheck interval must remain 30s");
   assert.equal(probe.Timeout, 5_000_000_000, "Healthcheck timeout must remain 5s");
@@ -77,7 +92,7 @@ if (process.argv.length !== 3) {
     Entrypoint: ["docker-entrypoint.sh"],
     Env: ["NODE_ENV=production", "PORT=3000", "NEXT_TELEMETRY_DISABLED=1"],
     ExposedPorts: { "3000/tcp": {} },
-    Healthcheck: { Test: ["CMD", "node", "-e", "http.get({path:'/api/health'})"],
+    Healthcheck: { Test: [...expectedHealthcheckTest],
       Interval: 30_000_000_000, Timeout: 5_000_000_000,
       StartPeriod: 20_000_000_000, Retries: 3 },
   };
@@ -107,6 +122,11 @@ if (process.argv.length !== 3) {
     (value) => { value.StopSignal = "SIGQUIT"; },
     (value) => { delete value.Healthcheck; },
     (value) => { value.Healthcheck.Test[3] = "http.get({path:'/api/ready'})"; },
+    // These malicious probes still mention /api/health and previously passed
+    // the loose path-only contract, but must now be rejected.
+    (value) => { value.Healthcheck.Test[3] = "process.exit(0); // path:'/api/health'"; },
+    (value) => { value.Healthcheck.Test[3] += ";process.exit(0)"; },
+    (value) => { value.Healthcheck.Test[3] = value.Healthcheck.Test[3].replace("statusCode===200", "statusCode>=200"); },
     (value) => { value.ExposedPorts["9229/tcp"] = {}; },
     (value) => { value.Healthcheck.Timeout = 0; },
   ]) {
