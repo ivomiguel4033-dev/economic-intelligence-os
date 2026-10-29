@@ -449,6 +449,20 @@ try {
   assert.equal(await run(), true, "Informational Proxy-Status without errors remains valid");
   healthDelegationHeader = null;
   readyDelegationHeader = null;
+  // Proxy-Status can disclose an upstream failure even without an error parameter.
+  // HTTP 200 from the edge must not hide a non-200 response from the application.
+  readyDelegationHeader = ["proxy-status", "edge; received-status=503"];
+  assert.equal(await run(), false, "Upstream readiness HTTP 503 masked by proxy 200 must block promotion");
+  readyDelegationHeader = ["proxy-status", "edge; received-status=200"];
+  assert.equal(await run(), true, "Successful upstream readiness status remains valid");
+  readyDelegationHeader = null;
+  healthDelegationHeader = ["proxy-status", "edge; received-status=200, shield; received-status=502"];
+  assert.equal(await run(), false, "A failed later proxy hop must block liveness promotion");
+  healthDelegationHeader = ["proxy-status", 'edge; received-status="200"'];
+  assert.equal(await run(), false, "Malformed quoted upstream status must block liveness promotion");
+  healthDelegationHeader = ["proxy-status", "edge; received-status=200"];
+  assert.equal(await run(), true, "Successful upstream liveness status remains valid");
+  healthDelegationHeader = null;
   // Deferred HTTP trailers can carry proxy failures after the initial 200.
   // The fetch smoke gate cannot inspect them, so both probes must reject them.
   healthDelegationHeader = ["trailer", "proxy-status"];

@@ -139,8 +139,21 @@ try {
     // returns HTTP 200 with plausible health JSON. Fail closed on an error
     // parameter in any hop, but permit informational successful proxy status.
     const proxyStatus = response.headers.get("proxy-status");
-    if (proxyStatus !== null && /(?:^|[;,])\s*error(?:\s*=|\s*(?=[;,]|$))/i.test(proxyStatus)) {
-      throw new Error(`${path} reported an upstream proxy error (proxy-status)`);
+    if (proxyStatus !== null) {
+      if (/(?:^|[;,])\s*error(?:\s*=|\s*(?=[;,]|$))/i.test(proxyStatus)) {
+        throw new Error(`${path} reported an upstream proxy error (proxy-status)`);
+      }
+      // RFC 9209 received-status identifies the status returned by the next hop.
+      // A proxy that rewrites an upstream 503 to HTTP 200 with plausible JSON
+      // must not make a failed deployment appear ready. Reject malformed values
+      // and any upstream status other than the expected direct HTTP 200.
+      for (const member of proxyStatus.split(/[;,]/)) {
+        const parameter = member.trim();
+        if (/^received-status(?:\s|=|$)/i.test(parameter) &&
+            !/^received-status\s*=\s*200$/i.test(parameter)) {
+          throw new Error(`${path} reported an unexpected upstream HTTP status (proxy-status)`);
+        }
+      }
     }
     // HTTP trailers arrive after the initial headers and can carry deferred
     // upstream errors that fetch does not expose to this gate. Do not approve
