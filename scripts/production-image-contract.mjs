@@ -29,6 +29,12 @@ function validate(config) {
   // requests. An explicit SIGKILL/SIGQUIT override would bypass graceful shutdown.
   assert.ok(config.StopSignal == null || config.StopSignal === "" || config.StopSignal === "SIGTERM",
     "Production image must preserve SIGTERM graceful shutdown");
+  // Railway's 30-second draining window must not be shortened by an image-level
+  // Docker stop timeout. An unset timeout delegates the policy to the runtime.
+  // Reject zero, fractional and excessive overrides as unsafe release metadata.
+  assert.ok(config.StopTimeout == null ||
+    (Number.isInteger(config.StopTimeout) && config.StopTimeout >= 30 && config.StopTimeout <= 120),
+    "Production image stop timeout must allow 30-120s of graceful draining");
   assert.ok(Array.isArray(config.Env), "Production image must define runtime environment");
   // Duplicate environment names are ambiguous: one runtime may use the first
   // value while another uses the last. Never approve an image whose effective
@@ -99,6 +105,13 @@ if (process.argv.length !== 3) {
   validate(fixture);
   // Both Docker's implicit default and an explicit SIGTERM are safe.
   validate({ ...fixture, StopSignal: "SIGTERM" });
+  validate({ ...fixture, StopTimeout: 30 });
+  validate({ ...fixture, StopTimeout: 120 });
+  for (const timeout of [0, 1, 29, -1, 30.5, "30", 121, Infinity]) {
+    assert.throws(() => validate({ ...fixture, StopTimeout: timeout }),
+      /stop timeout must allow 30-120s/,
+      `Unsafe Docker StopTimeout ${String(timeout)} must block promotion`);
+  }
   for (const mutate of [
     (value) => { value.User = "root"; },
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
