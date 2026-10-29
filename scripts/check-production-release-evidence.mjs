@@ -3,7 +3,7 @@
 // This is a documentation/evidence gate, not proof that an external service is healthy.
 import assert from "node:assert/strict";
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 
 const ciRunPrefix = "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/";
@@ -152,6 +152,15 @@ function assertEvidenceStable(before, after, bytesRead) {
   }
 }
 
+// Reading through a stable descriptor is insufficient if the reviewed pathname
+// is replaced during validation. Require it to still name the opened inode.
+function assertEvidencePathStable(openStats, pathStats) {
+  if (!pathStats.isFile() || pathStats.isSymbolicLink() ||
+      pathStats.ino !== openStats.ino || pathStats.dev !== openStats.dev) {
+    throw new Error("Release evidence path changed during validation");
+  }
+}
+
 async function readEvidence(path) {
   // Nonblocking open prevents a named pipe from hanging the release gate.
   // O_NOFOLLOW rejects symlinks before reading evidence from an unexpected target.
@@ -179,7 +188,17 @@ async function readEvidence(path) {
       throw new Error("Release evidence file exceeds 65536 bytes");
     }
     // Reject in-place mutation or truncation while the evidence was read.
-    assertEvidenceStable(stats, await handle.stat(), offset);
+    const finalStats = await handle.stat();
+    assertEvidenceStable(stats, finalStats, offset);
+    // Detect atomic replacement/rename of the pathname after opening the file.
+    // lstat deliberately does not follow a symlink substituted for the file.
+    let pathStats;
+    try {
+      pathStats = await lstat(path);
+    } catch {
+      throw new Error("Release evidence path changed during validation");
+    }
+    assertEvidencePathStable(finalStats, pathStats);
     // Decode strictly: Buffer.toString("utf8") silently replaces malformed bytes.
     let text;
     try {
@@ -219,6 +238,22 @@ if (process.argv[2] === "--self-test") {
       () => assertEvidenceStable(stableStats, { ...stableStats, [field]: changed }, 42),
       /changed during validation/,
       `Evidence mutation of ${field} must block promotion`,
+    );
+  }
+
+  // A pathname swap must not make a different evidence file appear reviewed.
+  const stablePath = { ino: 123, dev: 1, isFile: () => true, isSymbolicLink: () => false };
+  assert.doesNotThrow(() => assertEvidencePathStable(stableStats, stablePath));
+  for (const invalidPath of [
+    { ...stablePath, ino: 124 },
+    { ...stablePath, dev: 2 },
+    { ...stablePath, isFile: () => false },
+    { ...stablePath, isSymbolicLink: () => true },
+  ]) {
+    assert.throws(
+      () => assertEvidencePathStable(stableStats, invalidPath),
+      /path changed during validation/,
+      "Replaced, missing or symlinked evidence path must block promotion",
     );
   }
 
