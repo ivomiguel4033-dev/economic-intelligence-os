@@ -463,6 +463,21 @@ try {
   healthDelegationHeader = ["proxy-status", "edge; received-status=200"];
   assert.equal(await run(), true, "Successful upstream liveness status remains valid");
   healthDelegationHeader = null;
+  // Legacy proxy status headers must not mask failed application responses.
+  readyDelegationHeader = ["x-upstream-status", "503"];
+  assert.equal(await run(), false, "Upstream readiness 503 masked by edge 200 must block promotion");
+  readyDelegationHeader = ["x-upstream-status", "200"];
+  assert.equal(await run(), true, "Successful upstream readiness status header must pass");
+  readyDelegationHeader = ["x-upstream-status", "200, 503"];
+  assert.equal(await run(), false, "Ambiguous upstream readiness statuses must block promotion");
+  readyDelegationHeader = null;
+  healthDelegationHeader = ["x-original-status", "502"];
+  assert.equal(await run(), false, "Original liveness 502 masked by edge 200 must block promotion");
+  healthDelegationHeader = ["x-original-status", "200"];
+  assert.equal(await run(), true, "Successful original liveness status header must pass");
+  healthDelegationHeader = ["x-original-status", "unknown"];
+  assert.equal(await run(), false, "Malformed original liveness status must block promotion");
+  healthDelegationHeader = null;
   // Deferred HTTP trailers can carry proxy failures after the initial 200.
   // The fetch smoke gate cannot inspect them, so both probes must reject them.
   healthDelegationHeader = ["trailer", "proxy-status"];

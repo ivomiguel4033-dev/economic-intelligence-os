@@ -155,6 +155,15 @@ try {
         }
       }
     }
+    // Some reverse proxies report the original application status in legacy
+    // upstream-status headers even when they rewrite the client response to 200.
+    // Treat contradictory or malformed status metadata as failed release evidence.
+    for (const header of ["x-original-status", "x-upstream-status"]) {
+      const upstreamStatus = response.headers.get(header);
+      if (upstreamStatus !== null && upstreamStatus.trim() !== "200") {
+        throw new Error(`${path} reported an unexpected upstream HTTP status (${header})`);
+      }
+    }
     // HTTP trailers arrive after the initial headers and can carry deferred
     // upstream errors that fetch does not expose to this gate. Do not approve
     // a deployment based on incomplete response metadata.
