@@ -42,6 +42,10 @@ function validate(config) {
   const seenEnvironmentNames = new Set();
   for (const entry of config.Env) {
     assert.equal(typeof entry, "string", "Production image environment entries must be strings");
+    // Control bytes in image-baked values can forge multiline logs or be
+    // interpreted differently by startup scripts and deployment tooling.
+    assert.ok(!/[\u0000-\u001f\u007f]/.test(entry),
+      "Production image environment entries must not contain control characters");
     const separator = entry.indexOf("=");
     const name = separator >= 0 ? entry.slice(0, separator) : "";
     assert.match(name, /^[A-Za-z_][A-Za-z0-9_]*$/,
@@ -148,6 +152,9 @@ if (process.argv.length !== 3) {
     (value) => { value.Env.push("PORT=8080"); },
     (value) => { value.Env.push("NEXT_TELEMETRY_DISABLED=0"); },
     (value) => { value.Env.push("BROKEN_ENTRY"); },
+    (value) => { value.Env.push("APP_LOG_LEVEL=info\nNODE_OPTIONS=--inspect"); },
+    (value) => { value.Env.push("APP_LOG_LEVEL=info\u0000debug"); },
+    (value) => { value.Env.push("APP_LOG_LEVEL=info\u007fdebug"); },
     (value) => { value.Env.push("=empty-name"); },
     (value) => { value.Env.push("INVALID-NAME=value"); },
     (value) => { value.Env.push("PATH=/tmp"); value.Env.push("PATH=/usr/bin"); },
