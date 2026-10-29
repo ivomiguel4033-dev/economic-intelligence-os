@@ -75,7 +75,9 @@ function validate(config) {
   // must be injected by Railway at runtime, never baked into a reusable image.
   // Keep entire deployment-specific namespaces out of reusable images, including
   // future provider/OIDC settings not yet enumerated in the application code.
-  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_EVENT_HASH_PEPPER|METRICS_TOKEN|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+)$/;
+  // Case variants are still deployment-specific and may contain credentials;
+  // reject them before a future consumer or entrypoint normalizes their names.
+  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_EVENT_HASH_PEPPER|METRICS_TOKEN|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!runtimeOnly.test(name),
@@ -138,6 +140,10 @@ if (process.argv.length !== 3) {
     (value) => { value.Env = value.Env.filter((entry) => entry !== "NEXT_TELEMETRY_DISABLED=1"); },
     ...["DATABASE_URL", "DATABASE_READ_REPLICA_URL", "PGPASSWORD", "PGHOST", "OIDC_ISSUER", "OIDC_JWKS_URL", "OIDC_CLIENT_SECRET", "AI_PRIMARY_API_KEY", "AI_TERTIARY_API_KEY", "AI_TERTIARY_BASE_URL", "AI_TERTIARY_TIMEOUT_MS", "AI_FALLBACK_BASE_URL", "METRICS_TOKEN", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_KEY"].map(
       (name) => (value) => { value.Env.push(`${name}=test-value`); },
+    ),
+    // Mixed/lowercase secret names must not bypass image-level redaction.
+    ...["database_url", "pgpassword", "oidc_issuer", "Ai_Primary_Api_Key", "stripe_webhook_secret", "metrics_token", "security_event_hash_pepper"].map(
+      (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
     (value) => { value.Cmd = ["node", "server.js"]; },
     (value) => { value.Entrypoint = ["sh", "-c", "exit 0"]; },
