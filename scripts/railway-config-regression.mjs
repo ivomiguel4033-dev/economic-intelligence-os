@@ -42,21 +42,23 @@ assert.ok(
 
 // Railway stores drainingSeconds as a decimal string. parseInt() would silently
 // accept malformed values such as "30s" or "30.5", hiding config drift in CI.
+// Require at least 30s to match the production image StopTimeout contract and
+// prevent Railway from terminating in-flight requests before the drain window.
 function parseDrainSeconds(value) {
   if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) return null;
   const seconds = Number(value);
-  return Number.isSafeInteger(seconds) && seconds >= 25 && seconds <= 60 ? seconds : null;
+  return Number.isSafeInteger(seconds) && seconds >= 30 && seconds <= 60 ? seconds : null;
 }
 
 assert.notEqual(
   parseDrainSeconds(railway.deploy?.drainingSeconds),
   null,
-  "Railway draining window must be an exact decimal string between 25 and 60 seconds",
+  "Railway draining window must be an exact decimal string between 30 and 60 seconds",
 );
-for (const [value, expected] of [["25", 25], ["30", 30], ["60", 60]]) {
+for (const [value, expected] of [["30", 30], ["45", 45], ["60", 60]]) {
   assert.equal(parseDrainSeconds(value), expected, "Valid draining window must be accepted");
 }
-for (const invalid of ["24", "61", "30s", "30.5", "30e0", " 30", "30 ", "030", "-30", 30, null]) {
+for (const invalid of ["0", "25", "29", "61", "30s", "30.5", "30e0", " 30", "30 ", "030", "-30", 30, null]) {
   assert.equal(parseDrainSeconds(invalid), null, "Invalid draining window must fail closed: " + String(invalid));
 }
 
