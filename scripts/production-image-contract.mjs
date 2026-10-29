@@ -56,10 +56,14 @@ function validate(config) {
   // These image-level environment variables are inherited by the web process
   // and pre-deploy commands. A release artifact must not ship with Node
   // inspector/preload overrides or disabled TLS certificate verification.
-  assert.ok(!config.Env.some((variable) => variable.startsWith("NODE_OPTIONS=")),
-    "Production image must not bake NODE_OPTIONS into its runtime");
-  assert.ok(!config.Env.includes("NODE_TLS_REJECT_UNAUTHORIZED=0"),
-    "Production image must not disable Node TLS verification");
+  // Even a seemingly safe TLS value belongs to deployment policy, not the
+  // reusable image. Reject case variants as well as Node preload/inspector
+  // options so image metadata cannot silently override runtime security.
+  for (const variable of config.Env) {
+    const name = variable.split("=", 1)[0];
+    assert.ok(!/^(?:NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED)$/i.test(name),
+      `Production image must not bake Node runtime override ${name}`);
+  }
   // OIDC discovery and AI provider calls must not inherit image-baked proxy
   // routing or custom TLS trust anchors. Operators may inject these settings
   // explicitly at runtime, but a reusable release image must not carry them.
@@ -126,7 +130,10 @@ if (process.argv.length !== 3) {
   for (const mutate of [
     (value) => { value.User = "root"; },
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
+    (value) => { value.Env.push("node_options=--require /tmp/preload.js"); },
     (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=0"); },
+    (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=1"); },
+    (value) => { value.Env.push("node_tls_reject_unauthorized=0"); },
     ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS"].map(
       (name) => (value) => { value.Env.push(`${name}=https://untrusted-proxy.example`); },
     ),
