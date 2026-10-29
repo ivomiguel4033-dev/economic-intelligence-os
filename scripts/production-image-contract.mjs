@@ -106,6 +106,12 @@ function validate(config) {
   }
   assert.deepEqual(Object.keys(config.ExposedPorts ?? {}), ["3000/tcp"],
     "Production image must expose only the application port");
+  // Docker VOLUME creates storage outside the immutable release image. Accidental
+  // anonymous volumes can retain stale application assets or migration state
+  // across deployments and undermine predictable rollback/recovery behavior.
+  // Production persistence must be configured explicitly by the platform.
+  assert.equal(Object.keys(config.Volumes ?? {}).length, 0,
+    "Production image must not declare persistent volumes");
   const probe = config.Healthcheck;
   assert.deepEqual(probe?.Test?.slice(0, 3), ["CMD", "node", "-e"],
     "Production image must retain its exec-form Node healthcheck");
@@ -135,6 +141,7 @@ if (process.argv.length !== 3) {
       StartPeriod: 20_000_000_000, Retries: 3 },
   };
   validate(fixture);
+  validate({ ...fixture, Volumes: {} });
   // Both Docker's implicit default and an explicit SIGTERM are safe.
   validate({ ...fixture, StopSignal: "SIGTERM" });
   validate({ ...fixture, StopTimeout: 30 });
@@ -199,6 +206,11 @@ if (process.argv.length !== 3) {
     (value) => { value.Healthcheck.Test[3] = "process.exit(0); // path:'/api/health'"; },
     (value) => { value.Healthcheck.Test[3] += ";process.exit(0)"; },
     (value) => { value.Healthcheck.Test[3] = value.Healthcheck.Test[3].replace("statusCode===200", "statusCode>=200"); },
+    // Stateful image-declared volumes are incompatible with deterministic
+    // rolling deploys and rollbacks; Railway-managed volumes are separate.
+    ...["/app", "/app/.next", "/app/db"].map(
+      (mount) => (value) => { value.Volumes = { [mount]: {} }; },
+    ),
     (value) => { value.ExposedPorts["9229/tcp"] = {}; },
     (value) => { value.Healthcheck.Timeout = 0; },
   ]) {
