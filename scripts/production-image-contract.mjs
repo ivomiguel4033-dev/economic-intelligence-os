@@ -72,10 +72,10 @@ function validate(config) {
   }
   // OIDC discovery and AI provider calls must not inherit image-baked proxy
   // routing or custom TLS trust anchors. This includes OpenSSL trust-store
-  // overrides and Node's system-CA switch, which can change OIDC/AI TLS trust.
+  // overrides, Node's system-CA switch and OpenSSL configuration/provider\n  // injection, which can change OIDC/AI TLS trust and cryptographic behavior.
   // Operators may inject these settings explicitly at runtime, but a reusable
   // release image must not carry them.
-  const networkOverrides = /^(?:HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR|NODE_USE_SYSTEM_CA)$/i;
+  const networkOverrides = /^(?:HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR|NODE_USE_SYSTEM_CA|OPENSSL_CONF|OPENSSL_MODULES)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!networkOverrides.test(name),
@@ -152,7 +152,7 @@ if (process.argv.length !== 3) {
     ...["NODE_PATH", "node_path", "NPM_CONFIG_SCRIPT_SHELL", "npm_config_script_shell", "npm_config_node_options"].map(
       (name) => (value) => { value.Env.push(`${name}=/tmp/untrusted`); },
     ),
-    ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "ssl_cert_dir", "NODE_USE_SYSTEM_CA"].map(
+    ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "ssl_cert_dir", "NODE_USE_SYSTEM_CA", "OPENSSL_CONF", "openssl_conf", "OPENSSL_MODULES", "openssl_modules"].map(
       (name) => (value) => { value.Env.push(`${name}=https://untrusted-proxy.example`); },
     ),
     (value) => { value.Env.push("NODE_ENV=development"); },
