@@ -60,12 +60,14 @@ function validate(config) {
   // These image-level environment variables are inherited by the web process
   // and pre-deploy commands. A release artifact must not ship with Node
   // inspector/preload/debug/coverage overrides or disabled TLS verification.
+  // NODE_PATH can redirect CommonJS module loading, while npm's script-shell
+  // and node-options settings can change how Railway runs pre-deploy migrations.
   // Even a seemingly safe TLS value belongs to deployment policy, not the
-  // reusable image. Reject case variants as well as Node preload/inspector
-  // options so image metadata cannot silently override runtime security.
+  // reusable image. Reject case variants and module/script execution overrides
+  // so image metadata cannot silently override runtime security.
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
-    assert.ok(!/^(?:NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_V8_COVERAGE)$/i.test(name),
+    assert.ok(!/^(?:NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_V8_COVERAGE|NODE_PATH|NPM_CONFIG_SCRIPT_SHELL|NPM_CONFIG_NODE_OPTIONS)$/i.test(name),
       `Production image must not bake Node runtime override ${name}`);
   }
   // OIDC discovery and AI provider calls must not inherit image-baked proxy
@@ -144,6 +146,11 @@ if (process.argv.length !== 3) {
     // or write unexpected artifacts during startup and pre-deploy migrations.
     ...["NODE_DEBUG", "node_debug_native", "NODE_V8_COVERAGE"].map(
       (name) => (value) => { value.Env.push(`${name}=http,tls`); },
+    ),
+    // Module search paths and npm pre-deploy script execution must not be
+    // redirected by reusable image metadata, even with mixed-case names.
+    ...["NODE_PATH", "node_path", "NPM_CONFIG_SCRIPT_SHELL", "npm_config_script_shell", "npm_config_node_options"].map(
+      (name) => (value) => { value.Env.push(`${name}=/tmp/untrusted`); },
     ),
     ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "ssl_cert_dir", "NODE_USE_SYSTEM_CA"].map(
       (name) => (value) => { value.Env.push(`${name}=https://untrusted-proxy.example`); },
