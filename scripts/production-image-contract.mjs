@@ -60,6 +60,15 @@ function validate(config) {
     "Production image must not bake NODE_OPTIONS into its runtime");
   assert.ok(!config.Env.includes("NODE_TLS_REJECT_UNAUTHORIZED=0"),
     "Production image must not disable Node TLS verification");
+  // OIDC discovery and AI provider calls must not inherit image-baked proxy
+  // routing or custom TLS trust anchors. Operators may inject these settings
+  // explicitly at runtime, but a reusable release image must not carry them.
+  const networkOverrides = /^(?:HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|NODE_EXTRA_CA_CERTS)$/i;
+  for (const variable of config.Env) {
+    const name = variable.split("=", 1)[0];
+    assert.ok(!networkOverrides.test(name),
+      `Production image must not bake network override ${name}`);
+  }
   assert.ok(config.Env.includes("NEXT_TELEMETRY_DISABLED=1"),
     "Production image must disable Next.js telemetry");
   // OIDC trust configuration, provider credentials and database/Stripe secrets
@@ -116,6 +125,9 @@ if (process.argv.length !== 3) {
     (value) => { value.User = "root"; },
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
     (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=0"); },
+    ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS"].map(
+      (name) => (value) => { value.Env.push(`${name}=https://untrusted-proxy.example`); },
+    ),
     (value) => { value.Env.push("NODE_ENV=development"); },
     (value) => { value.Env.push("PORT=8080"); },
     (value) => { value.Env.push("NEXT_TELEMETRY_DISABLED=0"); },
