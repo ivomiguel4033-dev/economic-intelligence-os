@@ -37,8 +37,8 @@ function validate(config) {
     "Production image stop timeout must allow 30-120s of graceful draining");
   assert.ok(Array.isArray(config.Env), "Production image must define runtime environment");
   // Duplicate environment names are ambiguous: one runtime may use the first
-  // value while another uses the last. Never approve an image whose effective
-  // production configuration depends on environment-variable ordering.
+  // value while another uses the last. Compare names case-insensitively so
+  // deployment tooling that folds case cannot silently change which value wins.
   const seenEnvironmentNames = new Set();
   for (const entry of config.Env) {
     assert.equal(typeof entry, "string", "Production image environment entries must be strings");
@@ -50,9 +50,10 @@ function validate(config) {
     const name = separator >= 0 ? entry.slice(0, separator) : "";
     assert.match(name, /^[A-Za-z_][A-Za-z0-9_]*$/,
       "Production image environment entries must use valid NAME=value syntax");
-    assert.ok(!seenEnvironmentNames.has(name),
+    const normalizedName = name.toUpperCase();
+    assert.ok(!seenEnvironmentNames.has(normalizedName),
       `Production image must not define duplicate environment variable ${name}`);
-    seenEnvironmentNames.add(name);
+    seenEnvironmentNames.add(normalizedName);
   }
   for (const variable of ["NODE_ENV=production", "PORT=3000"]) {
     assert.ok(config.Env.includes(variable), `Production image is missing ${variable}`);
@@ -143,6 +144,7 @@ if (process.argv.length !== 3) {
       StartPeriod: 20_000_000_000, Retries: 3 },
   };
   validate(fixture);
+  validate({ ...fixture, Env: [...fixture.Env, "APP_LOG_LEVEL=info", "APP_TRACE_MODE=off"] });
   validate({ ...fixture, Volumes: {} });
   // Both Docker's implicit default and an explicit SIGTERM are safe.
   validate({ ...fixture, StopSignal: "SIGTERM" });
@@ -187,6 +189,11 @@ if (process.argv.length !== 3) {
     (value) => { value.Env.push("=empty-name"); },
     (value) => { value.Env.push("INVALID-NAME=value"); },
     (value) => { value.Env.push("PATH=/tmp"); value.Env.push("PATH=/usr/bin"); },
+    // Case-folding in deployment tooling must not turn two distinct image
+    // entries into a conflicting effective runtime variable.
+    (value) => { value.Env.push("port=8080"); },
+    (value) => { value.Env.push("Node_Env=development"); },
+    (value) => { value.Env.push("APP_LOG_LEVEL=info"); value.Env.push("app_log_level=debug"); },
     (value) => { value.Env = value.Env.filter((entry) => entry !== "NEXT_TELEMETRY_DISABLED=1"); },
     ...["DATABASE_URL", "DATABASE_READ_REPLICA_URL", "PGPASSWORD", "PGHOST", "OIDC_ISSUER", "OIDC_JWKS_URL", "OIDC_CLIENT_SECRET", "AI_PRIMARY_API_KEY", "AI_TERTIARY_API_KEY", "AI_TERTIARY_BASE_URL", "AI_TERTIARY_TIMEOUT_MS", "AI_FALLBACK_BASE_URL", "METRICS_TOKEN", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_KEY"].map(
       (name) => (value) => { value.Env.push(`${name}=test-value`); },
