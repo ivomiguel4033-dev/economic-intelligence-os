@@ -12,6 +12,10 @@ function validate(config) {
   // approved server command even when Cmd itself matches the expected value.
   assert.deepEqual(config.Entrypoint, ["docker-entrypoint.sh"],
     "Production image must retain the trusted Node base-image entrypoint");
+  // Docker defaults to SIGTERM, which lets the Next.js process drain in-flight
+  // requests. An explicit SIGKILL/SIGQUIT override would bypass graceful shutdown.
+  assert.ok(config.StopSignal == null || config.StopSignal === "" || config.StopSignal === "SIGTERM",
+    "Production image must preserve SIGTERM graceful shutdown");
   assert.ok(Array.isArray(config.Env), "Production image must define runtime environment");
   // Duplicate environment names are ambiguous: one runtime may use the first
   // value while another uses the last. Never approve an image whose effective
@@ -78,6 +82,8 @@ if (process.argv.length !== 3) {
       StartPeriod: 20_000_000_000, Retries: 3 },
   };
   validate(fixture);
+  // Both Docker's implicit default and an explicit SIGTERM are safe.
+  validate({ ...fixture, StopSignal: "SIGTERM" });
   for (const mutate of [
     (value) => { value.User = "root"; },
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
@@ -97,6 +103,8 @@ if (process.argv.length !== 3) {
     (value) => { value.Entrypoint = ["sh", "-c", "exit 0"]; },
     (value) => { value.Entrypoint = ["docker-entrypoint.sh", "--unsafe"]; },
     (value) => { delete value.Entrypoint; },
+    (value) => { value.StopSignal = "SIGKILL"; },
+    (value) => { value.StopSignal = "SIGQUIT"; },
     (value) => { delete value.Healthcheck; },
     (value) => { value.Healthcheck.Test[3] = "http.get({path:'/api/ready'})"; },
     (value) => { value.ExposedPorts["9229/tcp"] = {}; },
