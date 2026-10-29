@@ -80,10 +80,10 @@ function validate(config) {
   // OIDC trust configuration, provider credentials and database/Stripe secrets
   // must be injected by Railway at runtime, never baked into a reusable image.
   // Keep entire deployment-specific namespaces out of reusable images, including
-  // future provider/OIDC settings not yet enumerated in the application code.
+  // future provider/OIDC, security and metrics secrets not yet enumerated in the application code.
   // Case variants are still deployment-specific and may contain credentials;
   // reject them before a future consumer or entrypoint normalizes their names.
-  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_EVENT_HASH_PEPPER|METRICS_TOKEN|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+)$/i;
+  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!runtimeOnly.test(name),
@@ -156,7 +156,7 @@ if (process.argv.length !== 3) {
       (name) => (value) => { value.Env.push(`${name}=test-value`); },
     ),
     // Mixed/lowercase secret names must not bypass image-level redaction.
-    ...["database_url", "pgpassword", "oidc_issuer", "Ai_Primary_Api_Key", "stripe_webhook_secret", "metrics_token", "security_event_hash_pepper"].map(
+    ...["database_url", "pgpassword", "oidc_issuer", "Ai_Primary_Api_Key", "stripe_webhook_secret", "metrics_token", "security_event_hash_pepper", "security_session_signing_key", "METRICS_SCRAPE_TOKEN"].map(
       (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
     (value) => { value.Cmd = ["node", "server.js"]; },
