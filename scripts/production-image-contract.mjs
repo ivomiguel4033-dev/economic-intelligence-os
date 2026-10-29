@@ -70,6 +70,15 @@ function validate(config) {
     assert.ok(!/^(?:NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|NODE_DEBUG|NODE_DEBUG_NATIVE|NODE_V8_COVERAGE|NODE_PATH|NPM_CONFIG_SCRIPT_SHELL|NPM_CONFIG_NODE_OPTIONS)$/i.test(name),
       `Production image must not bake Node runtime override ${name}`);
   }
+  // The Alpine dynamic loader can preload arbitrary shared objects or resolve
+  // libraries from attacker-controlled paths before the Node process starts.
+  // Keep linker injection and debug overrides out of the reusable release image.
+  // These are deployment-time decisions, never safe baked-in defaults.
+  for (const variable of config.Env) {
+    const name = variable.split("=", 1)[0];
+    assert.ok(!/^(?:LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|LD_DEBUG)$/i.test(name),
+      `Production image must not bake dynamic linker override ${name}`);
+  }
   // OIDC discovery and AI provider calls must not inherit image-baked proxy
   // routing or custom TLS trust anchors. This includes OpenSSL trust-store
   // overrides, Node's system-CA switch and OpenSSL configuration/provider\n  // injection, which can change OIDC/AI TLS trust and cryptographic behavior.
@@ -154,6 +163,10 @@ if (process.argv.length !== 3) {
     ),
     ...["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "ALL_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "ssl_cert_dir", "NODE_USE_SYSTEM_CA", "OPENSSL_CONF", "openssl_conf", "OPENSSL_MODULES", "openssl_modules"].map(
       (name) => (value) => { value.Env.push(`${name}=https://untrusted-proxy.example`); },
+    ),
+    // Linker injection can execute untrusted code before Node's own guards run.
+    ...["LD_PRELOAD", "ld_preload", "LD_LIBRARY_PATH", "ld_library_path", "LD_AUDIT", "LD_DEBUG"].map(
+      (name) => (value) => { value.Env.push(`${name}=/tmp/untrusted.so`); },
     ),
     (value) => { value.Env.push("NODE_ENV=development"); },
     (value) => { value.Env.push("PORT=8080"); },
