@@ -9,6 +9,20 @@ function validate(config) {
   assert.deepEqual(config.Cmd, ["node", "node_modules/next/dist/bin/next", "start"],
     "Production image must start the expected Next.js server");
   assert.ok(Array.isArray(config.Env), "Production image must define runtime environment");
+  // Duplicate environment names are ambiguous: one runtime may use the first
+  // value while another uses the last. Never approve an image whose effective
+  // production configuration depends on environment-variable ordering.
+  const seenEnvironmentNames = new Set();
+  for (const entry of config.Env) {
+    assert.equal(typeof entry, "string", "Production image environment entries must be strings");
+    const separator = entry.indexOf("=");
+    const name = separator >= 0 ? entry.slice(0, separator) : "";
+    assert.match(name, /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Production image environment entries must use valid NAME=value syntax");
+    assert.ok(!seenEnvironmentNames.has(name),
+      `Production image must not define duplicate environment variable ${name}`);
+    seenEnvironmentNames.add(name);
+  }
   for (const variable of ["NODE_ENV=production", "PORT=3000"]) {
     assert.ok(config.Env.includes(variable), `Production image is missing ${variable}`);
   }
@@ -61,6 +75,13 @@ if (process.argv.length !== 3) {
     (value) => { value.User = "root"; },
     (value) => { value.Env.push("NODE_OPTIONS=--inspect=0.0.0.0:9229"); },
     (value) => { value.Env.push("NODE_TLS_REJECT_UNAUTHORIZED=0"); },
+    (value) => { value.Env.push("NODE_ENV=development"); },
+    (value) => { value.Env.push("PORT=8080"); },
+    (value) => { value.Env.push("NEXT_TELEMETRY_DISABLED=0"); },
+    (value) => { value.Env.push("BROKEN_ENTRY"); },
+    (value) => { value.Env.push("=empty-name"); },
+    (value) => { value.Env.push("INVALID-NAME=value"); },
+    (value) => { value.Env.push("PATH=/tmp"); value.Env.push("PATH=/usr/bin"); },
     (value) => { value.Env = value.Env.filter((entry) => entry !== "NEXT_TELEMETRY_DISABLED=1"); },
     ...["DATABASE_URL", "OIDC_ISSUER", "OIDC_JWKS_URL", "AI_PRIMARY_API_KEY", "AI_TERTIARY_API_KEY", "AI_TERTIARY_BASE_URL", "AI_FALLBACK_BASE_URL", "METRICS_TOKEN", "STRIPE_WEBHOOK_SECRET"].map(
       (name) => (value) => { value.Env.push(`${name}=test-value`); },
