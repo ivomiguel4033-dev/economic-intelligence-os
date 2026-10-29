@@ -34,6 +34,7 @@ const server = createServer((request, response) => {
   response.writeHead(200, {
     "content-type": "application/json",
     "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
     ...(gzipResponse ? { "content-encoding": "gzip" } : {}),
   });
   const json = JSON.stringify(body);

@@ -65,6 +65,10 @@ let healthSurrogateControl = null;
 let readySurrogateControl = null;
 let contentType = "application/json";
 let readyContentType = "application/json";
+let healthNoSniff = "nosniff";
+let readyNoSniff = "nosniff";
+let healthPoweredBy = null;
+let readyPoweredBy = null;
 let service = "economic-intelligence-os";
 let databaseStatus = "ok";
 let latencyMs = 1;
@@ -99,6 +103,10 @@ const server = createServer((request, response) => {
     "content-type": health ? contentType : readyContentType,
     "cache-control": health ? cacheControl : readyCacheControl,
   };
+  const noSniff = health ? healthNoSniff : readyNoSniff;
+  if (noSniff !== null) headers["x-content-type-options"] = noSniff;
+  const poweredBy = health ? healthPoweredBy : readyPoweredBy;
+  if (poweredBy !== null) headers["x-powered-by"] = poweredBy;
   const contentEncoding = health ? healthContentEncoding : readyContentEncoding;
   if (contentEncoding !== null) headers["content-encoding"] = contentEncoding;
   const contentRange = health ? healthContentRange : readyContentRange;
@@ -205,6 +213,20 @@ try {
       acceptEncoding: "identity",
     }, `${path} must use an unauthenticated JSON GET and bypass intermediary caches`);
   }
+  // Both public probes must preserve Next.js response hardening through the edge.
+  healthNoSniff = null;
+  assert.equal(await run(), false, "Missing liveness nosniff must block promotion");
+  healthNoSniff = "nosniff";
+  readyNoSniff = "invalid";
+  assert.equal(await run(), false, "Incorrect readiness nosniff must block promotion");
+  readyNoSniff = "nosniff";
+  healthPoweredBy = "Next.js";
+  assert.equal(await run(), false, "Liveness framework banner must block promotion");
+  healthPoweredBy = null;
+  readyPoweredBy = "Express";
+  assert.equal(await run(), false, "Readiness framework banner must block promotion");
+  readyPoweredBy = null;
+  assert.equal(await run(), true, "Hardened health headers must pass");
   // A reverse proxy must not override the identity encoding requested by smoke.
   // Node fetch transparently decompresses gzip, so a compressed valid JSON body
   // would otherwise pass without this response-header guard.

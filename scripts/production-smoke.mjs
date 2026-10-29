@@ -178,6 +178,14 @@ try {
         parameters.some((part) => !/^\s*charset\s*=\s*(?:"utf-8"|utf-8)\s*$/i.test(part))) {
       throw new Error(`${path} declared an invalid or unexpected JSON content-type parameter`);
     }
+    // Release evidence must retain the response hardening configured by Next.js.
+    // A proxy stripping nosniff or exposing the framework banner is configuration drift.
+    if (response.headers.get("x-content-type-options") !== "nosniff") {
+      throw new Error(`${path} must set X-Content-Type-Options: nosniff`);
+    }
+    if (response.headers.has("x-powered-by")) {
+      throw new Error(`${path} unexpectedly exposed X-Powered-By`);
+    }
     const cacheDirectives = response.headers.get("cache-control")?.split(",")
       .map((directive) => directive.trim().toLowerCase()) ?? [];
     // Positive or malformed freshness lifetimes conflict with uncacheable health responses.
