@@ -8,6 +8,10 @@ function validate(config) {
   assert.equal(config.WorkingDir, "/app", "Production image must start from /app");
   assert.deepEqual(config.Cmd, ["node", "node_modules/next/dist/bin/next", "start"],
     "Production image must start the expected Next.js server");
+  // Docker runs Entrypoint before Cmd. A changed entrypoint can bypass the
+  // approved server command even when Cmd itself matches the expected value.
+  assert.deepEqual(config.Entrypoint, ["docker-entrypoint.sh"],
+    "Production image must retain the trusted Node base-image entrypoint");
   assert.ok(Array.isArray(config.Env), "Production image must define runtime environment");
   // Duplicate environment names are ambiguous: one runtime may use the first
   // value while another uses the last. Never approve an image whose effective
@@ -66,6 +70,7 @@ if (process.argv.length !== 3) {
   const fixture = {
     User: "node", WorkingDir: "/app",
     Cmd: ["node", "node_modules/next/dist/bin/next", "start"],
+    Entrypoint: ["docker-entrypoint.sh"],
     Env: ["NODE_ENV=production", "PORT=3000", "NEXT_TELEMETRY_DISABLED=1"],
     ExposedPorts: { "3000/tcp": {} },
     Healthcheck: { Test: ["CMD", "node", "-e", "http.get({path:'/api/health'})"],
@@ -89,6 +94,9 @@ if (process.argv.length !== 3) {
       (name) => (value) => { value.Env.push(`${name}=test-value`); },
     ),
     (value) => { value.Cmd = ["node", "server.js"]; },
+    (value) => { value.Entrypoint = ["sh", "-c", "exit 0"]; },
+    (value) => { value.Entrypoint = ["docker-entrypoint.sh", "--unsafe"]; },
+    (value) => { delete value.Entrypoint; },
     (value) => { delete value.Healthcheck; },
     (value) => { value.Healthcheck.Test[3] = "http.get({path:'/api/ready'})"; },
     (value) => { value.ExposedPorts["9229/tcp"] = {}; },
