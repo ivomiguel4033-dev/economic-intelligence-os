@@ -297,6 +297,16 @@ try {
           throw new Error(`${path} returned a cached or invalid response (cache-status)`);
         }
       }
+      // RFC 9211 fwd-status identifies the origin HTTP response. A proxy can
+      // rewrite an upstream failure to 200; do not promote on contradictory
+      // or malformed origin status metadata from any cache hop.
+      for (const member of cacheStatus.split(/[;,]/)) {
+        const parameter = member.trim();
+        if (/^fwd-status(?:\s|=|$)/i.test(parameter) &&
+            !/^fwd-status\s*=\s*200$/i.test(parameter)) {
+          throw new Error(`${path} reported an unexpected origin HTTP status (cache-status)`);
+        }
+      }
     }
     // Bound memory use when an unhealthy origin returns an oversized response.
     const chunks = [];

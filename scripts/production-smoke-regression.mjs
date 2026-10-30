@@ -730,6 +730,22 @@ try {
   readyCacheStatus = "edge; fwd=uri-miss, shield; HIT";
   assert.equal(await run(), false, "Downstream case-insensitive readiness cache hit must block promotion");
   readyCacheStatus = null;
+  // Cache-Status fwd-status reports the origin response even if a proxy rewrites
+  // the client-facing status to 200. Every hop must report a successful origin.
+  healthCacheStatus = "edge; fwd-status=503";
+  assert.equal(await run(), false, "Origin liveness HTTP 503 masked by proxy 200 must block promotion");
+  healthCacheStatus = "edge; fwd-status=200";
+  assert.equal(await run(), true, "Successful origin liveness status must pass");
+  healthCacheStatus = null;
+  readyCacheStatus = "edge; fwd-status=200, shield; fwd-status=502";
+  assert.equal(await run(), false, "Failed later cache hop must block readiness promotion");
+  readyCacheStatus = 'edge; fwd-status="200"';
+  assert.equal(await run(), false, "Malformed quoted origin readiness status must block promotion");
+  readyCacheStatus = "edge; fwd-status=304";
+  assert.equal(await run(), false, "Revalidated origin readiness is not direct HTTP 200 evidence");
+  readyCacheStatus = "edge; fwd-status=200";
+  assert.equal(await run(), true, "Successful origin readiness status must pass");
+  readyCacheStatus = null;
   readyCfCacheStatus = "STALE";
   assert.equal(await run(), false, "Cloudflare stale readiness must block promotion");
   readyCfCacheStatus = "DYNAMIC";
