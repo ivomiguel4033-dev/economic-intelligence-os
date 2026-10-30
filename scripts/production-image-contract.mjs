@@ -106,7 +106,7 @@ function validate(config) {
   // silently alter trust boundaries between Railway environments.
   // Case variants are still deployment-specific and may contain credentials;
   // reject them before a future consumer or entrypoint normalizes their names.
-  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|MISTRAL_[A-Z0-9_]+|COHERE_[A-Z0-9_]+|GROQ_[A-Z0-9_]+|HUGGINGFACE_[A-Z0-9_]+|HF_TOKEN|TOGETHER_[A-Z0-9_]+|DEEPSEEK_[A-Z0-9_]+|FIREWORKS_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|SENTRY_[A-Z0-9_]+|DATADOG_[A-Z0-9_]+|DD_[A-Z0-9_]+|OTEL_EXPORTER_OTLP_HEADERS|NEXT_SERVER_ACTIONS_ENCRYPTION_KEY|AUTH_[A-Z0-9_]+|NEXTAUTH_[A-Z0-9_]+|SESSION_SECRET|JWT_SECRET)$/i;
+  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|MISTRAL_[A-Z0-9_]+|COHERE_[A-Z0-9_]+|GROQ_[A-Z0-9_]+|HUGGINGFACE_[A-Z0-9_]+|HF_TOKEN|TOGETHER_[A-Z0-9_]+|DEEPSEEK_[A-Z0-9_]+|FIREWORKS_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|SENTRY_[A-Z0-9_]+|DATADOG_[A-Z0-9_]+|DD_[A-Z0-9_]+|OTEL_[A-Z0-9_]+|NEW_RELIC_[A-Z0-9_]+|HONEYCOMB_[A-Z0-9_]+|NEXT_SERVER_ACTIONS_ENCRYPTION_KEY|AUTH_[A-Z0-9_]+|NEXTAUTH_[A-Z0-9_]+|SESSION_SECRET|JWT_SECRET)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!runtimeOnly.test(name),
@@ -237,11 +237,14 @@ if (process.argv.length !== 3) {
       "github_token", "GH_TOKEN", "gh_token", "NPM_TOKEN", "npm_token"].map(
       (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
-    // Observability exporter credentials and endpoints are environment-specific.
-    // Baking them into a shared image can leak monitoring tokens across Railway environments.
+    // Observability exporter credentials, routing and service identifiers are environment-specific.
+    // Reject entire OpenTelemetry, New Relic and Honeycomb namespaces so new
+    // exporter settings cannot silently leak tokens or cross-environment telemetry.
     ...["SENTRY_AUTH_TOKEN", "sentry_dsn", "DATADOG_API_KEY", "datadog_site",
       "DD_API_KEY", "dd_service", "OTEL_EXPORTER_OTLP_HEADERS",
-      "otel_exporter_otlp_headers"].map(
+      "otel_exporter_otlp_headers", "OTEL_EXPORTER_OTLP_ENDPOINT", "otel_resource_attributes",
+      "OTEL_TRACES_EXPORTER", "NEW_RELIC_LICENSE_KEY", "new_relic_app_name",
+      "HONEYCOMB_API_KEY", "honeycomb_dataset"].map(
       (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
     // Next.js Server Actions and auth/session keys must be injected by the
