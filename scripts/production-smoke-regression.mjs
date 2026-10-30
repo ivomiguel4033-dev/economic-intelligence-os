@@ -653,6 +653,8 @@ try {
   readyWarning = null;
   healthXCache = "HIT from CDN";
   assert.equal(await run(), false, "Liveness cache HIT must block promotion even with zero or absent Age");
+  // Isolate X-Cache-Hits cases: a lingering X-Cache HIT must not invalidate their positive controls.
+  healthXCache = null;
   healthXCacheHits = "1";
   assert.equal(await run(), false, "Cached liveness X-Cache-Hits must block promotion");
   healthXCacheHits = "invalid";
