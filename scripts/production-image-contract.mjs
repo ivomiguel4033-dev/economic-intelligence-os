@@ -101,7 +101,7 @@ function validate(config) {
   // tokens must also be injected at deployment time, never baked into the image.
   // Case variants are still deployment-specific and may contain credentials;
   // reject them before a future consumer or entrypoint normalizes their names.
-  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN)$/i;
+  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|MISTRAL_[A-Z0-9_]+|COHERE_[A-Z0-9_]+|GROQ_[A-Z0-9_]+|HUGGINGFACE_[A-Z0-9_]+|HF_TOKEN|TOGETHER_[A-Z0-9_]+|DEEPSEEK_[A-Z0-9_]+|FIREWORKS_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!runtimeOnly.test(name),
@@ -222,7 +222,13 @@ if (process.argv.length !== 3) {
     // Provider SDK credentials, GitHub automation tokens and npm publish tokens
     // must be supplied at runtime rather than embedded in a reusable Docker image.
     ...["AZURE_OPENAI_API_KEY", "azure_client_secret", "GOOGLE_APPLICATION_CREDENTIALS",
-      "google_api_key", "GCP_SERVICE_ACCOUNT", "gcp_project", "GITHUB_TOKEN",
+      "google_api_key", "GCP_SERVICE_ACCOUNT", "gcp_project",
+      // AI vendor SDK credentials must never be baked into a reusable release image.
+      "MISTRAL_API_KEY", "mistral_endpoint", "COHERE_API_KEY", "cohere_api_key",
+      "GROQ_API_KEY", "groq_base_url", "HUGGINGFACE_HUB_TOKEN", "huggingface_api_key",
+      "HF_TOKEN", "hf_token", "TOGETHER_API_KEY", "together_base_url",
+      "DEEPSEEK_API_KEY", "deepseek_base_url", "FIREWORKS_API_KEY", "fireworks_api_key",
+      "GITHUB_TOKEN",
       "github_token", "GH_TOKEN", "gh_token", "NPM_TOKEN", "npm_token"].map(
       (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
