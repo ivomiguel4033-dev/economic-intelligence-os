@@ -704,6 +704,10 @@ try {
   healthXCacheStatus = null;
   readyXCacheStatus = "TCP_MEM_HIT from edge";
   assert.equal(await run(), false, "TCP_MEM_HIT readiness X-Cache-Status must block promotion");
+  readyXCacheStatus = "TCP_DISK_HIT from edge";
+  assert.equal(await run(), false, "TCP_DISK_HIT readiness X-Cache-Status must block promotion");
+  readyXCacheStatus = "TCP_MISS from edge";
+  assert.equal(await run(), true, "TCP_MISS readiness X-Cache-Status remains valid");
   readyXCacheStatus = null;
   healthXCacheStatus = "HIT";
   assert.equal(await run(), false, "Nginx liveness X-Cache-Status HIT must block promotion");
