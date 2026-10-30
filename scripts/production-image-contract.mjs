@@ -99,9 +99,11 @@ function validate(config) {
   // future provider/OIDC, security and metrics secrets not yet enumerated in the application code.
   // Railway platform credentials, cloud AI SDK credentials and automation
   // tokens must also be injected at deployment time, never baked into the image.
+  // Next.js Server Actions encryption and authentication/session signing keys
+  // are also runtime secrets: never distribute them inside a reusable image.
   // Case variants are still deployment-specific and may contain credentials;
   // reject them before a future consumer or entrypoint normalizes their names.
-  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|MISTRAL_[A-Z0-9_]+|COHERE_[A-Z0-9_]+|GROQ_[A-Z0-9_]+|HUGGINGFACE_[A-Z0-9_]+|HF_TOKEN|TOGETHER_[A-Z0-9_]+|DEEPSEEK_[A-Z0-9_]+|FIREWORKS_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN)$/i;
+  const runtimeOnly = /^(?:DATABASE_[A-Z0-9_]+|PG[A-Z0-9_]+|OIDC_[A-Z0-9_]+|SECURITY_[A-Z0-9_]+|METRICS_[A-Z0-9_]+|AI_[A-Z0-9_]+|STRIPE_[A-Z0-9_]+|RAILWAY_[A-Z0-9_]+|OPENAI_[A-Z0-9_]+|ANTHROPIC_[A-Z0-9_]+|AWS_[A-Z0-9_]+|AZURE_[A-Z0-9_]+|GOOGLE_[A-Z0-9_]+|GCP_[A-Z0-9_]+|MISTRAL_[A-Z0-9_]+|COHERE_[A-Z0-9_]+|GROQ_[A-Z0-9_]+|HUGGINGFACE_[A-Z0-9_]+|HF_TOKEN|TOGETHER_[A-Z0-9_]+|DEEPSEEK_[A-Z0-9_]+|FIREWORKS_[A-Z0-9_]+|GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|NEXT_SERVER_ACTIONS_ENCRYPTION_KEY|AUTH_SECRET|NEXTAUTH_SECRET|SESSION_SECRET|JWT_SECRET)$/i;
   for (const variable of config.Env) {
     const name = variable.split("=", 1)[0];
     assert.ok(!runtimeOnly.test(name),
@@ -230,6 +232,13 @@ if (process.argv.length !== 3) {
       "DEEPSEEK_API_KEY", "deepseek_base_url", "FIREWORKS_API_KEY", "fireworks_api_key",
       "GITHUB_TOKEN",
       "github_token", "GH_TOKEN", "gh_token", "NPM_TOKEN", "npm_token"].map(
+      (name) => (value) => { value.Env.push(`${name}=test-secret`); },
+    ),
+    // Next.js Server Actions and auth/session keys must be injected by the
+    // deployment platform, not inherited from the reusable Docker image.
+    ...["NEXT_SERVER_ACTIONS_ENCRYPTION_KEY", "next_server_actions_encryption_key",
+      "AUTH_SECRET", "auth_secret", "NEXTAUTH_SECRET", "nextauth_secret",
+      "SESSION_SECRET", "session_secret", "JWT_SECRET", "jwt_secret"].map(
       (name) => (value) => { value.Env.push(`${name}=test-secret`); },
     ),
     // Mixed/lowercase secret names must not bypass image-level redaction.
