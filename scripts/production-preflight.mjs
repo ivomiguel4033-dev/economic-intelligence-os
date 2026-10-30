@@ -298,7 +298,9 @@ function validateSecurityBaseline(env) {
     fail("OIDC_JWKS_URL must not use a local hostname");
   }
 
-  if (env.ALLOW_INSECURE_AUTH === "true") {
+  // Reject truthy aliases and mistyped values: only an explicitly disabled
+  // override is safe in production, regardless of downstream flag parsing.
+  if (env.ALLOW_INSECURE_AUTH !== undefined && env.ALLOW_INSECURE_AUTH !== "false") {
     fail("Insecure authentication override is forbidden in production");
   }
   // Reject invisible bytes in long-lived production secrets before checking length.
