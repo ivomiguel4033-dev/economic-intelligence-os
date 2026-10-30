@@ -101,6 +101,18 @@ try {
   check({ ...valid, firstLaunch: false, railwayDeploymentId: currentUuid, rollbackDeploymentId: "123e4567-e89b-12d3-a456-426614174001", rollbackVerified: true }, 0, "Distinct UUID rollback target remains valid");
   const missingArgument = spawnSync(process.execPath, [validator], { encoding: "utf8", timeout: 5000 });
   assert.equal(missingArgument.status, 2, "Missing CLI argument must exit with usage error");
+  // A mistyped operator invocation must not report a passing self-test while
+  // silently ignoring the supplied release evidence path.
+  const selfTestWithEvidence = spawnSync(process.execPath, [
+    validator, "--self-test", join(directory, "missing-evidence.json"),
+  ], { encoding: "utf8", timeout: 5000 });
+  assert.equal(selfTestWithEvidence.error, undefined, "Extra-argument regression must execute");
+  assert.equal(selfTestWithEvidence.status, 2,
+    "Self-test with an evidence path must fail with a usage error");
+  assert.match(selfTestWithEvidence.stderr, /Usage: node scripts\/check-production-release-evidence\.mjs/,
+    "Extra-argument invocation must not be reported as a successful self-test");
+  assert.doesNotMatch(selfTestWithEvidence.stdout, /self-test passed/i,
+    "Extra-argument invocation must not claim validation success");
   console.log("Production release evidence CLI regression checks passed.");
 } finally {
   rmSync(directory, { recursive: true, force: true });

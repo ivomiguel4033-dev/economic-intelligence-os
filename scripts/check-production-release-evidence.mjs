@@ -214,7 +214,8 @@ async function readEvidence(path) {
   }
 }
 
-if (process.argv[2] === "--self-test") {
+// Self-test must be the only argument: extra arguments must never bypass evidence validation.
+if (process.argv[2] === "--self-test" && process.argv.length === 3) {
   const valid = {
     commitSha: "a".repeat(40),
     ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
