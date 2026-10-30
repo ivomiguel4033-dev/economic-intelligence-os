@@ -125,6 +125,15 @@ function validate(config) {
   assert.equal(probe.Interval, 30_000_000_000, "Healthcheck interval must remain 30s");
   assert.equal(probe.Timeout, 5_000_000_000, "Healthcheck timeout must remain 5s");
   assert.equal(probe.StartPeriod, 20_000_000_000, "Healthcheck start period must remain 20s");
+  // Docker supports a faster healthcheck cadence during the startup grace
+  // period. Reject sub-5s probe storms and intervals longer than the 20s
+  // grace window, which would undermine bounded startup health observation.
+  // Zero is Docker's unset sentinel; the engine then applies its default.
+  const startInterval = probe.StartInterval;
+  assert.ok(startInterval == null || startInterval === 0 ||
+    (Number.isInteger(startInterval) && startInterval >= 5_000_000_000 &&
+      startInterval <= 20_000_000_000),
+    "Production healthcheck start interval must be unset or between 5s and 20s");
   assert.equal(probe.Retries, 3, "Healthcheck retry count must remain 3");
 }
 
@@ -154,6 +163,18 @@ if (process.argv.length !== 3) {
     assert.throws(() => validate({ ...fixture, StopTimeout: timeout }),
       /stop timeout must allow 30-120s/,
       `Unsafe Docker StopTimeout ${String(timeout)} must block promotion`);
+  }
+  // Docker image healthchecks must not overload a starting Railway service
+  // or defer all startup probes beyond the configured 20-second grace period.
+  validate({ ...fixture, Healthcheck: { ...fixture.Healthcheck, StartInterval: 0 } });
+  validate({ ...fixture, Healthcheck: { ...fixture.Healthcheck, StartInterval: 5_000_000_000 } });
+  validate({ ...fixture, Healthcheck: { ...fixture.Healthcheck, StartInterval: 20_000_000_000 } });
+  for (const startInterval of [-1, 1_000_000_000, 4_999_999_999, 20_000_000_001, 30_000_000_000, 5.5, "5000000000", Infinity]) {
+    assert.throws(
+      () => validate({ ...fixture, Healthcheck: { ...fixture.Healthcheck, StartInterval: startInterval } }),
+      /start interval must be unset or between 5s and 20s/,
+      `Unsafe Docker StartInterval ${String(startInterval)} must block promotion`,
+    );
   }
   for (const mutate of [
     (value) => { value.User = "root"; },
