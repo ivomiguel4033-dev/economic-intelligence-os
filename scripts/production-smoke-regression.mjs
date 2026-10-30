@@ -697,6 +697,14 @@ try {
   readyXProxyCache = "BYPASS";
   assert.equal(await run(), true, "Proxy readiness bypass must pass");
   readyXProxyCache = null;
+  healthXCacheStatus = "TCP_HIT from edge";
+  assert.equal(await run(), false, "TCP_HIT liveness X-Cache-Status must block promotion");
+  healthXCacheStatus = "TCP_MISS from edge";
+  assert.equal(await run(), true, "TCP_MISS liveness X-Cache-Status must remain valid");
+  healthXCacheStatus = null;
+  readyXCacheStatus = "TCP_MEM_HIT from edge";
+  assert.equal(await run(), false, "TCP_MEM_HIT readiness X-Cache-Status must block promotion");
+  readyXCacheStatus = null;
   healthXCacheStatus = "HIT";
   assert.equal(await run(), false, "Nginx liveness X-Cache-Status HIT must block promotion");
   healthXCacheStatus = "MISS";
