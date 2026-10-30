@@ -31,6 +31,24 @@ assert.deepEqual(validateProductionPreflight({ ...base, OIDC_AUDIENCE: "example-
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@10.20.30.40/app" }), { ready: true });
 // Railway service discovery uses .internal, not mDNS .local hostnames.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@db.railway.internal/app" }), { ready: true });
+// OIDC/JWKS and AI provider endpoints must not use private DNS namespaces.
+// Railway's .internal namespace is reserved for DATABASE_URL, not public trust boundaries.
+for (const [label, config] of [
+  ["OIDC issuer Railway internal", { OIDC_ISSUER: "https://identity.railway.internal/tenant" }],
+  ["OIDC JWKS private internal", { OIDC_JWKS_URL: "https://keys.internal/jwks" }],
+  ["AI primary home.arpa", { AI_PRIMARY_BASE_URL: "https://ai.home.arpa/v1" }],
+  ["AI secondary internal trailing dot", { AI_SECONDARY_BASE_URL: "https://backup.internal./v1", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+  ["AI tertiary home.arpa mixed case", { AI_TERTIARY_BASE_URL: "https://third.HOME.ARPA/v1", AI_TERTIARY_API_KEY: "third-key", AI_TERTIARY_MODEL: "third-model" }],
+]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, ...config }),
+    /must not use a local hostname/,
+    `${label} must fail closed before production deployment`,
+  );
+}
+// A public domain containing "internal" as an ordinary label remains valid.
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://internal-api.example.com/v1" }), { ready: true });
+
 // IPv4-mapped IPv6 is valid for Railway private networking when it is not local.
 assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: "postgresql://app:fixture@[::ffff:10.20.30.40]/app" }), { ready: true });
 // A repeated substring does not invalidate a secret unless the entire value

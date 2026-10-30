@@ -97,6 +97,10 @@ function isUnsafeEndpointHostname(hostname) {
   return host === "localhost" || host.endsWith(".localhost") ||
     host === "local" || host.endsWith(".local") ||
     host === "localdomain" || host.endsWith(".localdomain") ||
+    // Public OIDC/JWKS and AI endpoints must not use private DNS namespaces.
+    // Railway .internal is valid for DATABASE_URL only (separate policy below).
+    host === "internal" || host.endsWith(".internal") ||
+    host === "home.arpa" || host.endsWith(".home.arpa") ||
     isNonPublicIpv4(host) || isNonPublicIpv6(host);
 }
 
