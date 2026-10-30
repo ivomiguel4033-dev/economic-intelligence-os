@@ -202,6 +202,21 @@ try {
       "Harness failures must never satisfy a negative smoke regression");
   }
   assert.equal(await run(), true, "Healthy deployment must pass");
+  // TextDecoder normally discards a UTF-8 BOM, which would allow a proxy to
+  // alter the wire representation while preserving apparently valid JSON.
+  healthBodyOverride = "\uFEFF" + JSON.stringify({
+    status: "ok", service: "economic-intelligence-os", timestamp: new Date().toISOString(),
+    checks: { application: "ok" },
+  });
+  assert.equal(await run(), false, "UTF-8 BOM in liveness JSON must block promotion");
+  healthBodyOverride = null;
+  readyBodyOverride = "\uFEFF" + JSON.stringify({
+    status: "ready", service: "economic-intelligence-os", timestamp: new Date().toISOString(),
+    dependencies: { database: { status: "ok", latencyMs: 1 } },
+  });
+  assert.equal(await run(), false, "UTF-8 BOM in readiness JSON must block promotion");
+  readyBodyOverride = null;
+  assert.equal(await run(), true, "Canonical UTF-8 health JSON must still pass");
   for (const path of ["/api/health", "/api/ready"]) {
     assert.deepEqual(requestCacheHeaders.get(path), {
       method: "GET",

@@ -314,8 +314,15 @@ try {
     if (declaredLength !== null && totalBytes !== Number(declaredLength)) {
       throw new Error(`${path} Content-Length did not match the response body`);
     }
+    // TextDecoder strips an initial UTF-8 BOM by default. Reject it at the byte
+    // boundary so proxies cannot silently rewrite the health JSON representation.
+    const responseBytes = Buffer.concat(chunks);
+    if (responseBytes.length >= 3 && responseBytes[0] === 0xef &&
+        responseBytes[1] === 0xbb && responseBytes[2] === 0xbf) {
+      throw new Error(`${path} returned a UTF-8 BOM in health JSON`);
+    }
     // Malformed UTF-8 must not be silently replaced in deployment health evidence.
-    const responseText = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+    const responseText = new TextDecoder("utf-8", { fatal: true }).decode(responseBytes);
     const body = JSON.parse(responseText);
     rejectDuplicateJsonKeys(responseText);
     // A proxy can refresh its HTTP Date while replaying an old JSON payload.
