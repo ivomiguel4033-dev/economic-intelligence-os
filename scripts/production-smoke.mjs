@@ -272,6 +272,12 @@ try {
     if (warning !== null && /(?:^|,)\s*11[012](?=\s|$)/.test(warning)) {
       throw new Error(`${path} returned a stale or disconnected response (warning)`);
     }
+    // Fastly-style X-Cache-Hits counts reveal cached health evidence even when
+    // X-Cache is absent or rewritten to MISS. Only an explicit zero is safe.
+    const cacheHits = response.headers.get("x-cache-hits");
+    if (cacheHits !== null && !/^0$/.test(cacheHits.trim())) {
+      throw new Error(`${path} returned cached or invalid X-Cache-Hits`);
+    }
     // A proxy may report a cache hit even when Age is zero or absent.
     const cacheSignals = [
       ["x-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|refresh_|ims_)?hit)(?=$|[^a-z0-9])/i],
