@@ -200,6 +200,24 @@ for (const [label, config] of [
     `${label} must be rejected by production preflight`,
   );
 }
+// WHATWG URL permits malformed percent escapes, but downstream identity and
+// AI clients may interpret them differently. Reject them before deployment.
+for (const [label, config] of [
+  ["issuer incomplete escape", { OIDC_ISSUER: "https://identity.example.com/tenant%" }],
+  ["JWKS nonhex escape", { OIDC_JWKS_URL: "https://identity.example.com/keys%ZZ" }],
+  ["JWKS malformed query UTF-8", { OIDC_JWKS_URL: "https://identity.example.com/keys?tenant=%C3%28" }],
+  ["primary AI invalid UTF-8", { AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%FF" }],
+  ["secondary AI incomplete escape", { AI_SECONDARY_BASE_URL: "https://backup.example.com/v1/%", AI_SECONDARY_API_KEY: "backup-key", AI_SECONDARY_MODEL: "backup-model" }],
+  ["tertiary AI nonhex escape", { AI_TERTIARY_BASE_URL: "https://third.example.com/v1/%GG", AI_TERTIARY_API_KEY: "third-key", AI_TERTIARY_MODEL: "third-model" }],
+]) {
+  assert.throws(() => validateProductionPreflight({ ...base, ...config }),
+    /must use valid percent-encoding/, label);
+}
+assert.deepEqual(validateProductionPreflight({
+  ...base, OIDC_JWKS_URL: "https://identity.example.com/keys?name=%C3%A9",
+  AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%25literal",
+}), { ready: true }, "Valid UTF-8 and encoded percent characters remain supported");
+
 // Encoded printable characters remain valid in provider paths and JWKS queries.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://api.example.com/v1/%20chat" }), { ready: true });
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_JWKS_URL: "https://identity.example.com/keys?name=one%20two" }), { ready: true });

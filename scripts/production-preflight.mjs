@@ -38,6 +38,14 @@ function validateHttpsUrl(value, label) {
   if (/%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(value)) {
     fail(`${label} must not contain percent-encoded control characters`);
   }
+  // URL accepts malformed percent escapes in paths/queries and preserves them.
+  // Reject invalid encoding before OIDC/JWKS or AI clients interpret the target
+  // differently from the production preflight validator.
+  try {
+    decodeURIComponent(url.pathname + url.search);
+  } catch {
+    fail(`${label} must use valid percent-encoding`);
+  }
   // WHATWG URL removes literal and percent-encoded dot segments before OIDC
   // issuer/JWKS or AI provider URLs are used. Never silently change a configured
   // trust boundary or provider API base path during production preflight.
