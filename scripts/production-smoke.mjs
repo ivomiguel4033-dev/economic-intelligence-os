@@ -284,7 +284,7 @@ try {
       // Some CDNs and reverse proxies report the cache decision only here.
       ["x-proxy-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|refresh_|ims_)?hit)(?=$|[^a-z0-9])/i],
       // Nginx and other reverse proxies report cache hits in X-Cache-Status.
-      ["x-cache-status", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated)(?=$|[^a-z0-9])/i],
+      ["x-cache-status", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|refresh_|ims_)?hit)(?=$|[^a-z0-9])/i],
       ["cf-cache-status", /(?:^|,)\s*(?:hit|stale|updating|revalidated)\s*(?=,|$)/i],
     ];
     for (const [header, cached] of cacheSignals) {
