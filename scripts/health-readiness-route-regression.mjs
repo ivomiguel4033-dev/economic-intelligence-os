@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import net from "node:net";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
+import ts from "typescript";
 
 const host = "127.0.0.1";
 let nextPort = 3230;
@@ -81,13 +82,77 @@ assert(
   "A timed-out readiness query must not reuse or rollback a session already destroyed by the timeout guard",
 );
 assert(
-  /catch \{[\s\S]*?client\.release\(true\);[\s\S]*?client = undefined;[\s\S]*?\}/.test(readinessSource),
-  "Readiness must destroy a client whose rollback fails instead of returning it to the pool",
+  /catch \(rollbackError\) \{[\s\S]*?if \(!\(rollbackError instanceof ReadinessQueryTimeoutError\)\) \{[\s\S]*?client\.release\(true\);[\s\S]*?\}[\s\S]*?client = undefined;/.test(readinessSource),
+  "Rollback failures must destroy live clients without double-releasing a timed-out client",
 );
 assert(
   /finally \{[\s\S]*?client\?\.release\(\);[\s\S]*?\}/.test(readinessSource),
   "Readiness must release a recoverable dedicated client on every exit path",
 );
+
+// Exercise the actual readiness GET handler with a controlled PostgreSQL
+// client: a failed SELECT followed by a timed-out ROLLBACK must return 503,
+// not throw because the same pool client was released twice.
+const transpiledReadiness = ts.transpileModule(readinessSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+function mockedReadinessGet(client) {
+  const compiledModule = { exports: {} };
+  const stubs = {
+    "next/server": { NextResponse: { json: (body, options) => ({ status: options.status, body }) } },
+    "@/infrastructure/database/postgres": {
+      db: { connect: async () => client },
+      getDatabasePoolSnapshot: () => ({ waiting: 0, total: 0, max: 10, idle: 0 }),
+    },
+    "@/operations/drain-state": { isDraining: () => false },
+    "@/security/production-baseline": { validateProductionSecurityBaseline: () => ({ ready: true }) },
+  };
+  new Function("require", "module", "exports", transpiledReadiness)(
+    (name) => {
+      if (!Object.hasOwn(stubs, name)) throw new Error(`Unexpected readiness dependency: ${name}`);
+      return stubs[name];
+    }, compiledModule, compiledModule.exports,
+  );
+  return compiledModule.exports.GET;
+}
+async function assertRollbackFailureIsBounded(hangRollback) {
+  const queries = [];
+  let releases = 0;
+  const client = {
+    query(sql) {
+      queries.push(sql);
+      if (sql === "SELECT 1") return Promise.reject(new Error("Simulated database query failure"));
+      if (sql === "ROLLBACK") {
+        return hangRollback ? new Promise(() => {}) : Promise.reject(new Error("Simulated rollback failure"));
+      }
+      return Promise.resolve();
+    },
+    release(destroy) {
+      releases += 1;
+      assert(destroy === true, "Unrecoverable readiness client must be destroyed");
+      assert(releases === 1, "Readiness must never release a destroyed PostgreSQL client twice");
+    },
+  };
+  let deadline;
+  try {
+    const result = await Promise.race([
+      mockedReadinessGet(client)(),
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => reject(new Error("Rollback failure exceeded the readiness deadline")), 3500);
+      }),
+    ]);
+    assert(result.status === 503 && result.body.status === "not_ready",
+      "Failed readiness rollback must produce controlled HTTP 503");
+    assert(result.body.dependencies?.database?.status === "unavailable",
+      "Failed rollback must report the database as unavailable");
+    assert(queries.includes("ROLLBACK"), "The failure path must attempt a rollback");
+    assert(releases === 1, "Failed rollback must destroy its PostgreSQL client exactly once");
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+await assertRollbackFailureIsBounded(false);
+await assertRollbackFailureIsBounded(true);
 
 async function waitForServer(baseUrl) {
   const deadline = Date.now() + 20_000;

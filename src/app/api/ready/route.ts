@@ -148,10 +148,12 @@ export async function GET() {
     } else if (client && transactionStarted) {
       try {
         await queryForReadiness(client, "ROLLBACK");
-      } catch {
-        // The probe is already unhealthy. release(true) below discards a
-        // connection whose transaction state could not be recovered safely.
-        client.release(true);
+      } catch (rollbackError) {
+        // queryForReadiness already destroys the client when ROLLBACK times out.
+        // A second release throws and can turn a controlled 503 into HTTP 500.
+        if (!(rollbackError instanceof ReadinessQueryTimeoutError)) {
+          client.release(true);
+        }
         client = undefined;
       }
     }
