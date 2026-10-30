@@ -15,6 +15,16 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+// An insecure auth override must fail closed even when its value is not the
+// literal "true". Preserve compatibility with an explicitly disabled flag.
+assert.deepEqual(validateProductionPreflight({ ...base, ALLOW_INSECURE_AUTH: "false" }), { ready: true });
+for (const override of ["true", "TRUE", "1", "yes", " false ", ""]) {
+  assert.throws(
+    () => validateProductionPreflight({ ...base, ALLOW_INSECURE_AUTH: override }),
+    /Insecure authentication override is forbidden in production/,
+    `Production must reject ALLOW_INSECURE_AUTH=${JSON.stringify(override)}`,
+  );
+}
 // Reject only exact template tokens, not legitimate production identifiers containing them.
 assert.deepEqual(validateProductionPreflight({ ...base, OIDC_AUDIENCE: "example-prod", AI_PRIMARY_API_KEY: "sample-provider-secret", AI_PRIMARY_MODEL: "dummy-v2" }), { ready: true });
 // Railway private networking is valid for PostgreSQL even though public OIDC/AI URLs are restricted.
