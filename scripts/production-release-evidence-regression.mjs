@@ -60,6 +60,20 @@ try {
       "A crash, usage error, signal, spawn failure or empty rejection must fail the regression harness");
   }
   check(valid, 0, "Complete first-launch evidence");
+  // TextDecoder strips a leading UTF-8 BOM unless explicitly guarded.
+  // A release gate must reject this noncanonical JSON prefix rather than
+  // approving evidence that another JSON parser may interpret differently.
+  const bomPath = join(directory, `evidence-${index++}.json`);
+  writeFileSync(bomPath, Buffer.concat([
+    Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify(valid)),
+  ]));
+  const bomResult = spawnSync(process.execPath, [validator, bomPath], {
+    encoding: "utf8", timeout: 5000,
+  });
+  assert.equal(isExpectedValidationFailure(bomResult), true,
+    `UTF-8 BOM evidence must be rejected by the validator: ${bomResult.stderr}`);
+  assert.match(bomResult.stderr, /UTF-8 BOM/,
+    "BOM rejection must be an explicit controlled gate failure");
   for (const gate of checks) {
     check({ ...valid, [gate]: false }, 1, `Failed ${gate} gate`);
     const withoutGate = { ...valid };

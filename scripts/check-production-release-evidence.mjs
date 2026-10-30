@@ -199,6 +199,11 @@ async function readEvidence(path) {
       throw new Error("Release evidence path changed during validation");
     }
     assertEvidencePathStable(finalStats, pathStats);
+    // TextDecoder silently strips a leading UTF-8 BOM by default. Release
+    // evidence must be canonical JSON bytes, not a parser-dependent variant.
+    if (offset >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+      throw new Error("Release evidence must not include a UTF-8 BOM");
+    }
     // Decode strictly: Buffer.toString("utf8") silently replaces malformed bytes.
     let text;
     try {
