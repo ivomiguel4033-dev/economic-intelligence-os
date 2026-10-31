@@ -15,7 +15,7 @@ assert.equal(config.deploy?.healthcheckPath, "/api/ready", "Readiness, not liven
 assert.ok(Number.isInteger(config.deploy?.healthcheckTimeout) &&
   config.deploy.healthcheckTimeout >= 30 && config.deploy.healthcheckTimeout <= 300,
   "Healthcheck timeout must be bounded");
-assert.ok(/^\\d+$/.test(String(config.deploy?.drainingSeconds)) &&
+assert.ok(/^\d+$/.test(String(config.deploy?.drainingSeconds)) &&
   Number(config.deploy.drainingSeconds) >= 10 && Number(config.deploy.drainingSeconds) <= 120,
   "Draining interval must be bounded");
 assert.equal(config.deploy?.restartPolicyType, "ON_FAILURE", "Unexpected restart policy");
