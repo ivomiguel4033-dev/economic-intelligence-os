@@ -62,4 +62,27 @@ for (const [section, field, value] of [
   assert.throws(() => validate(altered), { name: "AssertionError" },
     `Railway contract must reject ${section}.${field}=${JSON.stringify(value)}`);
 }
+// Missing required fields must fail closed, including absent build/deploy sections.
+for (const [section, field] of [
+  ["build", "builder"],
+  ["build", "dockerfilePath"],
+  ["deploy", "preDeployCommand"],
+  ["deploy", "startCommand"],
+  ["deploy", "healthcheckPath"],
+  ["deploy", "healthcheckTimeout"],
+  ["deploy", "drainingSeconds"],
+  ["deploy", "restartPolicyType"],
+  ["deploy", "restartPolicyMaxRetries"],
+]) {
+  const altered = structuredClone(config);
+  delete altered[section][field];
+  assert.throws(() => validate(altered), { name: "AssertionError" },
+    `Railway contract must reject missing ${section}.${field}`);
+}
+for (const section of ["build", "deploy"]) {
+  const altered = structuredClone(config);
+  delete altered[section];
+  assert.throws(() => validate(altered), { name: "AssertionError" },
+    `Railway contract must reject missing ${section} section`);
+}
 console.log("Railway production configuration contract and negative regression checks passed");
