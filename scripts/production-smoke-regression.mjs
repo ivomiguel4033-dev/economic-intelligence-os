@@ -736,9 +736,12 @@ try {
   // Negative Akamai cache hits can replay an earlier origin failure as a
   // successful-looking health response. Neither endpoint may approve promotion.
   for (const [header, setValue] of [
-    ["X-Cache", (value) => { healthXCache = value; }],
-    ["X-Proxy-Cache", (value) => { readyXProxyCache = value; }],
-    ["X-Cache-Status", (value) => { healthXCacheStatus = value; }],
+    ["liveness X-Cache", (value) => { healthXCache = value; }],
+    ["readiness X-Cache", (value) => { readyXCache = value; }],
+    ["liveness X-Proxy-Cache", (value) => { healthXProxyCache = value; }],
+    ["readiness X-Proxy-Cache", (value) => { readyXProxyCache = value; }],
+    ["liveness X-Cache-Status", (value) => { healthXCacheStatus = value; }],
+    ["readiness X-Cache-Status", (value) => { readyXCacheStatus = value; }],
   ]) {
     setValue("TCP_NEGATIVE_HIT from edge");
     assert.equal(await run(), false, `Negative Akamai HIT in ${header} must block promotion`);
