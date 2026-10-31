@@ -51,6 +51,8 @@ jobs:
           fi
       - name: Railway deployment config regression checks
         run: node scripts/railway-config-regression.mjs
+      - name: Railway production configuration contract
+        run: node scripts/railway-config-contract.mjs
       - name: Validate migrations
         timeout-minutes: 2
         run: node scripts/validate-migrations.mjs
