@@ -1,0 +1,390 @@
+#!/usr/bin/env node
+// Post-deploy gate: liveness is not sufficient without database readiness.
+import process from "node:process";
+import { TextDecoder } from "node:util";
+
+// JSON.parse silently keeps the last duplicate object key. Reject ambiguous
+// health evidence, including keys disguised with JSON Unicode escapes.
+function rejectDuplicateJsonKeys(text) {
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  let keyStart = -1;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+        if (keyStart !== -1) {
+          const key = JSON.parse(text.slice(keyStart, index + 1));
+          const object = stack[stack.length - 1];
+          if (object.seen.has(key)) {
+            throw new Error("Health response contains duplicate JSON object keys");
+          }
+          object.seen.add(key);
+          object.expectingKey = false;
+          keyStart = -1;
+        }
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object" && object.expectingKey) keyStart = index;
+    } else if (character === "{") {
+      stack.push({ kind: "object", seen: new Set(), expectingKey: true });
+    } else if (character === "[") {
+      stack.push({ kind: "array" });
+    } else if (character === "}" || character === "]") {
+      stack.pop();
+    } else if (character === ",") {
+      const object = stack[stack.length - 1];
+      if (object?.kind === "object") object.expectingKey = true;
+    }
+  }
+}
+
+const input = process.argv[2];
+if (process.argv.length !== 3) {
+  console.error("Usage: node scripts/production-smoke.mjs <https://service-origin>");
+  process.exit(2);
+}
+try {
+  // URL parsing silently removes tabs and newlines; reject the raw input.
+  if (/[\u0000-\u001f\u007f]/.test(input) || input !== input.trim() || input.includes("\\")) {
+    throw new Error("Origin must not contain whitespace, control characters or backslashes");
+  }
+  // WHATWG URL normalizes missing authority slashes and strips empty userinfo.
+  // Check the literal origin before trusting the parsed hostname for promotion.
+  // Percent-encoded authority characters can silently change the target host.
+  // Match the entire literal origin: WHATWG URL collapses /., /.. and /%2e to /.
+  // A normalized path must never be accepted as a deployment origin.
+  const rawAuthority = /^https?:\/\/([^/?#]+)\/?$/i.exec(input)?.[1];
+  if (!rawAuthority || rawAuthority.includes("@") || rawAuthority.includes("%")) {
+    throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
+  }
+  const origin = new URL(input);
+  // Port zero is a bind-only sentinel, never a reachable deployment endpoint.
+  // Fail during validation rather than treating a connection failure as smoke evidence.
+  if (origin.port === "0") throw new Error("Deployment origin must not use port 0");
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
+  // WHATWG URL also normalizes hexadecimal, integer and shortened IPv4 aliases
+  // to 127.0.0.1. Only explicit loopback spellings may use insecure HTTP.
+  if (origin.protocol === "http:" && local &&
+      !/^(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/i.test(rawAuthority)) {
+    throw new Error("Local HTTP smoke origin must use a canonical loopback hostname");
+  }
+  if ((origin.protocol !== "https:" && !(local && origin.protocol === "http:")) ||
+      origin.username || origin.password || input.includes("?") || input.includes("#") || origin.search || origin.hash ||
+      origin.pathname !== "/") {
+    throw new Error("Expected an HTTPS origin without credentials, path, query or fragment");
+  }
+  async function check(path, status, dependency = false) {
+    const response = await fetch(new URL(path, origin), {
+      // Ask intermediaries for a fresh probe even if a cache is misconfigured.
+      headers: {
+        accept: "application/json",
+        // Keep health probes uncompressed for deterministic, bounded evidence.
+        "accept-encoding": "identity",
+        "cache-control": "no-store",
+        pragma: "no-cache",
+      },
+      redirect: "manual",
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status !== 200) throw new Error(`${path} returned HTTP ${response.status}`);
+    // Health probes must be stateless: a session cookie signals unintended auth middleware
+    // or a proxy response that should never be used to approve a deployment.
+    if (response.headers.has("set-cookie")) {
+      throw new Error(`${path} unexpectedly set a cookie`);
+    }
+    // Public health probes must not vary by caller credentials or identity/routing hints.
+    // Forwarded port/prefix, alternate scheme/SSL, upstream server and original-host
+    // routing hints can also select a different backend for the smoke client.
+    // User-Agent and Accept-Language may make smoke see a healthy response while
+    // other clients see a different one; forwarded host/proto may select another backend.
+    // A proxy can
+    // return healthy JSON for the smoke client while serving login content to
+    // other callers; wildcard Vary is similarly unverifiable.
+    const vary = response.headers.get("vary");
+    if (vary !== null) {
+      // RFC 9110 Vary is a comma-separated list of field-name tokens or "*".
+      // Malformed members (quotes, semicolons, empty entries) can disguise
+      // credential-dependent responses from a naive exact-match check.
+      const fields = vary.split(",").map((field) => field.trim().toLowerCase());
+      // Health evidence must be invariant under arbitrary client/proxy headers.
+      // An allowlist prevents new routing hints from silently bypassing a
+      // continuously growing denylist. Origin is permitted for CORS, and
+      // Accept-Encoding for normal transport negotiation.
+      const allowedFields = new Set(["accept-encoding", "origin"]);
+      if (fields.some((field) =>
+        !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(field) || !allowedFields.has(field))) {
+        throw new Error(`${path} returned an invalid or unsupported Vary header`);
+      }
+    }
+    // A 200 response with authentication, redirect or proxy delegation hints
+    // is not reliable evidence of a directly healthy deployment endpoint.
+    for (const header of ["www-authenticate", "authentication-info", "proxy-authenticate", "proxy-authentication-info", "retry-after", "refresh", "location", "content-location", "content-disposition", "x-accel-redirect", "x-sendfile", "x-reproxy-url"]) {
+      if (response.headers.has(header)) {
+        throw new Error(`${path} unexpectedly returned ${header}`);
+      }
+    }
+    // RFC 9209 Proxy-Status can expose an upstream error even when a proxy
+    // returns HTTP 200 with plausible health JSON. Fail closed on an error
+    // parameter in any hop, but permit informational successful proxy status.
+    const proxyStatus = response.headers.get("proxy-status");
+    if (proxyStatus !== null) {
+      if (/(?:^|[;,])\s*error(?:\s*=|\s*(?=[;,]|$))/i.test(proxyStatus)) {
+        throw new Error(`${path} reported an upstream proxy error (proxy-status)`);
+      }
+      // RFC 9209 received-status identifies the status returned by the next hop.
+      // A proxy that rewrites an upstream 503 to HTTP 200 with plausible JSON
+      // must not make a failed deployment appear ready. Reject malformed values
+      // and any upstream status other than the expected direct HTTP 200.
+      for (const member of proxyStatus.split(/[;,]/)) {
+        const parameter = member.trim();
+        if (/^received-status(?:\s|=|$)/i.test(parameter) &&
+            !/^received-status\s*=\s*200$/i.test(parameter)) {
+          throw new Error(`${path} reported an unexpected upstream HTTP status (proxy-status)`);
+        }
+      }
+    }
+    // Some reverse proxies report the original application status in legacy
+    // upstream-status headers even when they rewrite the client response to 200.
+    // Treat contradictory or malformed status metadata as failed release evidence.
+    for (const header of ["x-original-status", "x-upstream-status"]) {
+      const upstreamStatus = response.headers.get(header);
+      if (upstreamStatus !== null && upstreamStatus.trim() !== "200") {
+        throw new Error(`${path} reported an unexpected upstream HTTP status (${header})`);
+      }
+    }
+    // HTTP trailers arrive after the initial headers and can carry deferred
+    // upstream errors that fetch does not expose to this gate. Do not approve
+    // a deployment based on incomplete response metadata.
+    if (response.headers.has("trailer")) {
+      throw new Error(`${path} returned unexpected HTTP trailers`);
+    }
+    // A 200 response must be complete; Content-Range suggests a partial or proxy-rewritten probe.
+    if (response.headers.has("content-range")) {
+      throw new Error(`${path} returned an unexpected partial response (content-range)`);
+    }
+    // A proxy must not compress a health probe against the explicit identity request.
+    // fetch() transparently decompresses gzip/br, which would otherwise hide this drift.
+    const contentEncoding = response.headers.get("content-encoding");
+    if (contentEncoding !== null && contentEncoding.trim().toLowerCase() !== "identity") {
+      throw new Error(`${path} returned an unexpected Content-Encoding`);
+    }
+    // Reject oversized or malformed declared bodies before consuming the stream.
+    // The streaming cap below remains authoritative for missing or dishonest lengths.
+    const maxResponseBytes = 64 * 1024;
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null &&
+        (!/^[1-9][0-9]*$/.test(declaredLength) || Number(declaredLength) > maxResponseBytes)) {
+      throw new Error(`${path} declared an invalid or oversized Content-Length`);
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    const [rawMediaType, ...parameters] = contentType.split(";");
+    if (rawMediaType.trim().toLowerCase() !== "application/json") {
+      throw new Error(`${path} did not return JSON`);
+    }
+    // JSON is UTF-8 on the wire; contradictory charset metadata must fail closed.
+    // The deployment contract permits only one optional UTF-8 charset.
+    // Reject unrelated, empty or duplicate parameters instead of ignoring them.
+    if (parameters.length > 1 ||
+        parameters.some((part) => !/^\s*charset\s*=\s*(?:"utf-8"|utf-8)\s*$/i.test(part))) {
+      throw new Error(`${path} declared an invalid or unexpected JSON content-type parameter`);
+    }
+    // Release evidence must retain the response hardening configured by Next.js.
+    // A proxy stripping nosniff or exposing the framework banner is configuration drift.
+    if (response.headers.get("x-content-type-options") !== "nosniff") {
+      throw new Error(`${path} must set X-Content-Type-Options: nosniff`);
+    }
+    if (response.headers.has("x-powered-by")) {
+      throw new Error(`${path} unexpectedly exposed X-Powered-By`);
+    }
+    const cacheDirectives = response.headers.get("cache-control")?.split(",")
+      .map((directive) => directive.trim().toLowerCase()) ?? [];
+    // Positive or malformed freshness lifetimes conflict with uncacheable health responses.
+    // Immutable and must-understand can defeat no-store (must-understand permits
+    // compliant caches to disregard no-store for understood status codes).
+    const conflictingCaching = cacheDirectives.some((directive) =>
+      /^(?:immutable|must-understand)(?=\s|=|;|$)/.test(directive) ||
+      (/^(?:s-maxage|max-age)(?=\s|=|;|$)/.test(directive) &&
+       !/^(?:s-maxage|max-age)\s*=\s*0$/.test(directive)));
+    // Stale-serving extensions are incompatible with a fail-closed deployment health gate.
+    const staleServing = cacheDirectives.some((directive) =>
+      /^(?:stale-while-revalidate|stale-if-error)\b/.test(directive));
+    // Contradictory or parameterized no-store directives can be interpreted
+    // differently by intermediaries; never approve promotion on ambiguous policy.
+    const malformedNoStore = cacheDirectives.some((directive) =>
+      /^no-store(?:\s|=|;)/.test(directive) && directive !== "no-store");
+    // Empty comma-separated members are invalid HTTP directives. Intermediaries
+    // may interpret them differently, so never promote on ambiguous policy.
+    if (!cacheDirectives.includes("no-store") || cacheDirectives.some((directive) => directive.length === 0) ||
+        cacheDirectives.some((directive) => /^public(?:\s|=|;|$)/.test(directive)) ||
+        conflictingCaching || staleServing || malformedNoStore) {
+      throw new Error(`${path} must disable caching`);
+    }
+    // CDN-specific policies can override general Cache-Control at intermediary caches.
+    // Accept only an explicit no-store policy; contradictory directives fail closed.
+    for (const header of ["cdn-cache-control", "surrogate-control"]) {
+      const policy = response.headers.get(header);
+      if (policy !== null && policy.trim().toLowerCase() !== "no-store") {
+        throw new Error(`${path} must disable ${header} caching`);
+      }
+    }
+    // A nonzero or malformed Age header means a proxy may have served stale health data.
+    const age = response.headers.get("age");
+    if (age !== null && age.trim() !== "0") {
+      throw new Error(`${path} returned a cached or invalid Age header`);
+    }
+    // A stale or future HTTP Date can expose cached probes even when Age is zero.
+    // Allow five minutes of clock skew but reject malformed or noncanonical dates.
+    const responseDate = response.headers.get("date");
+    if (responseDate !== null) {
+      const issuedAt = Date.parse(responseDate);
+      if (!Number.isFinite(issuedAt) ||
+          new Date(issuedAt).toUTCString() !== responseDate.trim() ||
+          Math.abs(Date.now() - issuedAt) > 5 * 60 * 1000) {
+        throw new Error(`${path} returned a stale or invalid Date header`);
+      }
+    }
+    // Expires can advertise cache freshness to an intermediary that ignores no-store.
+    // Permit only expired dates or conventional explicit zero/negative sentinels.
+    const expires = response.headers.get("expires");
+    if (expires !== null && !["0", "-1"].includes(expires.trim())) {
+      const expiry = Date.parse(expires);
+      // Date.parse accepts non-HTTP dates such as "1" and mismatched weekdays.
+      // Require the canonical IMF-fixdate representation for promotion evidence.
+      if (!Number.isFinite(expiry) || new Date(expiry).toUTCString() !== expires.trim() || expiry > Date.now()) {
+        throw new Error(`${path} returned a future or invalid Expires header`);
+      }
+    }
+    // Legacy HTTP Warning 110/111/112 exposes stale or disconnected proxy responses.
+    // A health probe must not promote an instance based on such cached evidence.
+    const warning = response.headers.get("warning");
+    if (warning !== null && /(?:^|,)\s*11[012](?=\s|$)/.test(warning)) {
+      throw new Error(`${path} returned a stale or disconnected response (warning)`);
+    }
+    // Fastly-style X-Cache-Hits counts reveal cached health evidence even when
+    // X-Cache is absent or rewritten to MISS. Only an explicit zero is safe.
+    const cacheHits = response.headers.get("x-cache-hits");
+    if (cacheHits !== null && !/^0$/.test(cacheHits.trim())) {
+      throw new Error(`${path} returned cached or invalid X-Cache-Hits`);
+    }
+    // A proxy may report a cache hit even when Age is zero or absent.
+    const cacheSignals = [
+      ["x-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
+      // Some CDNs and reverse proxies report the cache decision only here.
+      ["x-proxy-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
+      // Nginx and other reverse proxies report cache hits in X-Cache-Status.
+      ["x-cache-status", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
+      ["cf-cache-status", /(?:^|,)\s*(?:hit|stale|updating|revalidated)\s*(?=,|$)/i],
+    ];
+    for (const [header, cached] of cacheSignals) {
+      const value = response.headers.get(header);
+      if (value !== null && cached.test(value.trim())) {
+        throw new Error(`${path} returned a cached response (${header})`);
+      }
+    }
+    // RFC 9211 Cache-Status uses a structured boolean: only hit=?0 proves a miss.
+    // Bare hit means true; malformed hit values must fail closed during promotion.
+    // Check comma-delimited members too: an invalid bare hit after a miss cannot be ignored.
+    const cacheStatus = response.headers.get("cache-status");
+    if (cacheStatus !== null) {
+      for (const match of cacheStatus.matchAll(/(?:^|[;,])\s*hit(?=\s|=|;|,|$)([^;,]*)/gi)) {
+        if (!/^\s*=\s*\?0\s*$/.test(match[1])) {
+          throw new Error(`${path} returned a cached or invalid response (cache-status)`);
+        }
+      }
+      // RFC 9211 fwd-status identifies the origin HTTP response. A proxy can
+      // rewrite an upstream failure to 200; do not promote on contradictory
+      // or malformed origin status metadata from any cache hop.
+      for (const member of cacheStatus.split(/[;,]/)) {
+        const parameter = member.trim();
+        if (/^fwd-status(?:\s|=|$)/i.test(parameter) &&
+            !/^fwd-status\s*=\s*200$/i.test(parameter)) {
+          throw new Error(`${path} reported an unexpected origin HTTP status (cache-status)`);
+        }
+      }
+    }
+    // Bound memory use when an unhealthy origin returns an oversized response.
+    const chunks = [];
+    let totalBytes = 0;
+    if (!response.body) throw new Error(`${path} returned an empty response`);
+    for await (const chunk of response.body) {
+      totalBytes += chunk.byteLength;
+      if (totalBytes > maxResponseBytes) {
+        throw new Error(`${path} response exceeded ${maxResponseBytes} bytes`);
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    // HTTP framing must agree with the complete body used as release evidence.
+    // A proxy reporting a different byte count cannot establish a reliable probe.
+    if (declaredLength !== null && totalBytes !== Number(declaredLength)) {
+      throw new Error(`${path} Content-Length did not match the response body`);
+    }
+    // TextDecoder strips an initial UTF-8 BOM by default. Reject it at the byte
+    // boundary so proxies cannot silently rewrite the health JSON representation.
+    const responseBytes = Buffer.concat(chunks);
+    if (responseBytes.length >= 3 && responseBytes[0] === 0xef &&
+        responseBytes[1] === 0xbb && responseBytes[2] === 0xbf) {
+      throw new Error(`${path} returned a UTF-8 BOM in health JSON`);
+    }
+    // Malformed UTF-8 must not be silently replaced in deployment health evidence.
+    const responseText = new TextDecoder("utf-8", { fatal: true }).decode(responseBytes);
+    const body = JSON.parse(responseText);
+    rejectDuplicateJsonKeys(responseText);
+    // A proxy can refresh its HTTP Date while replaying an old JSON payload.
+    // Require a fresh, canonical server-generated timestamp on both probes.
+    const timestamp = body?.timestamp;
+    const generatedAt = typeof timestamp === "string" ? Date.parse(timestamp) : NaN;
+    if (typeof timestamp !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
+        !Number.isFinite(generatedAt) ||
+        new Date(generatedAt).toISOString() !== timestamp ||
+        Math.abs(Date.now() - generatedAt) > 5 * 60 * 1000) {
+      throw new Error(`${path} returned a stale or invalid body timestamp`);
+    }
+    // A proxy can refresh HTTP Date while replaying an older health payload.
+    // Both timestamps may individually be within the five-minute freshness window,
+    // but their disagreement still makes the deployment evidence unreliable.
+    if (responseDate !== null && Math.abs(generatedAt - Date.parse(responseDate)) > 60_000) {
+      throw new Error(`${path} returned a body timestamp inconsistent with HTTP Date`);
+    }
+    if (body.service !== "economic-intelligence-os" || body.status !== status) {
+      throw new Error(`${path} returned an unexpected service or status`);
+    }
+    // The API measures database latency with Date.now() and the smoke request
+    // has a five-second deadline. Fractional, unsafe or >5s values cannot
+    // represent a healthy, fresh readiness probe and must not promote a release.
+    const databaseLatencyMs = body.dependencies?.database?.latencyMs;
+    if (dependency && (body.dependencies?.database?.status !== "ok" ||
+        !Number.isSafeInteger(databaseLatencyMs) ||
+        databaseLatencyMs < 0 || databaseLatencyMs > 5_000)) {
+      throw new Error("/api/ready did not confirm database readiness");
+    }
+    if (!dependency && body.checks?.application !== "ok") {
+      throw new Error("/api/health did not confirm application liveness");
+    }
+    return generatedAt;
+  }
+  const healthGeneratedAt = await check("/api/health", "ok");
+  const readyGeneratedAt = await check("/api/ready", "ready", true);
+  // A fresh readiness response cannot validate an unrelated, older liveness
+  // response. Both probes must describe the same short deployment window,
+  // even when their individual HTTP Date headers are internally consistent.
+  if (Math.abs(readyGeneratedAt - healthGeneratedAt) > 60_000) {
+    throw new Error("Liveness and readiness body timestamps differ by more than 60 seconds");
+  }
+  console.log("Production smoke passed: liveness and database readiness");
+} catch (error) {
+  console.error(`Production smoke FAILED: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+}
