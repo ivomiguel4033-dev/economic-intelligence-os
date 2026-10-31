@@ -280,11 +280,11 @@ try {
     }
     // A proxy may report a cache hit even when Age is zero or absent.
     const cacheSignals = [
-      ["x-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_)?hit)(?=$|[^a-z0-9])/i],
+      ["x-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
       // Some CDNs and reverse proxies report the cache decision only here.
-      ["x-proxy-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_)?hit)(?=$|[^a-z0-9])/i],
+      ["x-proxy-cache", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
       // Nginx and other reverse proxies report cache hits in X-Cache-Status.
-      ["x-cache-status", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_)?hit)(?=$|[^a-z0-9])/i],
+      ["x-cache-status", /(?:^|[^a-z0-9])(?:hit|stale|updating|revalidated|tcp_(?:mem_|disk_|remote_|refresh_|ims_|partial_|negative_)?hit)(?=$|[^a-z0-9])/i],
       ["cf-cache-status", /(?:^|,)\s*(?:hit|stale|updating|revalidated)\s*(?=,|$)/i],
     ];
     for (const [header, cached] of cacheSignals) {
