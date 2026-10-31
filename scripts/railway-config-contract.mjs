@@ -15,9 +15,11 @@ assert.equal(config.deploy?.healthcheckPath, "/api/ready", "Readiness, not liven
 assert.ok(Number.isInteger(config.deploy?.healthcheckTimeout) &&
   config.deploy.healthcheckTimeout >= 60 && config.deploy.healthcheckTimeout <= 300,
   "Healthcheck timeout must be bounded");
-assert.ok(/^\d+$/.test(String(config.deploy?.drainingSeconds)) &&
-  Number(config.deploy.drainingSeconds) >= 10 && Number(config.deploy.drainingSeconds) <= 120,
-  "Draining interval must be bounded");
+assert.ok(typeof config.deploy?.drainingSeconds === "string" &&
+  /^(?:0|[1-9][0-9]*)$/.test(config.deploy.drainingSeconds) &&
+  Number.isSafeInteger(Number(config.deploy.drainingSeconds)) &&
+  Number(config.deploy.drainingSeconds) >= 30 && Number(config.deploy.drainingSeconds) <= 60,
+  "Draining interval must be a canonical decimal string between 30 and 60 seconds");
 assert.equal(config.deploy?.restartPolicyType, "ON_FAILURE", "Unexpected restart policy");
 assert.ok(Number.isInteger(config.deploy?.restartPolicyMaxRetries) &&
   config.deploy.restartPolicyMaxRetries >= 1 && config.deploy.restartPolicyMaxRetries <= 10,
