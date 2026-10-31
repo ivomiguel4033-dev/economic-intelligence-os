@@ -1053,6 +1053,21 @@ try {
   readyPadding = 70_000;
   assert.equal(await run(), false, "Oversized readiness payload must block promotion");
   readyPadding = 0;
+  // Health JSON must not be interpreted using a contradictory or ambiguous charset.
+  contentType = "application/json; charset=iso-8859-1";
+  assert.equal(await run(), false, "Non-UTF-8 liveness charset must block promotion");
+  contentType = "application/json; charset=utf-8; charset=utf-8";
+  assert.equal(await run(), false, "Duplicate liveness charset must block promotion");
+  contentType = "application/json; charset=UTF-8";
+  assert.equal(await run(), true, "Explicit UTF-8 liveness charset must pass");
+  contentType = "application/json";
+  readyContentType = "application/json; charset=iso-8859-1";
+  assert.equal(await run(), false, "Non-UTF-8 readiness charset must block promotion");
+  readyContentType = "application/json; charset=utf-8; charset=utf-8";
+  assert.equal(await run(), false, "Duplicate readiness charset must block promotion");
+  readyContentType = "application/json; charset=\"utf-8\"";
+  assert.equal(await run(), true, "Quoted UTF-8 readiness charset must pass");
+  readyContentType = "application/json";
   console.log("Post-deploy smoke probe regression checks passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
