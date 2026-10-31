@@ -1102,6 +1102,24 @@ try {
   readyContentType = "application/json; charset=\"utf-8\"";
   assert.equal(await run(), true, "Quoted UTF-8 readiness charset must pass");
   readyContentType = "application/json";
+  // All Akamai revalidation HIT variants are cached evidence, regardless of
+  // which proxy header carries the signal or which endpoint is being probed.
+  for (const variant of ["TCP_REFRESH_HIT", "TCP_IMS_HIT"]) {
+    for (const [label, setValue] of [
+      ["liveness X-Cache", (value) => { healthXCache = value; }],
+      ["readiness X-Cache", (value) => { readyXCache = value; }],
+      ["liveness X-Proxy-Cache", (value) => { healthXProxyCache = value; }],
+      ["readiness X-Proxy-Cache", (value) => { readyXProxyCache = value; }],
+      ["liveness X-Cache-Status", (value) => { healthXCacheStatus = value; }],
+      ["readiness X-Cache-Status", (value) => { readyXCacheStatus = value; }],
+    ]) {
+      setValue(`${variant} from edge`);
+      assert.equal(await run(), false, `${variant} in ${label} must block promotion`);
+      setValue("TCP_MISS from edge");
+      assert.equal(await run(), true, `TCP_MISS in ${label} must remain valid`);
+      setValue(null);
+    }
+  }
   console.log("Post-deploy smoke probe regression checks passed");
 } finally {
   await new Promise((resolve) => server.close(resolve));
