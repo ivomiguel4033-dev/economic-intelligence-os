@@ -709,6 +709,19 @@ try {
   readyXCacheStatus = "TCP_MISS from edge";
   assert.equal(await run(), true, "TCP_MISS readiness X-Cache-Status remains valid");
   readyXCacheStatus = null;
+  // Akamai remote cache hits must never count as fresh deployment evidence.
+  // Cover every supported proxy signal independently to prevent header-specific drift.
+  healthXCache = "TCP_REMOTE_HIT from edge";
+  assert.equal(await run(), false, "Remote cache HIT in liveness X-Cache must block promotion");
+  healthXCache = null;
+  readyXProxyCache = "TCP_REMOTE_HIT from edge";
+  assert.equal(await run(), false, "Remote cache HIT in readiness X-Proxy-Cache must block promotion");
+  readyXProxyCache = null;
+  healthXCacheStatus = "TCP_REMOTE_HIT from edge";
+  assert.equal(await run(), false, "Remote cache HIT in liveness X-Cache-Status must block promotion");
+  healthXCacheStatus = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Remote cache regression must not reject a genuine miss");
+  healthXCacheStatus = null;
   healthXCacheStatus = "HIT";
   assert.equal(await run(), false, "Nginx liveness X-Cache-Status HIT must block promotion");
   healthXCacheStatus = "MISS";
