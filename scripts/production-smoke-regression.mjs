@@ -722,6 +722,17 @@ try {
   healthXCacheStatus = "TCP_MISS from edge";
   assert.equal(await run(), true, "Remote cache regression must not reject a genuine miss");
   healthXCacheStatus = null;
+  // Akamai revalidation hits are cached evidence too, even when they look fresh.
+  healthXCache = "TCP_REFRESH_HIT from edge";
+  assert.equal(await run(), false, "Akamai refresh HIT in liveness X-Cache must block promotion");
+  healthXCache = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Akamai refresh regression must allow a genuine liveness miss");
+  healthXCache = null;
+  readyXProxyCache = "TCP_IMS_HIT from edge";
+  assert.equal(await run(), false, "Akamai IMS HIT in readiness X-Proxy-Cache must block promotion");
+  readyXProxyCache = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Akamai IMS regression must allow a genuine readiness miss");
+  readyXProxyCache = null;
   healthXCacheStatus = "HIT";
   assert.equal(await run(), false, "Nginx liveness X-Cache-Status HIT must block promotion");
   healthXCacheStatus = "MISS";
