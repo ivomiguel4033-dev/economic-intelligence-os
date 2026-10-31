@@ -733,6 +733,23 @@ try {
   readyXProxyCache = "TCP_MISS from edge";
   assert.equal(await run(), true, "Akamai IMS regression must allow a genuine readiness miss");
   readyXProxyCache = null;
+  // Partial Akamai cache hits are not fresh release evidence, regardless of
+  // which proxy header reports them. A real cache miss must still pass.
+  healthXCache = "TCP_PARTIAL_HIT from edge";
+  assert.equal(await run(), false, "Partial HIT in liveness X-Cache must block promotion");
+  healthXCache = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Liveness X-Cache MISS must remain valid after partial HIT");
+  healthXCache = null;
+  readyXProxyCache = "TCP_PARTIAL_HIT from edge";
+  assert.equal(await run(), false, "Partial HIT in readiness X-Proxy-Cache must block promotion");
+  readyXProxyCache = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Readiness X-Proxy-Cache MISS must remain valid after partial HIT");
+  readyXProxyCache = null;
+  healthXCacheStatus = "TCP_PARTIAL_HIT from edge";
+  assert.equal(await run(), false, "Partial HIT in liveness X-Cache-Status must block promotion");
+  healthXCacheStatus = "TCP_MISS from edge";
+  assert.equal(await run(), true, "Liveness X-Cache-Status MISS must remain valid after partial HIT");
+  healthXCacheStatus = null;
   healthXCacheStatus = "HIT";
   assert.equal(await run(), false, "Nginx liveness X-Cache-Status HIT must block promotion");
   healthXCacheStatus = "MISS";
