@@ -13,7 +13,7 @@ assert.equal(config.deploy?.startCommand, "node node_modules/next/dist/bin/next 
   "Unexpected runtime entrypoint (legacy worker must not start)");
 assert.equal(config.deploy?.healthcheckPath, "/api/ready", "Readiness, not liveness, must gate deploy");
 assert.ok(Number.isInteger(config.deploy?.healthcheckTimeout) &&
-  config.deploy.healthcheckTimeout >= 30 && config.deploy.healthcheckTimeout <= 300,
+  config.deploy.healthcheckTimeout >= 60 && config.deploy.healthcheckTimeout <= 300,
   "Healthcheck timeout must be bounded");
 assert.ok(/^\d+$/.test(String(config.deploy?.drainingSeconds)) &&
   Number(config.deploy.drainingSeconds) >= 10 && Number(config.deploy.drainingSeconds) <= 120,
