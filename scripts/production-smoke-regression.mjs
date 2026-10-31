@@ -749,6 +749,24 @@ try {
     assert.equal(await run(), true, `A genuine MISS in ${header} must remain valid`);
     setValue(null);
   }
+  // Memory and disk cache hits are also stale release evidence. Exercise every
+  // supported proxy signal on both probes, and preserve genuine cache misses.
+  for (const cacheHit of ["TCP_MEM_HIT", "TCP_DISK_HIT"]) {
+    for (const [header, setValue] of [
+      ["liveness X-Cache", (value) => { healthXCache = value; }],
+      ["readiness X-Cache", (value) => { readyXCache = value; }],
+      ["liveness X-Proxy-Cache", (value) => { healthXProxyCache = value; }],
+      ["readiness X-Proxy-Cache", (value) => { readyXProxyCache = value; }],
+      ["liveness X-Cache-Status", (value) => { healthXCacheStatus = value; }],
+      ["readiness X-Cache-Status", (value) => { readyXCacheStatus = value; }],
+    ]) {
+      setValue(`${cacheHit} from edge`);
+      assert.equal(await run(), false, `${cacheHit} in ${header} must block promotion`);
+      setValue("TCP_MISS from edge");
+      assert.equal(await run(), true, `TCP_MISS in ${header} must remain valid`);
+      setValue(null);
+    }
+  }
   // Partial Akamai cache hits are not fresh release evidence, regardless of
   // which proxy header reports them. A real cache miss must still pass.
   healthXCache = "TCP_PARTIAL_HIT from edge";
