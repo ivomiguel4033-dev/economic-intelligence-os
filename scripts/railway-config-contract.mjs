@@ -48,4 +48,18 @@ for (const [field, value] of [
   assert.throws(() => validate(altered), { name: "AssertionError" },
     `Railway contract must reject ${field}=${JSON.stringify(value)}`);
 }
+// Protect the startup sequence as well as numeric deployment limits.
+for (const [section, field, value] of [
+  ["build", "builder", "NIXPACKS"],
+  ["build", "dockerfilePath", "Dockerfile.dev"],
+  ["deploy", "preDeployCommand", "npm run migrate && node scripts/production-preflight.mjs"],
+  ["deploy", "preDeployCommand", "npm run migrate"],
+  ["deploy", "startCommand", "npm run dev"],
+  ["deploy", "startCommand", "node worker.js"],
+]) {
+  const altered = structuredClone(config);
+  altered[section][field] = value;
+  assert.throws(() => validate(altered), { name: "AssertionError" },
+    `Railway contract must reject ${section}.${field}=${JSON.stringify(value)}`);
+}
 console.log("Railway production configuration contract and negative regression checks passed");
