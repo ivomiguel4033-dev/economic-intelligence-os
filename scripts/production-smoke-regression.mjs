@@ -733,6 +733,19 @@ try {
   readyXProxyCache = "TCP_MISS from edge";
   assert.equal(await run(), true, "Akamai IMS regression must allow a genuine readiness miss");
   readyXProxyCache = null;
+  // Negative Akamai cache hits can replay an earlier origin failure as a
+  // successful-looking health response. Neither endpoint may approve promotion.
+  for (const [header, setValue] of [
+    ["X-Cache", (value) => { healthXCache = value; }],
+    ["X-Proxy-Cache", (value) => { readyXProxyCache = value; }],
+    ["X-Cache-Status", (value) => { healthXCacheStatus = value; }],
+  ]) {
+    setValue("TCP_NEGATIVE_HIT from edge");
+    assert.equal(await run(), false, `Negative Akamai HIT in ${header} must block promotion`);
+    setValue("TCP_MISS from edge");
+    assert.equal(await run(), true, `A genuine MISS in ${header} must remain valid`);
+    setValue(null);
+  }
   // Partial Akamai cache hits are not fresh release evidence, regardless of
   // which proxy header reports them. A real cache miss must still pass.
   healthXCache = "TCP_PARTIAL_HIT from edge";
