@@ -74,6 +74,20 @@ for (const [field, value] of [
   assert.throws(() => validate(altered), { name: "AssertionError" },
     `Railway contract must reject ${field}=${JSON.stringify(value)}`);
 }
+// Accept documented boundary values so the gate does not become overly restrictive.
+for (const [field, value] of [
+  ["healthcheckTimeout", 60],
+  ["healthcheckTimeout", 300],
+  ["drainingSeconds", "30"],
+  ["drainingSeconds", "60"],
+  ["restartPolicyMaxRetries", 1],
+  ["restartPolicyMaxRetries", 10],
+]) {
+  const altered = structuredClone(config);
+  altered.deploy[field] = value;
+  assert.doesNotThrow(() => validate(altered),
+    `Railway contract must accept ${field}=${JSON.stringify(value)}`);
+}
 // Protect the startup sequence as well as numeric deployment limits.
 for (const [section, field, value] of [
   ["build", "builder", "NIXPACKS"],
