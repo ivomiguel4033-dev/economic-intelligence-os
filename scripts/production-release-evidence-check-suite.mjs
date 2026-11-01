@@ -13,6 +13,8 @@ const checks = [
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
   const args = name.endsWith("-regression.mjs") ? [] : ["--self-test"];
+  console.log("Running release evidence check: " + name);
+  const startedAt = Date.now();
   const result = spawnSync(process.execPath, [script, ...args], {
     stdio: "inherit",
     timeout: 15000,
@@ -25,9 +27,10 @@ for (const name of checks) {
         : result.signal
           ? "terminated by signal " + result.signal
           : "exit status " + result.status;
-    console.error("Release evidence check failed: " + name + " (" + reason + ")");
+    console.error("Release evidence check failed: " + name + " (" + reason + ", " + (Date.now() - startedAt) + " ms)");
     process.exitCode = 1;
     break;
   }
+  console.log("Release evidence check passed: " + name + " (" + (Date.now() - startedAt) + " ms)");
 }
 if (!process.exitCode) console.log("Production release evidence suite passed");
