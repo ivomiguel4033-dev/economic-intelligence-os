@@ -8,6 +8,8 @@ const config = JSON.parse(readFileSync(fileURLToPath(new URL("../railway.json", 
 function validate(config) {
 assert.ok(config !== null && typeof config === "object" && !Array.isArray(config),
   "Railway configuration must be a JSON object");
+assert.equal(config.$schema, "https://railway.com/railway.schema.json",
+  "Railway configuration must use the reviewed Railway schema");
 for (const section of ["build", "deploy"]) {
   assert.ok(config[section] !== null && typeof config[section] === "object" && !Array.isArray(config[section]),
     `Railway ${section} must be an object`);
@@ -87,6 +89,14 @@ for (const [field, value] of [
   altered.deploy[field] = value;
   assert.doesNotThrow(() => validate(altered),
     `Railway contract must accept ${field}=${JSON.stringify(value)}`);
+}
+// The schema identifier is part of the reviewed deployment contract.
+for (const schema of [undefined, null, "", "https://example.com/railway.schema.json"]) {
+  const altered = structuredClone(config);
+  if (schema === undefined) delete altered.$schema;
+  else altered.$schema = schema;
+  assert.throws(() => validate(altered), { name: "AssertionError" },
+    `Railway contract must reject schema=${JSON.stringify(schema)}`);
 }
 // Protect the startup sequence as well as numeric deployment limits.
 for (const [section, field, value] of [
