@@ -15,7 +15,8 @@ for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
   // Fail with a precise diagnostic if release evidence checks are missing or replaced.
   try {
-    // Reject symlinks so the release gate cannot execute a redirected script.\n    if (!lstatSync(script).isFile()) throw new Error("not a regular file or is a symbolic link");
+    // Reject symlinks so the release gate cannot execute a redirected script.
+    if (!lstatSync(script).isFile()) throw new Error("not a regular file or is a symbolic link");
   } catch (error) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
     process.exitCode = 1;
