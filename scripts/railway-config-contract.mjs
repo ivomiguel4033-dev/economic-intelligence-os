@@ -94,4 +94,10 @@ for (const section of ["build", "deploy"]) {
   assert.throws(() => validate(altered), { name: "AssertionError" },
     `Railway contract must reject missing ${section} section`);
 }
+// Malformed top-level configuration and null sections must also fail closed.
+// These cases protect against JSON edits that preserve keys but destroy object shape.
+for (const invalid of [null, [], "invalid", 42, true, { ...config, build: null }, { ...config, deploy: null }]) {
+  assert.throws(() => validate(invalid),
+    `Railway contract must reject malformed configuration: ${JSON.stringify(invalid)}`);
+}
 console.log("Railway production configuration contract and negative regression checks passed");
