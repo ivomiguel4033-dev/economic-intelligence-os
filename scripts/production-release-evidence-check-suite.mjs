@@ -12,8 +12,8 @@ const checks = [
   "production-release-evidence-input-regression.mjs",
 ];
 // A missing or duplicated gate can silently weaken release validation.
-if (checks.length === 0 || new Set(checks).size !== checks.length) {
-  console.error("Release evidence gate configuration invalid: checks must be non-empty and unique");
+if (checks.length === 0 || new Set(checks).size !== checks.length || checks.some((name) => !/^[a-z0-9-]+\.mjs$/.test(name))) {
+  console.error("Release evidence gate configuration invalid: checks must be non-empty, unique, and local .mjs filenames");
   process.exit(1);
 }
 for (const name of checks) {
