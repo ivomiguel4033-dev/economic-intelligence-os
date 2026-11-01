@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local, dependency-free release evidence regression gate.
 import { spawnSync } from "node:child_process";
+import { statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const checks = [
@@ -12,6 +13,14 @@ const checks = [
 ];
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
+  // Fail with a precise diagnostic if release evidence checks are missing or replaced.
+  try {
+    if (!statSync(script).isFile()) throw new Error("not a regular file");
+  } catch (error) {
+    console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
+    process.exitCode = 1;
+    break;
+  }
   const args = name.endsWith("-regression.mjs") ? [] : ["--self-test"];
   console.log("Running release evidence check: " + name);
   const startedAt = Date.now();
