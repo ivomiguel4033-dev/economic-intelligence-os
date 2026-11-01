@@ -18,7 +18,14 @@ for (const name of checks) {
     timeout: 15000,
   });
   if (result.error || result.status !== 0) {
-    console.error("Release evidence check failed: " + name);
+    const reason = result.error?.code === "ETIMEDOUT"
+      ? "timed out after 15 seconds"
+      : result.error
+        ? result.error.message
+        : result.signal
+          ? "terminated by signal " + result.signal
+          : "exit status " + result.status;
+    console.error("Release evidence check failed: " + name + " (" + reason + ")");
     process.exitCode = 1;
     break;
   }
