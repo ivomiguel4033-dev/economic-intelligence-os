@@ -33,6 +33,8 @@ for (const name of checks) {
   const result = spawnSync(process.execPath, [script, ...args], {
     stdio: "inherit",
     timeout: 15000,
+    // Forcefully terminate hung gates even if they ignore SIGTERM.
+    killSignal: "SIGKILL",
   });
   if (result.error || result.status !== 0) {
     const reason = result.error?.code === "ETIMEDOUT"
