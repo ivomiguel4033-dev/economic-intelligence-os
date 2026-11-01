@@ -44,6 +44,10 @@ try {
     "migrationReviewed", "smokePassed", "postReleaseObservationPassed",
   ]) assert.equal(record[gate], false, gate + " must default to NO-GO");
   assert.equal(run(validator, [path]).status, 1, "Unverified draft must fail validation");
+  assert.equal(run(validator, []).status, 2, "Validator must reject missing evidence path");
+  assert.equal(run(validator, ["--self-test", path]).status, 2, "Extra arguments must not bypass evidence validation");
+  assert.equal(run(validator, [path, "--self-test"]).status, 2, "Trailing self-test flag must not bypass validation");
+  assert.equal(run(validator, [join(directory, "missing-evidence.json")]).status, 1, "Missing evidence file must fail closed");
   if (process.platform !== "win32") {
     assert.equal(statSync(path).mode & 0o777, 0o600, "Evidence file must be private");
   }
