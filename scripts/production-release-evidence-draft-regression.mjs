@@ -34,6 +34,8 @@ try {
   ].sort(), "Evidence draft must contain exactly the documented release gates");
   assert.equal(record.firstLaunch, null, "Launch mode must require operator input");
   assert.equal(record.commitSha, "", "Commit must not be guessed");
+  assert.equal(record.ciRunUrl, "", "CI run URL must not be guessed");
+  assert.equal(record.rollbackDeploymentId, "", "Rollback target must not be guessed");
   assert.equal(record.railwayDeploymentId, "", "Deployment must not be guessed");
   assert.equal(record.rollbackVerified, false, "Rollback verification must default to NO-GO");
   for (const gate of [
@@ -54,10 +56,10 @@ try {
   if (process.platform !== "win32") {
     const target = join(directory, "existing-target.json");
     const link = join(directory, "evidence-link.json");
-    writeFileSync(target, "sentinel\\n");
+    writeFileSync(target, "sentinel\n");
     symlinkSync(target, link);
     assert.equal(run(generator, [link]).status, 1, "Existing symlink must not be overwritten");
-    assert.equal(readFileSync(target, "utf8"), "sentinel\\n", "Symlink target must remain unchanged");
+    assert.equal(readFileSync(target, "utf8"), "sentinel\n", "Symlink target must remain unchanged");
     const dangling = join(directory, "dangling-link.json");
     symlinkSync(join(directory, "missing-target.json"), dangling);
     assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
