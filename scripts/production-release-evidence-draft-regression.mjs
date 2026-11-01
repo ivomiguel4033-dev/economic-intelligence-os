@@ -21,6 +21,7 @@ function run(script, args) {
 
 try {
   assert.equal(run(generator, ["--self-test"]).status, 0, "Generator self-test");
+  assert.equal(run(validator, ["--self-test"]).status, 0, "Validator self-test");
   assert.equal(run(generator, [path]).status, 0, "Create evidence draft");
   const record = JSON.parse(readFileSync(path, "utf8"));
   const draftText = readFileSync(path, "utf8");
@@ -53,6 +54,8 @@ try {
     ["empty-evidence.json", ""],
     ["malformed-evidence.json", "{\"ciPassed\":"],
     ["duplicate-evidence.json", '{"ciPassed":false,"ciPassed":true}'],
+    ["oversized-evidence.json", " ".repeat(65537)],
+    ["utf8-bom-evidence.json", "\\uFEFF{}"],
   ]) {
     const invalidPath = join(directory, name);
     writeFileSync(invalidPath, contents, { mode: 0o600 });
@@ -74,6 +77,7 @@ try {
     symlinkSync(target, link);
     assert.equal(run(generator, [link]).status, 1, "Existing symlink must not be overwritten");
     assert.equal(readFileSync(target, "utf8"), "sentinel\n", "Symlink target must remain unchanged");
+    assert.equal(run(validator, [link]).status, 1, "Validator must reject symlinked evidence");
     const dangling = join(directory, "dangling-link.json");
     symlinkSync(join(directory, "missing-target.json"), dangling);
     assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
