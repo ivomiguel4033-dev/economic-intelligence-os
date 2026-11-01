@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,6 +40,16 @@ try {
   assert.equal(run(generator, [path]).status, 1, "Existing evidence must not be overwritten");
   assert.equal(readFileSync(path, "utf8"), original, "Existing evidence must remain unchanged");
   assert.equal(run(generator, []).status, 2, "Missing path must show usage error");
+  assert.equal(run(generator, ["--unknown"]).status, 2, "Unknown options must be rejected");
+  assert.equal(run(generator, [join(directory, "unexpected.json"), "extra"]).status, 2, "Extra arguments must be rejected");
+  if (process.platform !== "win32") {
+    const target = join(directory, "existing-target.json");
+    const link = join(directory, "evidence-link.json");
+    writeFileSync(target, "sentinel\\n");
+    symlinkSync(target, link);
+    assert.equal(run(generator, [link]).status, 1, "Existing symlink must not be overwritten");
+    assert.equal(readFileSync(target, "utf8"), "sentinel\\n", "Symlink target must remain unchanged");
+  }
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
