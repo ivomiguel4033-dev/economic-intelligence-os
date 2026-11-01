@@ -38,6 +38,17 @@ assert.ok(Number.isInteger(config.deploy?.restartPolicyMaxRetries) &&
 validate(config);
 for (const [field, value] of [
   ["healthcheckPath", "/api/health"],
+  ["healthcheckTimeout", null],
+  ["healthcheckTimeout", true],
+  ["healthcheckTimeout", 0],
+  ["healthcheckTimeout", -1],
+  ["healthcheckTimeout", 60.5],
+  ["healthcheckTimeout", 300.5],
+  ["restartPolicyMaxRetries", null],
+  ["restartPolicyMaxRetries", true],
+  ["restartPolicyMaxRetries", "3"],
+  ["restartPolicyMaxRetries", -1],
+  ["restartPolicyMaxRetries", 1.5],
   ["healthcheckTimeout", 30],
   ["healthcheckTimeout", 301],
   ["healthcheckTimeout", "120"],
