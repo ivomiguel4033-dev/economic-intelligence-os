@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,8 +52,11 @@ try {
     const dangling = join(directory, "dangling-link.json");
     symlinkSync(join(directory, "missing-target.json"), dangling);
     assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
-    const folder = join(directory, "folder-evidence");
     assert.equal(run(generator, [directory]).status, 1, "Directory must not be replaced by evidence");
+    assert.equal(statSync(directory).isDirectory(), true, "Evidence generator must preserve the directory");
+    const nested = join(directory, "missing-parent", "evidence.json");
+    assert.equal(run(generator, [nested]).status, 1, "Missing parent directory must fail safely");
+    assert.equal(existsSync(nested), false, "Failed generation must not create partial evidence");
   }
   console.log("Production release evidence draft regression checks passed");
 } finally {
