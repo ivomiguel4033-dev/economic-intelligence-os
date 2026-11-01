@@ -49,6 +49,11 @@ try {
     symlinkSync(target, link);
     assert.equal(run(generator, [link]).status, 1, "Existing symlink must not be overwritten");
     assert.equal(readFileSync(target, "utf8"), "sentinel\\n", "Symlink target must remain unchanged");
+    const dangling = join(directory, "dangling-link.json");
+    symlinkSync(join(directory, "missing-target.json"), dangling);
+    assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
+    const folder = join(directory, "folder-evidence");
+    assert.equal(run(generator, [directory]).status, 1, "Directory must not be replaced by evidence");
   }
   console.log("Production release evidence draft regression checks passed");
 } finally {
