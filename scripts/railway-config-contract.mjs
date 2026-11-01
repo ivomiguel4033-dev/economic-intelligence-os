@@ -6,6 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const config = JSON.parse(readFileSync(fileURLToPath(new URL("../railway.json", import.meta.url)), "utf8"));
 function validate(config) {
+assert.ok(config !== null && typeof config === "object" && !Array.isArray(config),
+  "Railway configuration must be a JSON object");
+for (const section of ["build", "deploy"]) {
+  assert.ok(config[section] !== null && typeof config[section] === "object" && !Array.isArray(config[section]),
+    `Railway ${section} must be an object`);
+}
 assert.equal(config.build?.builder, "DOCKERFILE", "Production must use the reviewed Dockerfile");
 assert.equal(config.build?.dockerfilePath, "Dockerfile", "Unexpected production Dockerfile");
 assert.equal(config.deploy?.preDeployCommand, "node scripts/production-preflight.mjs && npm run migrate",
@@ -97,7 +103,7 @@ for (const section of ["build", "deploy"]) {
 // Malformed top-level configuration and null sections must also fail closed.
 // These cases protect against JSON edits that preserve keys but destroy object shape.
 for (const invalid of [null, [], "invalid", 42, true, { ...config, build: null }, { ...config, deploy: null }]) {
-  assert.throws(() => validate(invalid),
+  assert.throws(() => validate(invalid), { name: "AssertionError" },
     `Railway contract must reject malformed configuration: ${JSON.stringify(invalid)}`);
 }
 console.log("Railway production configuration contract and negative regression checks passed");
