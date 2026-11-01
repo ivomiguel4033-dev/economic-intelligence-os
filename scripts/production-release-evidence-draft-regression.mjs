@@ -48,6 +48,16 @@ try {
   assert.equal(run(validator, ["--self-test", path]).status, 2, "Extra arguments must not bypass evidence validation");
   assert.equal(run(validator, [path, "--self-test"]).status, 2, "Trailing self-test flag must not bypass validation");
   assert.equal(run(validator, [join(directory, "missing-evidence.json")]).status, 1, "Missing evidence file must fail closed");
+  // Malformed and ambiguous JSON must never satisfy the release evidence gate.
+  for (const [name, contents] of [
+    ["empty-evidence.json", ""],
+    ["malformed-evidence.json", "{\"ciPassed\":"],
+    ["duplicate-evidence.json", '{"ciPassed":false,"ciPassed":true}'],
+  ]) {
+    const invalidPath = join(directory, name);
+    writeFileSync(invalidPath, contents, { mode: 0o600 });
+    assert.equal(run(validator, [invalidPath]).status, 1, `${name} must fail closed`);
+  }
   if (process.platform !== "win32") {
     assert.equal(statSync(path).mode & 0o777, 0o600, "Evidence file must be private");
   }
