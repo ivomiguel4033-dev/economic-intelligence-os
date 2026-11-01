@@ -88,6 +88,7 @@ jobs:
       - name: Production security baseline regression checks
         run: node scripts/production-security-baseline-regression.mjs
       - name: Production preflight regression checks
+        timeout-minutes: 2
         run: node scripts/production-preflight-regression.mjs
       - name: Execution reliability regression checks
         run: node scripts/execution-reliability-regression.mjs
