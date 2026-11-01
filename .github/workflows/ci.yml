@@ -152,6 +152,7 @@ jobs:
       - name: Metrics endpoint production regression checks
         run: node scripts/metrics-route-regression.mjs
       - name: Health and readiness production regression checks
+        timeout-minutes: 2
         run: node scripts/health-readiness-route-regression.mjs
       - name: Reject trusted identity headers in API routes
         shell: bash
