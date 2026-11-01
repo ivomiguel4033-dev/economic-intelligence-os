@@ -23,6 +23,15 @@ try {
   assert.equal(run(generator, ["--self-test"]).status, 0, "Generator self-test");
   assert.equal(run(generator, [path]).status, 0, "Create evidence draft");
   const record = JSON.parse(readFileSync(path, "utf8"));
+  const draftText = readFileSync(path, "utf8");
+  assert.equal(draftText.endsWith("\n"), true, "Evidence draft must end with a newline");
+  assert.deepEqual(Object.keys(record).sort(), [
+    "commitSha", "ciRunUrl", "railwayDeploymentId", "firstLaunch",
+    "rollbackDeploymentId", "rollbackVerified",
+    "ciPassed", "stagedChangesReviewed", "preflightPassed",
+    "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
+    "migrationReviewed", "smokePassed", "postReleaseObservationPassed",
+  ].sort(), "Evidence draft must contain exactly the documented release gates");
   assert.equal(record.firstLaunch, null, "Launch mode must require operator input");
   assert.equal(record.commitSha, "", "Commit must not be guessed");
   assert.equal(record.railwayDeploymentId, "", "Deployment must not be guessed");
