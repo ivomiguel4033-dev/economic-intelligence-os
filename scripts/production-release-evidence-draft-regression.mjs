@@ -148,7 +148,7 @@ try {
     const incomplete = { ...verified };
     delete incomplete[gate];
     const incompletePath = join(directory, `missing-${gate}.json`);
-    writeFileSync(incompletePath, JSON.stringify(incomplete) + "\\n", { mode: 0o600 });
+    writeFileSync(incompletePath, JSON.stringify(incomplete) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [incompletePath]).status, 1, `Missing ${gate} must fail closed`);
   }
   console.log("Production release evidence draft regression checks passed");
