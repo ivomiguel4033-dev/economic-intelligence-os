@@ -196,7 +196,7 @@ try {
     ["nested", JSON.stringify({ ...verified, metadata: { source: "operator" } }).replace('"source":"operator"', '"source":"unreviewed","source":"operator"')],
   ]) {
     const ambiguousPath = join(directory, `duplicate-valid-${label}.json`);
-    writeFileSync(ambiguousPath, contents + "\\n", { mode: 0o600 });
+    writeFileSync(ambiguousPath, contents + "\n", { mode: 0o600 });
     assert.equal(run(validator, [ambiguousPath]).status, 1, `Duplicate evidence keys (${label}) must fail closed`);
   }
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
