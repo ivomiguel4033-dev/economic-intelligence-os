@@ -174,6 +174,20 @@ try {
     writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [invalidPath]).status, 1, `${label} must not approve a release`);
   }
+  // Exercise release identity and CI provenance checks through the on-disk CLI.
+  // A passing set of operator gates cannot compensate for an invalid commit or CI URL.
+  for (const [label, overrides] of [
+    ["zero-commit", { commitSha: "0".repeat(40) }],
+    ["short-commit", { commitSha: "a".repeat(39) }],
+    ["foreign-ci", { ciRunUrl: "https://github.com/other/repo/actions/runs/123" }],
+    ["ci-query", { ciRunUrl: verified.ciRunUrl + "?attempt=2" }],
+    ["ci-zero", { ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/0" }],
+    ["ci-unsafe-integer", { ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/9007199254740992" }],
+  ]) {
+    const invalidPath = join(directory, `invalid-provenance-${label}.json`);
+    writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\n", { mode: 0o600 });
+    assert.equal(run(validator, [invalidPath]).status, 1, `Invalid release provenance (${label}) must fail closed`);
+  }
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
