@@ -225,7 +225,7 @@ try {
       ["rollback", { ...upgrade, rollbackDeploymentId: invalidId }],
     ]) {
       const invalidPath = join(directory, `invalid-railway-${role}-${label}.json`);
-      writeFileSync(invalidPath, JSON.stringify(evidence) + "\\n", { mode: 0o600 });
+      writeFileSync(invalidPath, JSON.stringify(evidence) + "\n", { mode: 0o600 });
       assert.equal(run(validator, [invalidPath]).status, 1, `Invalid ${role} Railway ID (${label}) must fail closed`);
     }
   }
