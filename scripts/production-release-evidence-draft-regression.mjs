@@ -151,6 +151,23 @@ try {
     writeFileSync(incompletePath, JSON.stringify(incomplete) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [incompletePath]).status, 1, `Missing ${gate} must fail closed`);
   }
+  // A release gate explicitly marked false must fail just like an omitted gate.
+  // Exercise the CLI and file parser, not only the validator's in-memory self-test.
+  for (const gate of [
+    "ciPassed", "stagedChangesReviewed", "preflightPassed",
+    "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
+    "migrationReviewed", "smokePassed", "postReleaseObservationPassed",
+  ]) {
+    const failedPath = join(directory, `failed-${gate}.json`);
+    writeFileSync(failedPath, JSON.stringify({ ...verified, [gate]: false }) + "\n", { mode: 0o600 });
+    assert.equal(run(validator, [failedPath]).status, 1, `Failed ${gate} must block release`);
+  }
+  const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
+  writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
+  assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
+  const sameRollbackPath = join(directory, "upgrade-same-rollback.json");
+  writeFileSync(sameRollbackPath, JSON.stringify({ ...upgrade, rollbackDeploymentId: upgrade.railwayDeploymentId }) + "\n", { mode: 0o600 });
+  assert.equal(run(validator, [sameRollbackPath]).status, 1, "Upgrade must not roll back to its active deployment");
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
