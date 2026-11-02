@@ -211,6 +211,24 @@ try {
   assert.notEqual(spacedDuplicate, JSON.stringify(verified), "Duplicate-key fixture must be constructed");
   writeFileSync(spacedDuplicatePath, spacedDuplicate + "\n", { mode: 0o600 });
   assert.equal(run(validator, [spacedDuplicatePath]).status, 1, "Whitespace-separated duplicate approval must fail closed");
+  // Operator placeholders and zero IDs are not proof of a Railway deployment.
+  // Exercise both current deployment and upgrade rollback evidence via the CLI.
+  for (const [label, invalidId] of [
+    ["placeholder", "placeholder"],
+    ["todo", "TODO"],
+    ["nil", "00000000-0000-0000-0000-000000000000"],
+    ["whitespace", "railway deployment"],
+    ["oversized", "a".repeat(129)],
+  ]) {
+    for (const [role, evidence] of [
+      ["current", { ...verified, railwayDeploymentId: invalidId }],
+      ["rollback", { ...upgrade, rollbackDeploymentId: invalidId }],
+    ]) {
+      const invalidPath = join(directory, `invalid-railway-${role}-${label}.json`);
+      writeFileSync(invalidPath, JSON.stringify(evidence) + "\\n", { mode: 0o600 });
+      assert.equal(run(validator, [invalidPath]).status, 1, `Invalid ${role} Railway ID (${label}) must fail closed`);
+    }
+  }
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
