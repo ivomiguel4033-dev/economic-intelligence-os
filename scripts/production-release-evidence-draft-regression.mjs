@@ -110,6 +110,35 @@ try {
     assert.equal(run(generator, [impossibleChild]).status, 1, "File parent must reject evidence creation");
     assert.equal(readFileSync(fileParent, "utf8"), "sentinel\\n", "Failed generation must preserve parent file");
   }
+  // Exercise the actual release gate end-to-end for both first deployment and upgrade.
+  // A fully reviewed first launch has no previous deployment to roll back to.
+  const verified = {
+    ...record,
+    commitSha: "a".repeat(40),
+    ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123",
+    railwayDeploymentId: "railway_current_123",
+    firstLaunch: true,
+    ...Object.fromEntries([
+      "ciPassed", "stagedChangesReviewed", "preflightPassed",
+      "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
+      "migrationReviewed", "smokePassed", "postReleaseObservationPassed",
+    ].map((gate) => [gate, true])),
+  };
+  const firstLaunchPath = join(directory, "verified-first-launch.json");
+  writeFileSync(firstLaunchPath, JSON.stringify(verified) + "\\n", { mode: 0o600 });
+  assert.equal(run(validator, [firstLaunchPath]).status, 0, "Verified first launch must pass");
+  const upgradePath = join(directory, "verified-upgrade.json");
+  const upgrade = {
+    ...verified,
+    firstLaunch: false,
+    rollbackDeploymentId: "railway_previous_456",
+    rollbackVerified: true,
+  };
+  writeFileSync(upgradePath, JSON.stringify(upgrade) + "\\n", { mode: 0o600 });
+  assert.equal(run(validator, [upgradePath]).status, 0, "Verified upgrade with distinct rollback must pass");
+  const noRollbackPath = join(directory, "upgrade-without-rollback.json");
+  writeFileSync(noRollbackPath, JSON.stringify({ ...upgrade, rollbackVerified: false }) + "\\n", { mode: 0o600 });
+  assert.equal(run(validator, [noRollbackPath]).status, 1, "Upgrade without verified rollback must fail closed");
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
