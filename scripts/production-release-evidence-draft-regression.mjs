@@ -199,6 +199,15 @@ try {
     writeFileSync(ambiguousPath, contents + "\n", { mode: 0o600 });
     assert.equal(run(validator, [ambiguousPath]).status, 1, `Duplicate evidence keys (${label}) must fail closed`);
   }
+  // Duplicate approval keys must also fail when whitespace separates tokens.
+  // JSON permits this formatting, so it must not evade duplicate-key detection.
+  const spacedDuplicatePath = join(directory, "duplicate-spaced-approval.json");
+  const spacedDuplicate = JSON.stringify(verified).replace(
+    '"ciPassed":true', '"ciPassed" : false,  "ciPassed" : true',
+  );
+  assert.notEqual(spacedDuplicate, JSON.stringify(verified), "Duplicate-key fixture must be constructed");
+  writeFileSync(spacedDuplicatePath, spacedDuplicate + "\\n", { mode: 0o600 });
+  assert.equal(run(validator, [spacedDuplicatePath]).status, 1, "Whitespace-separated duplicate approval must fail closed");
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
