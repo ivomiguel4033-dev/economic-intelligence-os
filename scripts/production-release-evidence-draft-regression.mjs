@@ -241,7 +241,7 @@ try {
     ["rollback-approval-null", { rollbackVerified: null }],
   ]) {
     const invalidPath = join(directory, `first-launch-invalid-${label}.json`);
-    writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\\n", { mode: 0o600 });
+    writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [invalidPath]).status, 1, `First launch with ${label} must fail closed`);
   }
   for (const [label, overrides] of [
@@ -250,7 +250,7 @@ try {
     ["string-approval", { rollbackVerified: "true" }],
   ]) {
     const invalidPath = join(directory, `upgrade-invalid-${label}.json`);
-    writeFileSync(invalidPath, JSON.stringify({ ...upgrade, ...overrides }) + "\\n", { mode: 0o600 });
+    writeFileSync(invalidPath, JSON.stringify({ ...upgrade, ...overrides }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [invalidPath]).status, 1, `Upgrade with ${label} must fail closed`);
   }
   const sameRollbackPath = join(directory, "upgrade-same-rollback.json");
