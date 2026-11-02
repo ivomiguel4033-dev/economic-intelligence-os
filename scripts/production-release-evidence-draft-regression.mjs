@@ -188,6 +188,17 @@ try {
     writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [invalidPath]).status, 1, `Invalid release provenance (${label}) must fail closed`);
   }
+  // Ambiguous duplicate keys must be rejected even when the final JSON value
+  // would otherwise approve the release. Include escaped and nested keys.
+  for (const [label, contents] of [
+    ["top-level", JSON.stringify(verified).replace('"ciPassed":true', '"ciPassed":false,"ciPassed":true')],
+    ["escaped", JSON.stringify(verified).replace('"ciPassed":true', '"ciPassed":false,"ci\\u0050assed":true')],
+    ["nested", JSON.stringify({ ...verified, metadata: { source: "operator" } }).replace('"source":"operator"', '"source":"unreviewed","source":"operator"')],
+  ]) {
+    const ambiguousPath = join(directory, `duplicate-valid-${label}.json`);
+    writeFileSync(ambiguousPath, contents + "\\n", { mode: 0o600 });
+    assert.equal(run(validator, [ambiguousPath]).status, 1, `Duplicate evidence keys (${label}) must fail closed`);
+  }
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
