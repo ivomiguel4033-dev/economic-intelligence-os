@@ -125,7 +125,7 @@ try {
     ].map((gate) => [gate, true])),
   };
   const firstLaunchPath = join(directory, "verified-first-launch.json");
-  writeFileSync(firstLaunchPath, JSON.stringify(verified) + "\\n", { mode: 0o600 });
+  writeFileSync(firstLaunchPath, JSON.stringify(verified) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [firstLaunchPath]).status, 0, "Verified first launch must pass");
   const upgradePath = join(directory, "verified-upgrade.json");
   const upgrade = {
@@ -134,10 +134,10 @@ try {
     rollbackDeploymentId: "railway_previous_456",
     rollbackVerified: true,
   };
-  writeFileSync(upgradePath, JSON.stringify(upgrade) + "\\n", { mode: 0o600 });
+  writeFileSync(upgradePath, JSON.stringify(upgrade) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [upgradePath]).status, 0, "Verified upgrade with distinct rollback must pass");
   const noRollbackPath = join(directory, "upgrade-without-rollback.json");
-  writeFileSync(noRollbackPath, JSON.stringify({ ...upgrade, rollbackVerified: false }) + "\\n", { mode: 0o600 });
+  writeFileSync(noRollbackPath, JSON.stringify({ ...upgrade, rollbackVerified: false }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [noRollbackPath]).status, 1, "Upgrade without verified rollback must fail closed");
   console.log("Production release evidence draft regression checks passed");
 } finally {
