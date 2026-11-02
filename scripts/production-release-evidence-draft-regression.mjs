@@ -78,6 +78,8 @@ try {
   assert.equal(readFileSync(path, "utf8"), original, "Existing evidence must remain unchanged");
   assert.equal(run(generator, []).status, 2, "Missing path must show usage error");
   assert.equal(run(generator, ["--unknown"]).status, 2, "Unknown options must be rejected");
+  assert.equal(run(generator, ["--self-test", path]).status, 2, "Extra arguments must not bypass generator usage validation");
+  assert.equal(run(generator, [path, "--self-test"]).status, 2, "Trailing self-test flag must not bypass generator usage validation");
   assert.equal(run(generator, [join(directory, "unexpected.json"), "extra"]).status, 2, "Extra arguments must be rejected");
   if (process.platform !== "win32") {
     const target = join(directory, "existing-target.json");
@@ -97,6 +99,7 @@ try {
     symlinkSync(join(directory, "missing-target.json"), dangling);
     assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
     assert.equal(run(generator, [directory]).status, 1, "Directory must not be replaced by evidence");
+    assert.equal(run(validator, [directory]).status, 1, "Directory must not be accepted as release evidence");
     assert.equal(statSync(directory).isDirectory(), true, "Evidence generator must preserve the directory");
     const nested = join(directory, "missing-parent", "evidence.json");
     assert.equal(run(generator, [nested]).status, 1, "Missing parent directory must fail safely");
