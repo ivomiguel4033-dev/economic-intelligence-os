@@ -139,6 +139,18 @@ try {
   const noRollbackPath = join(directory, "upgrade-without-rollback.json");
   writeFileSync(noRollbackPath, JSON.stringify({ ...upgrade, rollbackVerified: false }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [noRollbackPath]).status, 1, "Upgrade without verified rollback must fail closed");
+  // A verified-looking record must still fail if any mandatory release gate is missing.
+  for (const gate of [
+    "ciPassed", "stagedChangesReviewed", "preflightPassed",
+    "oidcVerified", "aiVerified", "postgresReady", "backupVerified",
+    "migrationReviewed", "smokePassed", "postReleaseObservationPassed",
+  ]) {
+    const incomplete = { ...verified };
+    delete incomplete[gate];
+    const incompletePath = join(directory, `missing-${gate}.json`);
+    writeFileSync(incompletePath, JSON.stringify(incomplete) + "\\n", { mode: 0o600 });
+    assert.equal(run(validator, [incompletePath]).status, 1, `Missing ${gate} must fail closed`);
+  }
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
