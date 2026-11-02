@@ -206,7 +206,7 @@ try {
     '"ciPassed":true', '"ciPassed" : false,  "ciPassed" : true',
   );
   assert.notEqual(spacedDuplicate, JSON.stringify(verified), "Duplicate-key fixture must be constructed");
-  writeFileSync(spacedDuplicatePath, spacedDuplicate + "\\n", { mode: 0o600 });
+  writeFileSync(spacedDuplicatePath, spacedDuplicate + "\n", { mode: 0o600 });
   assert.equal(run(validator, [spacedDuplicatePath]).status, 1, "Whitespace-separated duplicate approval must fail closed");
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
