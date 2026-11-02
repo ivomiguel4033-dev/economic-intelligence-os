@@ -24,6 +24,20 @@ This is an operator checklist, **not** an automated production approval. Do not 
 - **Subsequent deployment:** before releasing, identify and verify a *distinct*, recoverable previous deployment and record its ID. Confirm database compatibility: reverting application code does **not** undo a destructive schema migration.
 - On failed health checks, authentication, AI smoke tests or material error-rate regression, stop traffic to the failing version and follow the approved Railway recovery procedure. Re-check readiness, login, tenant isolation and data integrity after recovery.
 
+## Stop/go decision and incident evidence
+
+Before deployment, assign an operator and a separate reviewer. Record a UTC timestamp, exact Git SHA and CI run URL, the intended Railway service/environment, and the go/no-go decision. A successful CI run is necessary but never sufficient for **GO**.
+
+| Observation | Decision | Immediate action |
+| --- | --- | --- |
+| CI is pending, failed, cancelled or belongs to a different SHA | NO-GO | Wait or fix CI; do not deploy an unverified commit. |
+| OIDC or AI production configuration is absent, preflight fails, or Railway staging is unresolved | NO-GO | Reconcile configuration without exposing secrets; rerun preflight. |
+| Backup restore has not been verified or migrations are not reviewed for backward compatibility | NO-GO | Verify recovery and migration safety before any production change. |
+| Post-deploy readiness, authenticated tenant isolation or bounded AI smoke test fails | STOP / RECOVER | Preserve logs and deployment ID, halt rollout, execute the approved recovery plan and retest. |
+| All independent gates pass and the monitoring window is clean | GO candidate | Obtain operator/reviewer sign-off and retain evidence. |
+
+For any STOP / RECOVER event, record detection time, affected deployment ID, symptoms, the recovery decision, responsible operator, recovery completion time and results of post-recovery readiness, authentication, tenant isolation and data-integrity checks. Never put API keys, bearer tokens or raw personal data into incident evidence. If this is the first deployment, do **not** claim that a previous Railway deployment can be rolled back to; document backup-based recovery and its limitations instead.
+
 ## Release sign-off
 
 Retain the exact commit, CI run, Railway deployment ID, backup verification, migration review, OIDC and AI smoke-test results, observation outcome and the responsible operator. The evidence validator checks record structure and required assertions; it **cannot** independently verify Railway, OIDC, backups or AI provider health.
