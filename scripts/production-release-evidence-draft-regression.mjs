@@ -162,6 +162,18 @@ try {
     writeFileSync(failedPath, JSON.stringify({ ...verified, [gate]: false }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [failedPath]).status, 1, `Failed ${gate} must block release`);
   }
+  // JSON truthy values must never impersonate explicit operator approval.
+  for (const [label, overrides] of [
+    ["string-gate", { oidcVerified: "true" }],
+    ["numeric-gate", { smokePassed: 1 }],
+    ["null-gate", { backupVerified: null }],
+    ["string-launch-mode", { firstLaunch: "true" }],
+    ["string-rollback-approval", { firstLaunch: false, rollbackDeploymentId: "railway_previous_456", rollbackVerified: "true" }],
+  ]) {
+    const invalidPath = join(directory, `spoofed-${label}.json`);
+    writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\n", { mode: 0o600 });
+    assert.equal(run(validator, [invalidPath]).status, 1, `${label} must not approve a release`);
+  }
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
