@@ -104,6 +104,11 @@ try {
     const nested = join(directory, "missing-parent", "evidence.json");
     assert.equal(run(generator, [nested]).status, 1, "Missing parent directory must fail safely");
     assert.equal(existsSync(nested), false, "Failed generation must not create partial evidence");
+    const fileParent = join(directory, "not-a-directory");
+    writeFileSync(fileParent, "sentinel\\n");
+    const impossibleChild = join(fileParent, "evidence.json");
+    assert.equal(run(generator, [impossibleChild]).status, 1, "File parent must reject evidence creation");
+    assert.equal(readFileSync(fileParent, "utf8"), "sentinel\\n", "Failed generation must preserve parent file");
   }
   console.log("Production release evidence draft regression checks passed");
 } finally {
