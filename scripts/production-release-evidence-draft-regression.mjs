@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -78,6 +78,12 @@ try {
     assert.equal(run(generator, [link]).status, 1, "Existing symlink must not be overwritten");
     assert.equal(readFileSync(target, "utf8"), "sentinel\n", "Symlink target must remain unchanged");
     assert.equal(run(validator, [link]).status, 1, "Validator must reject symlinked evidence");
+    const hardlink = join(directory, "evidence-hardlink.json");
+    linkSync(path, hardlink);
+    assert.equal(run(validator, [path]).status, 1, "Validator must reject evidence with multiple hard links");
+    assert.equal(run(validator, [hardlink]).status, 1, "Validator must reject alternate hard-link evidence paths");
+    rmSync(hardlink);
+    assert.equal(run(validator, [path]).status, 1, "Original unverified evidence must still fail closed after removing hard link");
     const dangling = join(directory, "dangling-link.json");
     symlinkSync(join(directory, "missing-target.json"), dangling);
     assert.equal(run(generator, [dangling]).status, 1, "Dangling symlink must not be replaced");
