@@ -180,6 +180,21 @@ try {
   const sameRollbackPath = join(directory, "upgrade-same-rollback.json");
   writeFileSync(sameRollbackPath, JSON.stringify({ ...upgrade, rollbackDeploymentId: upgrade.railwayDeploymentId }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [sameRollbackPath]).status, 1, "Upgrade must not roll back to its active deployment");
+  // A UUID written in a different case or separator format is still the active deployment.
+  // Verify the on-disk CLI gate, not only the validator's in-memory self-test.
+  const activeUuid = "123e4567-e89b-12d3-a456-426614174000";
+  for (const [label, rollbackId] of [
+    ["compact", activeUuid.replace(/-/g, "")],
+    ["uppercase", activeUuid.toUpperCase()],
+    ["underscored", activeUuid.replace(/-/g, "_")],
+    ["mixed", "123e4567_e89b-12d3_a456-426614174000"],
+  ]) {
+    const sameUuidPath = join(directory, `upgrade-same-uuid-${label}.json`);
+    writeFileSync(sameUuidPath, JSON.stringify({
+      ...upgrade, railwayDeploymentId: activeUuid, rollbackDeploymentId: rollbackId,
+    }) + "\\n", { mode: 0o600 });
+    assert.equal(run(validator, [sameUuidPath]).status, 1, `Equivalent UUID rollback (${label}) must fail closed`);
+  }
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
