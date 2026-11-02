@@ -192,7 +192,7 @@ try {
     const sameUuidPath = join(directory, `upgrade-same-uuid-${label}.json`);
     writeFileSync(sameUuidPath, JSON.stringify({
       ...upgrade, railwayDeploymentId: activeUuid, rollbackDeploymentId: rollbackId,
-    }) + "\\n", { mode: 0o600 });
+    }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [sameUuidPath]).status, 1, `Equivalent UUID rollback (${label}) must fail closed`);
   }
   console.log("Production release evidence draft regression checks passed");
