@@ -26,6 +26,13 @@ if (process.argv[2] === "--self-test" && process.argv.length === 3) {
   assert.equal(draft.firstLaunch, null);
   assert.equal(draft.commitSha, "");
   assert.equal(draft.railwayDeploymentId, "");
+  assert.equal(draft.rollbackDeploymentId, "");
+  assert.equal(draft.rollbackVerified, false);
+  assert.deepEqual(
+    Object.keys(draft).sort(),
+    ["commitSha", "ciRunUrl", "railwayDeploymentId", "firstLaunch", "rollbackDeploymentId", "rollbackVerified", ...requiredChecks].sort(),
+    "Evidence drafts must contain exactly the documented release gates",
+  );
   for (const check of requiredChecks) assert.equal(draft[check], false);
   console.log("Fail-closed production release evidence draft self-test passed");
 } else if (process.argv.length !== 3 || process.argv[2].startsWith("-")) {
