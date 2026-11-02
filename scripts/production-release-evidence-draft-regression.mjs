@@ -232,6 +232,27 @@ try {
   const invalidFirstLaunchPath = join(directory, "first-launch-false-rollback-claim.json");
   writeFileSync(invalidFirstLaunchPath, JSON.stringify({ ...verified, rollbackVerified: true }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [invalidFirstLaunchPath]).status, 1, "First launch must not claim verified rollback");
+  // First-launch records cannot imply a recoverable prior deployment, even if
+  // every other release gate is approved. Exercise the on-disk CLI path.
+  for (const [label, overrides] of [
+    ["populated-rollback", { rollbackDeploymentId: "railway_previous_456" }],
+    ["null-rollback", { rollbackDeploymentId: null }],
+    ["rollback-approval-string", { rollbackVerified: "false" }],
+    ["rollback-approval-null", { rollbackVerified: null }],
+  ]) {
+    const invalidPath = join(directory, `first-launch-invalid-${label}.json`);
+    writeFileSync(invalidPath, JSON.stringify({ ...verified, ...overrides }) + "\\n", { mode: 0o600 });
+    assert.equal(run(validator, [invalidPath]).status, 1, `First launch with ${label} must fail closed`);
+  }
+  for (const [label, overrides] of [
+    ["missing-target", { rollbackDeploymentId: "" }],
+    ["unverified", { rollbackVerified: false }],
+    ["string-approval", { rollbackVerified: "true" }],
+  ]) {
+    const invalidPath = join(directory, `upgrade-invalid-${label}.json`);
+    writeFileSync(invalidPath, JSON.stringify({ ...upgrade, ...overrides }) + "\\n", { mode: 0o600 });
+    assert.equal(run(validator, [invalidPath]).status, 1, `Upgrade with ${label} must fail closed`);
+  }
   const sameRollbackPath = join(directory, "upgrade-same-rollback.json");
   writeFileSync(sameRollbackPath, JSON.stringify({ ...upgrade, rollbackDeploymentId: upgrade.railwayDeploymentId }) + "\n", { mode: 0o600 });
   assert.equal(run(validator, [sameRollbackPath]).status, 1, "Upgrade must not roll back to its active deployment");
