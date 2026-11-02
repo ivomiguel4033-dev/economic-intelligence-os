@@ -55,7 +55,7 @@ try {
     ["malformed-evidence.json", "{\"ciPassed\":"],
     ["duplicate-evidence.json", '{"ciPassed":false,"ciPassed":true}'],
     ["oversized-evidence.json", " ".repeat(65537)],
-    ["utf8-bom-evidence.json", "\\uFEFF{}"],
+    ["utf8-bom-evidence.json", "\uFEFF{}"],
   ]) {
     const invalidPath = join(directory, name);
     writeFileSync(invalidPath, contents, { mode: 0o600 });
