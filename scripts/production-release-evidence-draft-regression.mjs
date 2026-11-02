@@ -181,6 +181,9 @@ try {
     ["short-commit", { commitSha: "a".repeat(39) }],
     ["foreign-ci", { ciRunUrl: "https://github.com/other/repo/actions/runs/123" }],
     ["ci-query", { ciRunUrl: verified.ciRunUrl + "?attempt=2" }],
+    ["ci-fragment", { ciRunUrl: verified.ciRunUrl + "#logs" }],
+    ["ci-trailing-slash", { ciRunUrl: verified.ciRunUrl + "/" }],
+    ["ci-leading-zero", { ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/0123" }],
     ["ci-zero", { ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/0" }],
     ["ci-unsafe-integer", { ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/9007199254740992" }],
   ]) {
