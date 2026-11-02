@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, linkSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,8 +61,17 @@ try {
     writeFileSync(invalidPath, contents, { mode: 0o600 });
     assert.equal(run(validator, [invalidPath]).status, 1, `${name} must fail closed`);
   }
+  // Invalid UTF-8 must not be silently replaced by the JSON parser.
+  const invalidUtf8 = join(directory, "invalid-utf8-evidence.json");
+  writeFileSync(invalidUtf8, Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3, 0x28, 0x22, 0x7d]));
+  assert.equal(run(validator, [invalidUtf8]).status, 1, "Invalid UTF-8 evidence must fail closed");
   if (process.platform !== "win32") {
     assert.equal(statSync(path).mode & 0o777, 0o600, "Evidence file must be private");
+    const writableEvidence = join(directory, "group-writable-evidence.json");
+    writeFileSync(writableEvidence, draftText, { mode: 0o666 });
+    // chmod explicitly so the regression does not depend on the runner umask.
+    chmodSync(writableEvidence, 0o666);
+    assert.equal(run(validator, [writableEvidence]).status, 1, "Group/world-writable evidence must fail closed");
   }
   const original = readFileSync(path, "utf8");
   assert.equal(run(generator, [path]).status, 1, "Existing evidence must not be overwritten");
