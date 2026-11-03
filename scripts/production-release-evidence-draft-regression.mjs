@@ -197,6 +197,7 @@ try {
     ["top-level", JSON.stringify(verified).replace('"ciPassed":true', '"ciPassed":false,"ciPassed":true')],
     ["escaped", JSON.stringify(verified).replace('"ciPassed":true', '"ciPassed":false,"ci\\u0050assed":true')],
     ["nested", JSON.stringify({ ...verified, metadata: { source: "operator" } }).replace('"source":"operator"', '"source":"unreviewed","source":"operator"')],
+    ["array-sibling-objects", JSON.stringify({ ...verified, metadata: [{ source: "first" }, { source: "second" }] }).replace('"source":"second"', '"source":"unreviewed","source":"second"')],
     ["nested-array-escaped", JSON.stringify({ ...verified, metadata: [{ smokePassed: true }] }).replace('"smokePassed":true}]', '"smokePassed":false,"smoke' + String.fromCharCode(92) + 'u0050assed":true}]')],
   ]) {
     const ambiguousPath = join(directory, `duplicate-valid-${label}.json`);
