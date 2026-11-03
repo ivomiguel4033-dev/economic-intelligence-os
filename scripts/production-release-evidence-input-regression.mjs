@@ -126,6 +126,15 @@ try {
   writeFileSync(whitespacePath, "\t \r\n" + JSON.stringify(validRecord) + "\n\t ");
   expectAccepted(whitespacePath, "JSON with surrounding whitespace");
 
+  // A UTF-8 encoding of a surrogate code point is invalid even though its
+  // three-byte sequence superficially resembles a normal multibyte character.
+  const surrogatePath = join(directory, "utf8-surrogate.json");
+  writeFileSync(surrogatePath, Buffer.concat([
+    Buffer.from(JSON.stringify(validRecord)),
+    Buffer.from([0xed, 0xa0, 0x80]),
+  ]));
+  expectRejected(surrogatePath, "UTF-8 surrogate encoding", /encoded as valid UTF-8/);
+
   // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
