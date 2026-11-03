@@ -128,23 +128,25 @@ try {
   ));
   expectRejected(escapedGatePath, "Escaped duplicate CI gate", /Duplicate top-level release evidence field: ciPassed/);
 
-  // A nested metadata key or key-looking text in a value is not a duplicate.
+  // Unknown metadata must be rejected even when nested keys are not duplicates.
   const nestedKeyPath = join(directory, "nested-metadata.json");
   writeFileSync(nestedKeyPath, JSON.stringify({
     ...validRecord, metadata: { smokePassed: false }, note: 'text with "ciPassed": false',
   }));
-  expectAccepted(nestedKeyPath, "Nested metadata and quoted text");
+  expectRejected(nestedKeyPath, "Undocumented nested metadata and quoted text", /Unknown release evidence field: metadata/);
 
-  const emptyPaddingBody = JSON.stringify({ ...validRecord, padding: "" });
-  const paddingLength = 65_536 - Buffer.byteLength(emptyPaddingBody, "utf8");
+  // JSON whitespace is permitted without introducing undocumented evidence fields.
+  // Test the exact 64 KiB input boundary with a schema-valid record.
+  const unpaddedBody = JSON.stringify(validRecord);
+  const paddingLength = 65_536 - Buffer.byteLength(unpaddedBody, "utf8");
   assert.ok(paddingLength > 0, "Valid evidence fits within the byte limit");
-  const boundaryBody = JSON.stringify({ ...validRecord, padding: "x".repeat(paddingLength) });
+  const boundaryBody = unpaddedBody + " ".repeat(paddingLength);
   assert.equal(Buffer.byteLength(boundaryBody, "utf8"), 65_536);
   const boundaryPath = join(directory, "exactly-65536.json");
   writeFileSync(boundaryPath, boundaryBody);
   expectAccepted(boundaryPath, "Valid evidence exactly at 64 KiB");
   const oneByteOver = join(directory, "65537.json");
-  writeFileSync(oneByteOver, JSON.stringify({ ...validRecord, padding: "x".repeat(paddingLength + 1) }));
+  writeFileSync(oneByteOver, boundaryBody + " ");
   expectRejected(oneByteOver, "Valid evidence exceeding the byte limit by one", /Release evidence file exceeds 65536 bytes/);
 
   // Evidence must be an actual file, not a directory, a symlink or a blocking FIFO.
