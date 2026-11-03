@@ -47,6 +47,19 @@ try {
     Buffer.from('{"note":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}'),
   ]));
   expectRejected(invalidUtf8, "Malformed UTF-8 evidence", /encoded as valid UTF-8/);
+  // Overlong UTF-8 encodings and isolated continuation bytes must fail closed.
+  // Permissive decoders may normalize these bytes before JSON parsing.
+  for (const [name, bytes] of [
+    ["overlong-utf8.json", [0xc0, 0xaf]],
+    ["isolated-continuation-utf8.json", [0x80]],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, Buffer.concat([
+      Buffer.from(JSON.stringify({ commitSha: "a".repeat(40) })),
+      Buffer.from(bytes),
+    ]));
+    expectRejected(path, name, /encoded as valid UTF-8/);
+  }
   // Truncated multibyte sequences must fail strict decoding rather than be replaced.
   // A complete, schema-valid record with a trailing newline remains acceptable.
   const truncatedUtf8 = join(directory, "truncated-utf8.json");
