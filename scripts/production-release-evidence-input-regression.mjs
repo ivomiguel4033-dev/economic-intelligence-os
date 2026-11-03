@@ -47,6 +47,10 @@ try {
     Buffer.from('{"note":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}'),
   ]));
   expectRejected(invalidUtf8, "Malformed UTF-8 evidence", /encoded as valid UTF-8/);
+  // A UTF-8 BOM must not be silently discarded by the decoder before JSON parsing.
+  const bomPath = join(directory, "bom-evidence.json");
+  writeFileSync(bomPath, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify({ commitSha: "a".repeat(40) }))]));
+  expectRejected(bomPath, "UTF-8 BOM evidence", /must not include a UTF-8 BOM/);
   const oversized = join(directory, "oversized.json");
   writeFileSync(oversized, JSON.stringify({ note: "x".repeat(70_000) }));
   expectRejected(oversized, "Oversized evidence file", /Release evidence file exceeds 65536 bytes/);
