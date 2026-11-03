@@ -125,6 +125,21 @@ try {
   }));
   expectRejected(placeholderRollbackPath, "Placeholder rollback ID", /Upgrades require a recorded rollback deployment ID/);
 
+  // First deployments have no previously verified rollback target. Reject
+  // contradictory evidence rather than approving a fabricated recovery plan.
+  const firstLaunchRollbackPath = join(directory, "first-launch-with-rollback.json");
+  writeFileSync(firstLaunchRollbackPath, JSON.stringify({
+    ...validRecord, rollbackDeploymentId: "railway_previous_7b2",
+  }));
+  expectRejected(firstLaunchRollbackPath, "First launch cannot claim rollback target",
+    /First launch cannot claim an existing rollback target/);
+  const firstLaunchVerifiedPath = join(directory, "first-launch-rollback-verified.json");
+  writeFileSync(firstLaunchVerifiedPath, JSON.stringify({
+    ...validRecord, rollbackVerified: true,
+  }));
+  expectRejected(firstLaunchVerifiedPath, "First launch cannot claim verified rollback",
+    /First launch requires rollbackVerified=false/);
+
   // Upgrades must have an independently identified and verified rollback target.
   // Exercise the real CLI, not only the validator's in-process self-test.
   const upgradePath = join(directory, "verified-upgrade.json");
