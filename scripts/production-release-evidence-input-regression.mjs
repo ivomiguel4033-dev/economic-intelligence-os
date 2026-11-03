@@ -166,6 +166,19 @@ try {
   }));
   expectRejected(equivalentUuidRollbackPath, "Equivalent UUID rollback alias", /Rollback deployment must differ/);
 
+  // A successful upgrade cannot be approved without a concrete recovery target.
+  // Missing and empty rollback IDs must fail even when verification is claimed.
+  for (const [name, rollbackDeploymentId] of [
+    ["missing-rollback-id.json", undefined],
+    ["empty-rollback-id.json", ""],
+  ]) {
+    const path = join(directory, name);
+    const record = { ...validRecord, firstLaunch: false, rollbackVerified: true };
+    if (rollbackDeploymentId !== undefined) record.rollbackDeploymentId = rollbackDeploymentId;
+    writeFileSync(path, JSON.stringify(record));
+    expectRejected(path, name, /Upgrades require a recorded rollback deployment ID/);
+  }
+
   const unverifiedRollbackPath = join(directory, "unverified-rollback.json");
   writeFileSync(unverifiedRollbackPath, JSON.stringify({
     ...validRecord, firstLaunch: false, rollbackVerified: false,
