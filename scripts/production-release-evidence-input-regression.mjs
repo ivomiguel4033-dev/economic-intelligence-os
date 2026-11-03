@@ -121,6 +121,21 @@ try {
   }));
   expectRejected(foreignCiPath, "Unrelated CI workflow", /CI evidence must link to a run in this repository/);
 
+  // A release cannot cite an unrepresentable or ambiguous GitHub Actions run ID.
+  // Test the CLI gate as operators use it, not only the in-process self-test.
+  for (const [name, runId] of [
+    ["unsafe-ci-run-id.json", "9007199254740992"],
+    ["leading-zero-ci-run-id.json", "00123"],
+    ["ci-run-url-query.json", "123?attempt=2"],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, JSON.stringify({
+      ...validRecord,
+      ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/" + runId,
+    }));
+    expectRejected(path, name, /CI evidence must link to a run in this repository/);
+  }
+
   // Template deployment IDs must fail at the CLI boundary, even with all gates true.
   const placeholderPath = join(directory, "placeholder-deployment.json");
   writeFileSync(placeholderPath, JSON.stringify({
