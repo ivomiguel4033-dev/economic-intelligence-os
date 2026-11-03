@@ -221,6 +221,14 @@ try {
   ));
   expectRejected(escapedGatePath, "Escaped duplicate CI gate", /Duplicate top-level release evidence field: ciPassed/);
 
+  // Duplicate nested keys must be rejected before the schema rejects unknown metadata.
+  // This catches ambiguity even when the duplicate key is hidden inside an object.
+  const nestedDuplicatePath = join(directory, "nested-duplicate-metadata.json");
+  writeFileSync(nestedDuplicatePath, JSON.stringify(validRecord).slice(0, -1) +
+    ',"metadata":{"smokePassed":false,"smokePassed":true}}');
+  expectRejected(nestedDuplicatePath, "Nested duplicate evidence key",
+    /Duplicate nested release evidence field: smokePassed/);
+
   // Unknown metadata must be rejected even when nested keys are not duplicates.
   const nestedKeyPath = join(directory, "nested-metadata.json");
   writeFileSync(nestedKeyPath, JSON.stringify({
