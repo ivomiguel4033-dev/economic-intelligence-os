@@ -271,6 +271,23 @@ try {
     }) + "\n", { mode: 0o600 });
     assert.equal(run(validator, [sameUuidPath]).status, 1, `Equivalent UUID rollback (${label}) must fail closed`);
   }
+  // Distinct UUID deployments remain valid rollback targets, even when the
+  // operator records them in different accepted UUID representations.
+  const distinctUuidPath = join(directory, "upgrade-distinct-uuid.json");
+  writeFileSync(distinctUuidPath, JSON.stringify({
+    ...upgrade,
+    railwayDeploymentId: activeUuid,
+    rollbackDeploymentId: "123e4567e89b12d3a456426614174001",
+  }) + "\n", { mode: 0o600 });
+  assert.equal(run(validator, [distinctUuidPath]).status, 0, "Distinct UUID rollback must remain valid");
+  // Case changes cannot disguise the active deployment when opaque IDs are used.
+  const sameOpaqueCasePath = join(directory, "upgrade-same-opaque-case.json");
+  writeFileSync(sameOpaqueCasePath, JSON.stringify({
+    ...upgrade,
+    railwayDeploymentId: "railway_Active_123",
+    rollbackDeploymentId: "RAILWAY_active_123",
+  }) + "\n", { mode: 0o600 });
+  assert.equal(run(validator, [sameOpaqueCasePath]).status, 1, "Case-only rollback difference must fail closed");
   console.log("Production release evidence draft regression checks passed");
 } finally {
   rmSync(directory, { recursive: true, force: true });
