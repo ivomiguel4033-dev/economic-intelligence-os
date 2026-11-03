@@ -123,6 +123,18 @@ try {
     rollbackDeploymentId: validRecord.railwayDeploymentId,
   }));
   expectRejected(sameRollbackPath, "Upgrade cannot roll back to itself", /Rollback deployment must differ/);
+  // Railway UUIDs in canonical and compact notation identify the same deployment.
+  // The release gate must reject that alias as a rollback destination.
+  const equivalentUuidRollbackPath = join(directory, "equivalent-uuid-rollback.json");
+  writeFileSync(equivalentUuidRollbackPath, JSON.stringify({
+    ...validRecord,
+    firstLaunch: false,
+    rollbackVerified: true,
+    railwayDeploymentId: "123e4567-e89b-42d3-a456-426614174000",
+    rollbackDeploymentId: "123E4567E89B42D3A456426614174000",
+  }));
+  expectRejected(equivalentUuidRollbackPath, "Equivalent UUID rollback alias", /Rollback deployment must differ/);
+
   const unverifiedRollbackPath = join(directory, "unverified-rollback.json");
   writeFileSync(unverifiedRollbackPath, JSON.stringify({
     ...validRecord, firstLaunch: false, rollbackVerified: false,
