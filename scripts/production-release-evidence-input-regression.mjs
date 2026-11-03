@@ -120,7 +120,13 @@ try {
     expectAccepted(path, name);
   }
 
-  // JSON permits tabs and spaces around a complete evidence object.\n  // Ensure harmless formatting differences do not block an approved release.\n  const whitespacePath = join(directory, "json-whitespace.json");\n  writeFileSync(whitespacePath, "\\t \\r\\n" + JSON.stringify(validRecord) + "\\n\\t ");\n  expectAccepted(whitespacePath, "JSON with surrounding whitespace");\n\n  // Evidence must not be modifiable by unrelated local users or group members.
+  // JSON permits surrounding whitespace, including CRLF and tab characters.
+  // Keep this fixture executable so CI actually checks the acceptance path.
+  const whitespacePath = join(directory, "json-whitespace.json");
+  writeFileSync(whitespacePath, "\t \r\n" + JSON.stringify(validRecord) + "\n\t ");
+  expectAccepted(whitespacePath, "JSON with surrounding whitespace");
+
+  // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
     const writablePath = join(directory, "world-writable-evidence.json");
