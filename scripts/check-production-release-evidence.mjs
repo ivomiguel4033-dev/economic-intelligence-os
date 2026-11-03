@@ -29,6 +29,14 @@ function verify(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) {
     throw new Error("Release evidence must be a JSON object");
   }
+  // Reject undocumented fields: release approvals must use the reviewed evidence schema.
+  const allowedFields = new Set([
+    "commitSha", "ciRunUrl", "railwayDeploymentId", "firstLaunch",
+    "rollbackDeploymentId", "rollbackVerified", ...requiredChecks,
+  ]);
+  for (const field of Object.keys(record)) {
+    if (!allowedFields.has(field)) throw new Error("Unknown release evidence field: " + field);
+  }
   if (typeof record.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(record.commitSha) ||
       /^0{40}$/.test(record.commitSha)) {
     // All-zero SHA is the Git null object ID, not a deployable release commit.
@@ -230,6 +238,8 @@ if (process.argv[2] === "--self-test" && process.argv.length === 3) {
     ...Object.fromEntries(requiredChecks.map((key) => [key, true])),
   };
   assert.equal(verify(valid), true);
+  assert.throws(() => verify({ ...valid, unreviewedApproval: true }), /Unknown release evidence field/);
+  assert.throws(() => verify({ ...valid, metadata: { approved: true } }), /Unknown release evidence field/);
   // File identity and metadata must remain stable for the entire evidence read.
   // Use synthetic fstat snapshots to cover races deterministically without timing sleeps.
   const stableStats = { size: 42, mtimeMs: 1000, ctimeMs: 1000, ino: 123, dev: 1, uid: 1000, gid: 1000, mode: 0o100600, nlink: 1 };
