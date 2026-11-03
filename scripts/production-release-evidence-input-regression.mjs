@@ -159,6 +159,12 @@ try {
   writeFileSync(whitespacePath, "\t \r\n" + JSON.stringify(validRecord) + "\n\t ");
   expectAccepted(whitespacePath, "JSON with surrounding whitespace");
 
+  // JSON allows CR-only line separators and spaces around structural tokens.
+  // A release gate must accept this standards-compliant formatting from operators.
+  const crWhitespacePath = join(directory, "json-cr-whitespace.json");
+  writeFileSync(crWhitespacePath, "\r " + JSON.stringify(validRecord) + " \r");
+  expectAccepted(crWhitespacePath, "JSON with CR-only surrounding whitespace");
+
   // A UTF-8 encoding of a surrogate code point is invalid even though its
   // three-byte sequence superficially resembles a normal multibyte character.
   const surrogatePath = join(directory, "utf8-surrogate.json");
