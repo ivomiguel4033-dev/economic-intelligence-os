@@ -236,6 +236,15 @@ try {
   ]));
   expectRejected(outOfRangePath, "Out-of-range UTF-8 code point", /encoded as valid UTF-8/);
 
+  // Overlong UTF-8 encodings must not be accepted as alternate byte forms
+  // of otherwise valid ASCII characters in release evidence.
+  const overlongUtf8Path = join(directory, "utf8-overlong.json");
+  writeFileSync(overlongUtf8Path, Buffer.concat([
+    Buffer.from(JSON.stringify(validRecord)),
+    Buffer.from([0xc0, 0xaf]),
+  ]));
+  expectRejected(overlongUtf8Path, "Overlong UTF-8 sequence", /encoded as valid UTF-8/);
+
   // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
