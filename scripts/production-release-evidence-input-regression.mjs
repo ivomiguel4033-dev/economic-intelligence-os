@@ -135,6 +135,15 @@ try {
   ]));
   expectRejected(surrogatePath, "UTF-8 surrogate encoding", /encoded as valid UTF-8/);
 
+  // UTF-8 code points above U+10FFFF are invalid, even when encoded as
+  // a structurally complete four-byte sequence.
+  const outOfRangePath = join(directory, "utf8-out-of-range.json");
+  writeFileSync(outOfRangePath, Buffer.concat([
+    Buffer.from(JSON.stringify(validRecord)),
+    Buffer.from([0xf4, 0x90, 0x80, 0x80]),
+  ]));
+  expectRejected(outOfRangePath, "Out-of-range UTF-8 code point", /encoded as valid UTF-8/);
+
   // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
