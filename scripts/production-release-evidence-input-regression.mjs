@@ -109,7 +109,28 @@ try {
   }));
   expectRejected(placeholderRollbackPath, "Placeholder rollback ID", /Upgrades require a recorded rollback deployment ID/);
 
-  // Upgrades must have an independently identified and verified rollback target.\n  // Exercise the real CLI, not only the validator's in-process self-test.\n  const upgradePath = join(directory, "verified-upgrade.json");\n  writeFileSync(upgradePath, JSON.stringify({\n    ...validRecord, firstLaunch: false, rollbackVerified: true,\n    rollbackDeploymentId: "railway_previous_7b2",\n  }));\n  expectAccepted(upgradePath, "Upgrade with verified distinct rollback deployment");\n  const sameRollbackPath = join(directory, "same-rollback.json");\n  writeFileSync(sameRollbackPath, JSON.stringify({\n    ...validRecord, firstLaunch: false, rollbackVerified: true,\n    rollbackDeploymentId: validRecord.railwayDeploymentId,\n  }));\n  expectRejected(sameRollbackPath, "Upgrade cannot roll back to itself", /Rollback deployment must differ/);\n  const unverifiedRollbackPath = join(directory, "unverified-rollback.json");\n  writeFileSync(unverifiedRollbackPath, JSON.stringify({\n    ...validRecord, firstLaunch: false, rollbackVerified: false,\n    rollbackDeploymentId: "railway_previous_7b2",\n  }));\n  expectRejected(unverifiedRollbackPath, "Upgrade requires rollback verification", /rollbackVerified=true/);\n\n  // Standard JSON trailing line endings are valid operational evidence files.
+  // Upgrades must have an independently identified and verified rollback target.
+  // Exercise the real CLI, not only the validator's in-process self-test.
+  const upgradePath = join(directory, "verified-upgrade.json");
+  writeFileSync(upgradePath, JSON.stringify({
+    ...validRecord, firstLaunch: false, rollbackVerified: true,
+    rollbackDeploymentId: "railway_previous_7b2",
+  }));
+  expectAccepted(upgradePath, "Upgrade with verified distinct rollback deployment");
+  const sameRollbackPath = join(directory, "same-rollback.json");
+  writeFileSync(sameRollbackPath, JSON.stringify({
+    ...validRecord, firstLaunch: false, rollbackVerified: true,
+    rollbackDeploymentId: validRecord.railwayDeploymentId,
+  }));
+  expectRejected(sameRollbackPath, "Upgrade cannot roll back to itself", /Rollback deployment must differ/);
+  const unverifiedRollbackPath = join(directory, "unverified-rollback.json");
+  writeFileSync(unverifiedRollbackPath, JSON.stringify({
+    ...validRecord, firstLaunch: false, rollbackVerified: false,
+    rollbackDeploymentId: "railway_previous_7b2",
+  }));
+  expectRejected(unverifiedRollbackPath, "Upgrade requires rollback verification", /rollbackVerified=true/);
+
+  // Standard JSON trailing line endings are valid operational evidence files.
   // They must not be confused with malformed encodings or rejected by the CLI.
   for (const [name, ending] of [
     ["trailing-lf.json", "\n"],
