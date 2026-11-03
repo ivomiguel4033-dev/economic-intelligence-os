@@ -47,6 +47,14 @@ try {
     Buffer.from('{"note":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}'),
   ]));
   expectRejected(invalidUtf8, "Malformed UTF-8 evidence", /encoded as valid UTF-8/);
+  // Truncated multibyte sequences must fail strict decoding rather than be replaced.
+  // A complete, schema-valid record with a trailing newline remains acceptable.
+  const truncatedUtf8 = join(directory, "truncated-utf8.json");
+  writeFileSync(truncatedUtf8, Buffer.concat([
+    Buffer.from(JSON.stringify({ commitSha: "a".repeat(40) })),
+    Buffer.from([0xe2, 0x82]),
+  ]));
+  expectRejected(truncatedUtf8, "Truncated UTF-8 evidence", /encoded as valid UTF-8/);
   // A UTF-8 BOM must not be silently discarded by the decoder before JSON parsing.
   const bomPath = join(directory, "bom-evidence.json");
   writeFileSync(bomPath, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify({ commitSha: "a".repeat(40) }))]));
