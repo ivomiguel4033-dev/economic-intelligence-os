@@ -96,6 +96,22 @@ try {
     postReleaseObservationPassed: true,
   };
 
+  // A syntactically valid release record cannot override a failed smoke gate.
+  // Exercise the CLI boundary to prevent accidental approval during rollout.
+  const failedSmokePath = join(directory, "failed-smoke.json");
+  writeFileSync(failedSmokePath, JSON.stringify({
+    ...validRecord, smokePassed: false,
+  }));
+  expectRejected(failedSmokePath, "Failed production smoke test", /Missing or failed release gate: smokePassed/);
+
+  // CI evidence must point to this repository, not an unrelated green workflow.
+  const foreignCiPath = join(directory, "foreign-ci-run.json");
+  writeFileSync(foreignCiPath, JSON.stringify({
+    ...validRecord,
+    ciRunUrl: "https://github.com/another-org/another-repo/actions/runs/123",
+  }));
+  expectRejected(foreignCiPath, "Unrelated CI workflow", /CI evidence must link to a run in this repository/);
+
   // Template deployment IDs must fail at the CLI boundary, even with all gates true.
   const placeholderPath = join(directory, "placeholder-deployment.json");
   writeFileSync(placeholderPath, JSON.stringify({
