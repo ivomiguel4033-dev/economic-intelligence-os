@@ -96,6 +96,15 @@ try {
     postReleaseObservationPassed: true,
   };
 
+  // A green smoke test alone is insufficient to promote a release: operational
+  // recovery and post-release observation must also be independently verified.
+  for (const gate of ["backupVerified", "postReleaseObservationPassed"]) {
+    const path = join(directory, `failed-${gate}.json`);
+    writeFileSync(path, JSON.stringify({ ...validRecord, [gate]: false }));
+    expectRejected(path, `Failed release gate: ${gate}`,
+      new RegExp(`Missing or failed release gate: ${gate}`));
+  }
+
   // A syntactically valid release record cannot override a failed smoke gate.
   // Exercise the CLI boundary to prevent accidental approval during rollout.
   const failedSmokePath = join(directory, "failed-smoke.json");
