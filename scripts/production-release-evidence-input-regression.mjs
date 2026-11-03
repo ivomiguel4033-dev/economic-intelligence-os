@@ -109,6 +109,17 @@ try {
   }));
   expectRejected(placeholderRollbackPath, "Placeholder rollback ID", /Upgrades require a recorded rollback deployment ID/);
 
+  // Standard JSON trailing line endings are valid operational evidence files.
+  // They must not be confused with malformed encodings or rejected by the CLI.
+  for (const [name, ending] of [
+    ["trailing-lf.json", "\n"],
+    ["trailing-crlf.json", "\r\n"],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, JSON.stringify(validRecord) + ending);
+    expectAccepted(path, name);
+  }
+
   // Evidence must not be modifiable by unrelated local users or group members.
   // Read-only group access is allowed; removing write access restores approval.
   if (process.platform !== "win32") {
