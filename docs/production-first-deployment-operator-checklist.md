@@ -29,7 +29,24 @@ This checklist is a **manual release gate**, not permission to deploy. Use it wi
 - [ ] Observe error rate, latency, database connections, and external AI failures throughout the agreed observation window.
 - [ ] Record evidence with `scripts/check-production-release-evidence.mjs` and retain the exact input file securely.
 
-## 4. Rollback decision
+## 4. Reproducible smoke-test evidence (before approval)
+
+Run these checks against the **exact candidate commit**, in a controlled environment, before the production go/no-go decision. They do not replace authenticated end-to-end tests against the deployed Railway URL.
+
+```sh
+node --version                 # Must satisfy package.json: >=22 <23
+npm ci                        # Use the committed lockfile
+npm run typecheck
+npm run build
+npm run test:production-smoke
+node scripts/check-production-release-evidence.mjs --self-test
+```
+
+Record the commit SHA, command exit codes, CI run URL and test environment. A successful local smoke regression is **not** proof that production OIDC, AI, PostgreSQL or Railway configuration works. After deployment, independently check `/api/ready` on the actual service and exercise an authenticated tenant-isolated workflow and a bounded AI request. Do not place bearer tokens, API keys, request bodies containing sensitive data or database connection strings in release evidence.
+
+If any check fails, stop promotion, preserve the failing job/command output (redacted), identify the owner and rerun against the corrected commit. Never copy a successful result from an earlier SHA.
+
+## 5. Rollback decision
 
 - **First launch:** there is no previous known-good production deployment. Do not claim a verified rollback deployment or mark `rollbackVerified=true`. Define an incident containment and restore plan (including database recovery) before proceeding.
 - **Upgrade:** identify a **different**, known-good Railway deployment ID; verify that rollback is actually possible before approval. Confirm schema compatibility; reverting application code alone may not reverse migrations.
