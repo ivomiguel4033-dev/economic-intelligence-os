@@ -42,6 +42,17 @@ try {
     writeFileSync(path, body);
     expectRejected(path, name);
   }
+  // Release evidence must remain strict JSON: JSONC comments and trailing commas
+  // must never be silently accepted as operator-supplied approval records.
+  for (const [name, body] of [
+    ["json-line-comment.json", '{"commitSha":"a"} // approved'],
+    ["json-block-comment.json", '/* approved */ {"commitSha":"a"}'],
+    ["json-trailing-comma.json", '{"commitSha":"a",}'],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, body);
+    expectRejected(path, name);
+  }
   const invalidUtf8 = join(directory, "invalid-utf8.json");
   writeFileSync(invalidUtf8, Buffer.concat([
     Buffer.from('{"note":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}'),
