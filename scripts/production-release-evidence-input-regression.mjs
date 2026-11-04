@@ -105,6 +105,18 @@ try {
       new RegExp(`Missing or failed release gate: ${gate}`));
   }
 
+  // Production approval must fail closed when any infrastructure or identity
+  // prerequisite is false, even if the smoke and rollback evidence is green.
+  for (const gate of [
+    "stagedChangesReviewed", "preflightPassed", "oidcVerified",
+    "aiVerified", "postgresReady", "migrationReviewed",
+  ]) {
+    const path = join(directory, `failed-prerequisite-${gate}.json`);
+    writeFileSync(path, JSON.stringify({ ...validRecord, [gate]: false }));
+    expectRejected(path, `Failed production prerequisite: ${gate}`,
+      new RegExp(`Missing or failed release gate: ${gate}`));
+  }
+
   // A syntactically valid release record cannot override a failed smoke gate.
   // Exercise the CLI boundary to prevent accidental approval during rollout.
   const failedSmokePath = join(directory, "failed-smoke.json");
