@@ -15,7 +15,7 @@
     "test:production-smoke": "node scripts/production-smoke-regression.mjs && node scripts/production-smoke-boundary-regression.mjs && npm run test:release-evidence && npm run test:railway-config",
     "test:release-evidence": "node scripts/production-release-evidence-input-regression.mjs && node scripts/check-production-release-evidence.mjs --self-test",
     "test:railway-config": "node scripts/railway-config-regression.mjs",
-    "test:production-readiness": "npm run typecheck && npm run test:production-smoke"
+    "test:production-readiness": "npm run typecheck && npm run test:production-smoke && npm run build"
   },
   "dependencies": {
     "jose": "^6.0.0",
