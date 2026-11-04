@@ -117,6 +117,21 @@ try {
       new RegExp(`Missing or failed release gate: ${gate}`));
   }
 
+  // Approval flags must be actual JSON booleans, never truthy strings or numbers.
+  // Exercise every required gate through the CLI to catch accidental coercion.
+  for (const gate of [
+    "ciPassed", "stagedChangesReviewed", "preflightPassed", "oidcVerified",
+    "aiVerified", "postgresReady", "backupVerified", "migrationReviewed",
+    "smokePassed", "postReleaseObservationPassed",
+  ]) {
+    for (const invalidValue of ["true", 1, null]) {
+      const path = join(directory, `nonboolean-${gate}-${String(invalidValue)}.json`);
+      writeFileSync(path, JSON.stringify({ ...validRecord, [gate]: invalidValue }));
+      expectRejected(path, `Non-boolean approval: ${gate}=${String(invalidValue)}`,
+        new RegExp(`Missing or failed release gate: ${gate}`));
+    }
+  }
+
   // A syntactically valid release record cannot override a failed smoke gate.
   // Exercise the CLI boundary to prevent accidental approval during rollout.
   const failedSmokePath = join(directory, "failed-smoke.json");
