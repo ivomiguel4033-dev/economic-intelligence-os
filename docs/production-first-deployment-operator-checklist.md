@@ -39,8 +39,11 @@ npm ci                        # Use the committed lockfile
 npm run typecheck
 npm run build
 npm run test:production-smoke
+node scripts/production-release-evidence-input-regression.mjs
 node scripts/check-production-release-evidence.mjs --self-test
 ```
+
+The release-evidence input regression must pass independently: it tests that malformed, forged or incomplete operator evidence is rejected before a release can be approved. Do not substitute the validator self-test for these negative-path tests.
 
 Record the commit SHA, command exit codes, CI run URL and test environment. A successful local smoke regression is **not** proof that production OIDC, AI, PostgreSQL or Railway configuration works. After deployment, independently check `/api/ready` on the actual service and exercise an authenticated tenant-isolated workflow and a bounded AI request. Do not place bearer tokens, API keys, request bodies containing sensitive data or database connection strings in release evidence.
 
