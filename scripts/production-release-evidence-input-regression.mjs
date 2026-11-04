@@ -143,6 +143,21 @@ try {
     }
   }
 
+  // Omitting a required gate is not equivalent to a successful check. Exercise
+  // each missing field through the CLI to prevent partial evidence approval.
+  for (const gate of [
+    "ciPassed", "stagedChangesReviewed", "preflightPassed", "oidcVerified",
+    "aiVerified", "postgresReady", "backupVerified", "migrationReviewed",
+    "smokePassed", "postReleaseObservationPassed",
+  ]) {
+    const record = { ...validRecord };
+    delete record[gate];
+    const path = join(directory, `missing-gate-${gate}.json`);
+    writeFileSync(path, JSON.stringify(record));
+    expectRejected(path, `Missing mandatory release gate: ${gate}`,
+      new RegExp(`Missing or failed release gate: ${gate}`));
+  }
+
   // Deployment mode and rollback verification are security-critical booleans.
   // CLI evidence must reject truthy strings/numbers rather than coercing them.
   for (const [field, invalidValues, error] of [
