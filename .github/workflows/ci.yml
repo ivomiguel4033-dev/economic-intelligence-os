@@ -110,18 +110,9 @@ jobs:
         run: node scripts/tenant-concurrency-regression.mjs
       - name: Distributed tenant concurrency regression checks
         run: node scripts/distributed-tenant-concurrency-regression.mjs
-      - name: Production smoke gate and HTTP boundary regression checks
-        timeout-minutes: 2
-        run: npm run test:production-smoke
-      - name: Production release evidence regression gate
-        timeout-minutes: 2
-        run: node scripts/production-release-evidence-check-suite.mjs
-      - name: Typecheck
-        timeout-minutes: 3
-        run: npm run typecheck
-      - name: Build production application
-        timeout-minutes: 5
-        run: npm run build
+      - name: Production readiness gate (types, smoke, evidence, Railway, build)
+        timeout-minutes: 10
+        run: npm run test:production-readiness
       - name: Build production Docker image
         timeout-minutes: 5
         run: docker build --tag economic-intelligence-os:ci .
