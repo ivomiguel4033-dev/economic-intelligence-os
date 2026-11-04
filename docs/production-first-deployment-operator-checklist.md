@@ -46,7 +46,23 @@ Record the commit SHA, command exit codes, CI run URL and test environment. A su
 
 If any check fails, stop promotion, preserve the failing job/command output (redacted), identify the owner and rerun against the corrected commit. Never copy a successful result from an earlier SHA.
 
-## 5. Rollback decision
+## 5. Release evidence field mapping (manual approval)
+
+The evidence validator accepts a strict JSON object; it does **not** query GitHub, Railway, the identity provider or the AI provider. An exit code of zero confirms the record's shape and declared gates, **not** the truth of those declarations. Before signing off, the operator must independently verify the supporting evidence:
+
+| Evidence fields | Required independent proof |
+| --- | --- |
+| `commitSha`, `ciRunUrl`, `ciPassed` | Full 40-character deployed commit SHA and a successful CI run for that same SHA in this repository. |
+| `stagedChangesReviewed` | Review record for each of the 14 legacy staged Railway changes; no blanket acceptance. |
+| `preflightPassed`, `postgresReady`, `migrationReviewed`, `backupVerified` | Target-environment preflight output, database connectivity, migration review and recoverable backup evidence. |
+| `oidcVerified`, `aiVerified` | Successful target-environment OIDC/JWKS checks and bounded primary-AI request without exposing credentials. |
+| `smokePassed`, `postReleaseObservationPassed` | Post-deployment authenticated smoke results and completed monitoring window, not just local tests. |
+| `railwayDeploymentId` | Actual candidate deployment identifier from Railway. |
+| `firstLaunch`, `rollbackDeploymentId`, `rollbackVerified` | First launch: `true`, omit rollback ID, `false`. Upgrade: `false`, distinct verified previous deployment ID, `true`. |
+
+Only run the evidence validator on the completed, privately retained JSON record **after** post-release observation. Never set a gate to `true` merely to make validation pass. Keep the record and redacted supporting logs in the approved private change system, not the repository.
+
+## 6. Rollback decision
 
 - **First launch:** there is no previous known-good production deployment. Do not claim a verified rollback deployment or mark `rollbackVerified=true`. Define an incident containment and restore plan (including database recovery) before proceeding.
 - **Upgrade:** identify a **different**, known-good Railway deployment ID; verify that rollback is actually possible before approval. Confirm schema compatibility; reverting application code alone may not reverse migrations.
