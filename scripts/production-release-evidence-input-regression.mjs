@@ -132,6 +132,19 @@ try {
     }
   }
 
+  // Deployment mode and rollback verification are security-critical booleans.
+  // CLI evidence must reject truthy strings/numbers rather than coercing them.
+  for (const [field, invalidValues, error] of [
+    ["firstLaunch", ["true", 1, null], /firstLaunch must be explicitly true or false/],
+    ["rollbackVerified", ["false", 0, null], /First launch requires rollbackVerified=false/],
+  ]) {
+    for (const value of invalidValues) {
+      const path = join(directory, `invalid-${field}-${String(value)}.json`);
+      writeFileSync(path, JSON.stringify({ ...validRecord, [field]: value }));
+      expectRejected(path, `Invalid ${field} type: ${String(value)}`, error);
+    }
+  }
+
   // A syntactically valid release record cannot override a failed smoke gate.
   // Exercise the CLI boundary to prevent accidental approval during rollout.
   const failedSmokePath = join(directory, "failed-smoke.json");
