@@ -187,6 +187,22 @@ try {
     expectRejected(path, name, /CI evidence must link to a run in this repository/);
   }
 
+  // CI links with fragments, trailing slashes or encoded separators cannot
+  // establish a unique successful workflow run, even when all flags are true.
+  for (const [name, runId] of [
+    ["ci-run-url-fragment.json", "123#logs"],
+    ["ci-run-url-trailing-slash.json", "123/"],
+    ["ci-run-url-encoded-slash.json", "123%2F"],
+    ["ci-run-url-zero.json", "0"],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, JSON.stringify({
+      ...validRecord,
+      ciRunUrl: "https://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/" + runId,
+    }));
+    expectRejected(path, name, /CI evidence must link to a run in this repository/);
+  }
+
   // Template deployment IDs must fail at the CLI boundary, even with all gates true.
   const placeholderPath = join(directory, "placeholder-deployment.json");
   writeFileSync(placeholderPath, JSON.stringify({
