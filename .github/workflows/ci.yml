@@ -94,6 +94,7 @@ jobs:
       - name: AI Board prompt-injection boundary regression checks
         run: node scripts/prompt-injection-regression.mjs
       - name: AI provider failover regression checks
+        timeout-minutes: 2
         run: node scripts/ai-failover-regression.mjs
       - name: Circuit breaker regression checks
         run: node scripts/circuit-breaker-regression.mjs
