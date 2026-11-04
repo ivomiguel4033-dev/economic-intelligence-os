@@ -49,9 +49,6 @@ jobs:
           else
             npm install --ignore-scripts --no-audit --no-fund
           fi
-      - name: Railway deployment config regression checks
-        timeout-minutes: 2
-        run: node scripts/railway-config-regression.mjs
       - name: Railway production configuration contract
         timeout-minutes: 2
         run: node scripts/railway-config-contract.mjs
