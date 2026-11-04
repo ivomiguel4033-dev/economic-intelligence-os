@@ -231,6 +231,18 @@ try {
   }));
   expectRejected(placeholderRollbackPath, "Placeholder rollback ID", /Upgrades require a recorded rollback deployment ID/);
 
+  // The CLI must reject placeholder and non-identifying Railway IDs even when
+  // every independent approval gate is marked successful.
+  for (const [name, deploymentId] of [
+    ["nil-deployment-id.json", "00000000-0000-0000-0000-000000000000"],
+    ["template-deployment-id.json", "YOUR_DEPLOYMENT_ID"],
+    ["oversized-deployment-id.json", "x".repeat(129)],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, JSON.stringify({ ...validRecord, railwayDeploymentId: deploymentId }));
+    expectRejected(path, name, /Railway deployment ID is required/);
+  }
+
   // First deployments have no previously verified rollback target. Reject
   // contradictory evidence rather than approving a fabricated recovery plan.
   const firstLaunchRollbackPath = join(directory, "first-launch-with-rollback.json");
