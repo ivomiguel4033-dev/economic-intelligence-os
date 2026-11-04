@@ -218,6 +218,20 @@ try {
     expectRejected(path, name, /CI evidence must link to a run in this repository/);
   }
 
+  // CI provenance must use the canonical HTTPS URL for this repository.
+  // Lookalike hosts, insecure transport and alternate ports cannot establish
+  // that the referenced workflow belongs to the approved release.
+  for (const [name, ciRunUrl] of [
+    ["ci-insecure-http.json", "http://github.com/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123"],
+    ["ci-lookalike-host.json", "https://github.com.evil.example/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123"],
+    ["ci-explicit-port.json", "https://github.com:443/ivomiguel4033-dev/economic-intelligence-os/actions/runs/123"],
+    ["ci-foreign-repository.json", "https://github.com/ivomiguel4033-dev/other-repo/actions/runs/123"],
+  ]) {
+    const path = join(directory, name);
+    writeFileSync(path, JSON.stringify({ ...validRecord, ciRunUrl }));
+    expectRejected(path, name, /CI evidence must link to a run in this repository/);
+  }
+
   // Template deployment IDs must fail at the CLI boundary, even with all gates true.
   const placeholderPath = join(directory, "placeholder-deployment.json");
   writeFileSync(placeholderPath, JSON.stringify({
