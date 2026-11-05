@@ -183,6 +183,9 @@ assert.ok(
     "stale-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() - 600_000).toISOString() }),
     "future-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() + 600_000).toISOString() }),
     "invalid-timestamp": JSON.stringify({ ...healthy, timestamp: "not-a-date" }),
+    // ISO-8601 representations must match the canonical UTC millisecond format.
+    "offset-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace("Z", "+00:00") }),
+    "no-milliseconds-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace(/\.\d{3}Z$/, "Z") }),
     "numeric-timestamp": JSON.stringify({ ...healthy, timestamp: Date.now() }),
     "null-timestamp": JSON.stringify({ ...healthy, timestamp: null }),
     "empty-timestamp": JSON.stringify({ ...healthy, timestamp: "" }),
@@ -294,6 +297,8 @@ assert.ok(
      ["stale-timestamp", false],
      ["future-timestamp", false],
      ["invalid-timestamp", false],
+     ["offset-timestamp", false],
+     ["no-milliseconds-timestamp", false],
      ["numeric-timestamp", false],
      ["null-timestamp", false],
      ["empty-timestamp", false],
