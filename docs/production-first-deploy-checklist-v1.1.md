@@ -34,7 +34,21 @@ This is an operator checklist, not authorization to deploy. The PR #11 branch mu
 - [ ] Review application errors, restart count, database migration output, request latency and any queue/outbox backlog before declaring success.
 - [ ] Record smoke-check results, timestamps, deployment SHA and operator in the release log.
 
-## 5. Rollback / abort
+## 5. Read-only HTTP verification (operator workstation)
+
+Run these checks against the approved production hostname after deployment. Set `BASE_URL` to the exact HTTPS origin (no path); do not put credentials or tokens in command history. These requests are unauthenticated and must not modify production data.
+
+```sh
+BASE_URL="https://<approved-production-host>"
+curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'ready HTTP %{http_code} in %{time_total}s\\n' "$BASE_URL/api/ready"
+curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'health HTTP %{http_code} in %{time_total}s\\n' "$BASE_URL/api/health"
+```
+
+- [ ] Both commands exit zero and report HTTP 200. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
+- [ ] Run authorized OIDC and AI smoke checks only through approved test identities and low-cost test requests; never paste bearer tokens or provider keys into release evidence.
+- [ ] Record the exact SHA, Railway deployment ID, UTC verification time, HTTP codes, response times and any failure/rollback decision in the release log. If either command fails, stop promotion and investigate before retrying.
+
+## 6. Rollback / abort
 
 **Abort** if preflight or migrations fail, readiness stays unhealthy, identity checks fail, tenant boundaries regress, or AI errors exceed the agreed release threshold.
 
