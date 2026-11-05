@@ -6,6 +6,7 @@ This is an operator checklist, not authorization to deploy. The PR #11 branch mu
 
 - [ ] Record the intended Git commit SHA and the corresponding successful GitHub Actions run; confirm the deployed image was built from that exact SHA.
 - [ ] Run `npm run test:production-readiness` against the candidate commit (Node 22); do not treat a local pass as a substitute for CI.
+- [ ] Run `npm run test:release-evidence` (included in `test:production-readiness`) and retain its pass/fail result alongside the candidate SHA. This gate validates release-evidence tooling; it does **not** prove a Railway deployment or replace post-deploy observations.
 - [ ] Confirm the Railway web service is using the repository's `railway.json` and `Dockerfile` from the intended commit.
 - [ ] Review Railway's pending environment/configuration diff before applying anything. The previously reported **14 legacy staged changes** must be reconciled individually; never accept the staged patch wholesale.
 - [ ] Keep the legacy worker service inactive until a supported worker entrypoint is reviewed.
