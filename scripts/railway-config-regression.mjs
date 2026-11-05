@@ -186,9 +186,13 @@ assert.ok(
    const body = variants[responseMode] ?? JSON.stringify(healthy);
    // Chunked responses have no Content-Length; liveness must still validate
    // the complete JSON body rather than depending on a length header.
-   if (responseMode === "chunked" || responseMode === "chunked-invalid") {
+   if (["chunked", "chunked-invalid", "chunked-boundary", "chunked-oversized"].includes(responseMode)) {
      response.writeHead(200, { "Content-Type": contentType });
-     const payload = responseMode === "chunked" ? body : "{";
+     const targetBytes = responseMode === "chunked-boundary" ? 65536 : responseMode === "chunked-oversized" ? 65537 : null;
+     const base = JSON.stringify({ ...healthy, padding: "" });
+     const payload = targetBytes === null ? (responseMode === "chunked" ? body : "{") :
+       JSON.stringify({ ...healthy, padding: "x".repeat(targetBytes - Buffer.byteLength(base)) });
+     if (targetBytes !== null) assert.equal(Buffer.byteLength(payload), targetBytes);
      const midpoint = Math.max(1, Math.floor(payload.length / 2));
      response.write(payload.slice(0, midpoint));
      response.end(payload.slice(midpoint));
@@ -240,6 +244,8 @@ assert.ok(
    for (const [mode, expected] of [
      ["complete", true],
      ["chunked", true],
+     ["chunked-boundary", true],
+     ["chunked-oversized", false],
      ["chunked-invalid", false],
      ["boundary", true],
      ["oversized", false],
