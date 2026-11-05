@@ -135,7 +135,7 @@ assert.ok(
  const probeServer = createServer((request, response) => {
    assert.equal(request.url, "/api/health", "Docker healthcheck must target liveness");
 
-   const contentType = responseMode === "html" ? "text/html" : "application/json; charset=utf-8";
+   const contentType = responseMode === "html" ? "text/html" : responseMode === "problem-json" ? "application/problem+json" : responseMode === "uppercase-json" ? "APPLICATION/JSON; charset=utf-8" : "application/json; charset=utf-8";
    const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, timestamp: new Date().toISOString() };
    if (responseMode === "truncated") {
      response.writeHead(200, { "Content-Length": "100", "Content-Type": contentType });
@@ -236,6 +236,8 @@ assert.ok(
      ["redirect", false],
      ["server-error", false],
      ["html", false],
+     ["problem-json", false],
+     ["uppercase-json", true],
      ["missing-type", false],
      ["invalid-json", false],
      ["null-json", false],
