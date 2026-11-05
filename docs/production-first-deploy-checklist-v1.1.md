@@ -43,8 +43,8 @@ Run these checks against the approved production hostname after deployment. Set 
 
 ```sh
 BASE_URL="https://<approved-production-host>"
-curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'ready HTTP %{http_code} in %{time_total}s\\n' "$BASE_URL/api/ready"
-curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'health HTTP %{http_code} in %{time_total}s\\n' "$BASE_URL/api/health"
+curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'ready HTTP %{http_code} in %{time_total}s\n' "$BASE_URL/api/ready"
+curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'health HTTP %{http_code} in %{time_total}s\n' "$BASE_URL/api/health"
 ```
 
 - [ ] Both commands exit zero and report HTTP 200. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
