@@ -43,11 +43,20 @@ Run these checks against the approved production hostname after deployment. Set 
 
 ```sh
 BASE_URL="https://<approved-production-host>"
-curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'ready HTTP %{http_code} in %{time_total}s\n' "$BASE_URL/api/ready"
-curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out 'health HTTP %{http_code} in %{time_total}s\n' "$BASE_URL/api/health"
+for endpoint in ready health; do
+  status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$BASE_URL/api/$endpoint") || {
+    printf '%s: transport or timeout failure\\n' "$endpoint" >&2
+    exit 1
+  }
+  printf '%s HTTP %s\\n' "$endpoint" "$status"
+  if [ "$status" != 200 ]; then
+    printf '%s: expected exactly HTTP 200\\n' "$endpoint" >&2
+    exit 1
+  fi
+done
 ```
 
-- [ ] Both commands exit zero and report HTTP 200. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
+- [ ] The loop exits zero only when both endpoints return exactly HTTP 200; HTTP 204 and redirects are rejected. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
 - [ ] Run authorized OIDC and AI smoke checks only through approved test identities and low-cost test requests; never paste bearer tokens or provider keys into release evidence.
 - [ ] Record the exact SHA, Railway deployment ID, UTC verification time, HTTP codes, response times and any failure/rollback decision in the release log. If either command fails, stop promotion and investigate before retrying.
 
