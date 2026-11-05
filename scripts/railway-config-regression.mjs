@@ -184,6 +184,16 @@ assert.ok(
     "empty-timestamp": JSON.stringify({ ...healthy, timestamp: "" }),
    };
    const body = variants[responseMode] ?? JSON.stringify(healthy);
+   // Chunked responses have no Content-Length; liveness must still validate
+   // the complete JSON body rather than depending on a length header.
+   if (responseMode === "chunked" || responseMode === "chunked-invalid") {
+     response.writeHead(200, { "Content-Type": contentType });
+     const payload = responseMode === "chunked" ? body : "{";
+     const midpoint = Math.max(1, Math.floor(payload.length / 2));
+     response.write(payload.slice(0, midpoint));
+     response.end(payload.slice(midpoint));
+     return;
+   }
    const noContent = responseMode === "no-content";
    const empty = responseMode === "empty";
    const headers = { "Content-Length": noContent || empty ? "0" : String(Buffer.byteLength(body)) };
@@ -229,6 +239,8 @@ assert.ok(
  try {
    for (const [mode, expected] of [
      ["complete", true],
+     ["chunked", true],
+     ["chunked-invalid", false],
      ["boundary", true],
      ["oversized", false],
      ["empty", false],
