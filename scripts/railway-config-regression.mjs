@@ -162,12 +162,15 @@ assert.ok(
      "null-application-check": JSON.stringify({ ...healthy, checks: { application: null } }),
     "missing-checks": JSON.stringify({ ...healthy, checks: undefined }),
     "null-checks": JSON.stringify({ ...healthy, checks: null }),
+    "array-checks": JSON.stringify({ ...healthy, checks: ["ok"] }),
+    "string-checks": JSON.stringify({ ...healthy, checks: "ok" }),
     "missing-timestamp": JSON.stringify({ ...healthy, timestamp: undefined }),
     "stale-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() - 600_000).toISOString() }),
     "future-timestamp": JSON.stringify({ ...healthy, timestamp: new Date(Date.now() + 600_000).toISOString() }),
     "invalid-timestamp": JSON.stringify({ ...healthy, timestamp: "not-a-date" }),
     "numeric-timestamp": JSON.stringify({ ...healthy, timestamp: Date.now() }),
     "null-timestamp": JSON.stringify({ ...healthy, timestamp: null }),
+    "empty-timestamp": JSON.stringify({ ...healthy, timestamp: "" }),
    };
    const body = variants[responseMode] ?? JSON.stringify(healthy);
    const noContent = responseMode === "no-content";
@@ -228,12 +231,15 @@ assert.ok(
      ["null-application-check", false],
      ["missing-checks", false],
      ["null-checks", false],
+     ["array-checks", false],
+     ["string-checks", false],
      ["missing-timestamp", false],
      ["stale-timestamp", false],
      ["future-timestamp", false],
      ["invalid-timestamp", false],
      ["numeric-timestamp", false],
      ["null-timestamp", false],
+     ["empty-timestamp", false],
      ["truncated", false],
    ]) {
      responseMode = mode;
