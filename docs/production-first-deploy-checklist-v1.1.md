@@ -51,7 +51,23 @@ curl --fail --silent --show-error --max-time 10 --output /dev/null --write-out '
 - [ ] Run authorized OIDC and AI smoke checks only through approved test identities and low-cost test requests; never paste bearer tokens or provider keys into release evidence.
 - [ ] Record the exact SHA, Railway deployment ID, UTC verification time, HTTP codes, response times and any failure/rollback decision in the release log. If either command fails, stop promotion and investigate before retrying.
 
-## 6. Rollback / abort
+## 6. Release evidence record (one record per deployment)
+
+Complete this record during the staffed release window. Store it in the approved operations system, not in the repository if it contains internal hostnames, account details or incident information. A blank field means **not verified**, never an implicit pass.
+
+| Field | Required evidence |
+| --- | --- |
+| Candidate | Git SHA, successful CI run URL, reviewer/approval |
+| Railway deployment | Service/environment, deployment ID, deployed image SHA, UTC start time |
+| Configuration gate | OIDC and AI settings verified (yes/no, **no secret values**); legacy staged diff reconciled; worker inactive |
+| Migration gate | Preflight result, migration outcome, backup identifier and schema compatibility decision |
+| Smoke checks | UTC time, ready/health HTTP status and latency, OIDC authorized/denied outcomes, AI provider test outcome |
+| Rollback readiness | Last known-good deployment ID, compatible configuration reference, rehearsal evidence and recovery window |
+| Decision | GO / NO-GO / ROLLBACK, named operator, decision time, incident or follow-up reference |
+
+Do not declare GO until every required gate has recorded evidence. A failed check must include the observed error and an explicit NO-GO or ROLLBACK decision; never replace failure evidence with a later successful retry without retaining both results.
+
+## 7. Rollback / abort
 
 **Abort** if preflight or migrations fail, readiness stays unhealthy, identity checks fail, tenant boundaries regress, or AI errors exceed the agreed release threshold.
 
