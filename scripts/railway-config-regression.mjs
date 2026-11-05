@@ -155,6 +155,9 @@ assert.ok(
    }
    const variants = {
      "invalid-json": "{",
+     "null-json": "null",
+     "array-json": "[]",
+     "string-json": JSON.stringify("healthy"),
      "wrong-service": JSON.stringify({ ...healthy, service: "other-service" }),
      "missing-service": JSON.stringify({ ...healthy, service: undefined }),
      "null-service": JSON.stringify({ ...healthy, service: null }),
@@ -231,6 +234,9 @@ assert.ok(
      ["html", false],
      ["missing-type", false],
      ["invalid-json", false],
+     ["null-json", false],
+     ["array-json", false],
+     ["string-json", false],
      ["wrong-service", false],
      ["missing-service", false],
      ["null-service", false],
