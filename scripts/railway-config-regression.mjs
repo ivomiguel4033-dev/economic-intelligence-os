@@ -184,7 +184,7 @@ assert.ok(
    const empty = responseMode === "empty";
    const headers = { "Content-Length": noContent || empty ? "0" : String(Buffer.byteLength(body)) };
    if (responseMode !== "missing-type") headers["Content-Type"] = contentType;
-   const statusCode = responseMode === "created" ? 201 : responseMode === "server-error" ? 500 : noContent ? 204 : 200;
+   const statusCode = responseMode === "created" ? 201 : responseMode === "partial-content" ? 206 : responseMode === "redirect" ? 302 : responseMode === "server-error" ? 500 : noContent ? 204 : 200;
    response.writeHead(statusCode, headers);
    response.end(noContent || empty ? undefined : body);
  });
@@ -230,6 +230,8 @@ assert.ok(
      ["empty", false],
      ["no-content", false],
      ["created", false],
+     ["partial-content", false],
+     ["redirect", false],
      ["server-error", false],
      ["html", false],
      ["missing-type", false],
