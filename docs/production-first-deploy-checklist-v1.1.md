@@ -21,6 +21,8 @@ This is an operator checklist, not authorization to deploy. The PR #11 branch mu
 ## 3. Controlled release
 
 - [ ] Record the last known-good Railway deployment/image and its configuration so rollback is possible.
+- [ ] Rehearse the rollback procedure in a non-production Railway environment using the supported deployment rollback action. Record the previous and restored deployment IDs, verify `/api/ready` and `/api/health` after restoration, and document the operator and elapsed recovery time. A successful rehearsal is not evidence that production rollback will be safe after incompatible database migrations.
+- [ ] Establish an explicit release abort threshold and maximum recovery window with the on-call operator before deployment; if the rehearsal fails or the last known-good image/configuration cannot be identified, mark the release **no-go**.
 - [ ] Confirm the production pre-deploy command is `node scripts/production-preflight.mjs && npm run migrate`. Inspect migration compatibility and backups before proceeding: rolling back code does **not** automatically roll back a database migration.
 - [ ] Confirm the web service start command is `node node_modules/next/dist/bin/next start`.
 - [ ] Confirm Railway gates traffic on `/api/ready` (120-second healthcheck timeout); Docker liveness uses `/api/health`. Do not substitute liveness for readiness.
