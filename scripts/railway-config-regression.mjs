@@ -181,7 +181,8 @@ assert.ok(
    const empty = responseMode === "empty";
    const headers = { "Content-Length": noContent || empty ? "0" : String(Buffer.byteLength(body)) };
    if (responseMode !== "missing-type") headers["Content-Type"] = contentType;
-   response.writeHead(noContent ? 204 : 200, headers);
+   const statusCode = responseMode === "created" ? 201 : responseMode === "server-error" ? 500 : noContent ? 204 : 200;
+   response.writeHead(statusCode, headers);
    response.end(noContent || empty ? undefined : body);
  });
  await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
@@ -225,6 +226,8 @@ assert.ok(
      ["oversized", false],
      ["empty", false],
      ["no-content", false],
+     ["created", false],
+     ["server-error", false],
      ["html", false],
      ["missing-type", false],
      ["invalid-json", false],
