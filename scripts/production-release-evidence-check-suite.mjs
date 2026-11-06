@@ -34,7 +34,8 @@ for (const name of checks) {
     stdio: "inherit",
     // Do not allow ambient NODE_OPTIONS (e.g. --require/--import) to inject
     // operator-local code into release gates; keep other CI environment intact.
-    env: { ...process.env, NODE_OPTIONS: "" },
+    // NODE_PATH can also redirect CommonJS module resolution to ambient code.
+    env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "" },
     timeout: 15000,
     // Forcefully terminate hung gates even if they ignore SIGTERM.
     killSignal: "SIGKILL",
