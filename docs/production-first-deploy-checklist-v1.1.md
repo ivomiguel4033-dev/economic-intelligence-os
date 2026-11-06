@@ -102,7 +102,7 @@ Do not declare GO until every required gate has recorded evidence. A failed chec
 
 1. Stop promotion/traffic to the failing deployment; preserve logs and the exact failing SHA.
 2. Restore the last known-good Railway web deployment/image **and its compatible environment configuration** using the platform's supported rollback mechanism.
-3. Verify `/api/ready`, `/api/health`, sign-in and tenant-scoped smoke checks after rollback.
+3. Against the restored deployment's approved HTTPS origin, rerun `node scripts/production-smoke.mjs "$BASE_URL"` from the **restored release SHA** (not the failed candidate). Require exit code 0, then verify authorized sign-in, expected unauthorized access and tenant-scoped smoke checks. A successful HTTP status alone does not establish database readiness after rollback. Record the restored deployment ID, SHA, UTC check time and results; if any check fails, keep the incident open and escalate rather than declaring recovery.
 4. If schema changes are not backward compatible, do **not** blindly reverse migrations. Escalate to a database recovery plan based on verified backups and migration history.
 5. Record incident timeline, cause, corrective action and follow-up CI coverage before retrying.
 
