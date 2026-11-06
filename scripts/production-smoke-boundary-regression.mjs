@@ -111,14 +111,19 @@ try {
       }
     }
   }
-  // Uncompressed chunked UTF-8 must also be byte-counted across a split code point.
+  // Uncompressed chunked ASCII and UTF-8 must be byte-counted across writes.
+  // UTF-8 deliberately splits a code point; ASCII covers the ordinary framing path.
   gzipResponse = false;
-  for (const path of Object.keys(targets)) {
-    for (const size of [limit - 1, limit, limit + 1]) {
-      targets[path] = size;
-      await probe(size > limit);
+  chunkedResponse = true;
+  for (const multibyte of [false, true]) {
+    multibytePadding = multibyte;
+    for (const path of Object.keys(targets)) {
+      for (const size of [limit - 1, limit, limit + 1]) {
+        targets[path] = size;
+        await probe(size > limit);
+      }
+      targets[path] = 0;
     }
-    targets[path] = 0;
   }
   console.log("Exact 64 KiB ASCII and UTF-8 smoke boundaries passed; gzip rejected for both probes across sizes and framing");
 } finally {
