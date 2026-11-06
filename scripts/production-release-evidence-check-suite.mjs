@@ -32,6 +32,9 @@ for (const name of checks) {
   const startedAt = Date.now();
   const result = spawnSync(process.execPath, [script, ...args], {
     stdio: "inherit",
+    // Do not allow ambient NODE_OPTIONS (e.g. --require/--import) to inject
+    // operator-local code into release gates; keep other CI environment intact.
+    env: { ...process.env, NODE_OPTIONS: "" },
     timeout: 15000,
     // Forcefully terminate hung gates even if they ignore SIGTERM.
     killSignal: "SIGKILL",
