@@ -23,6 +23,8 @@ Use this record for each failed first deployment, smoke-test gate, or rollback. 
 - Decision time (UTC), approver, and reason:
 - Last known-good deployment ID and full image SHA:
 - Confirm no concurrent deployment, migration, or configuration change:
+- Database migration compatibility: identify migrations applied after the last known-good release; confirm the restored application can safely use the current schema (or record the tested forward-fix plan and approver):
+- Data safety decision: do not automatically reverse database migrations or restore a database snapshot; record backup/PITR availability, potential data loss, and explicit authorization before any destructive recovery:
 - Railway rollback operation ID and completion time:
 - Independently verified restored image SHA:
 - Smoke command run from a clean checkout of the restored SHA with Node.js 22:
