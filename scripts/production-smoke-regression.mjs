@@ -894,6 +894,12 @@ try {
   }
   await rejectsInvalidOrigin("http://example.com");
   await rejectsInvalidOrigin("https://example.com:0");
+  // Invalid TCP ports must fail at origin validation, not after a network probe.
+  await rejectsInvalidOrigin("https://example.com:65536");
+  await rejectsInvalidOrigin(origin.replace(/:[0-9]+$/, ":65536"));
+  await rejectsInvalidOrigin(origin.replace(/:[0-9]+$/, ":not-a-port"));
+  // A visually similar authority must not turn an origin into a URL with userinfo.
+  await rejectsInvalidOrigin("https://user@example.com");
   await rejectsInvalidOrigin("http://127.0.0.1:0");
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "operator:secret@127.0.0.1"));
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "@127.0.0.1"));
