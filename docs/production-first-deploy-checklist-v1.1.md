@@ -73,6 +73,15 @@ done
 The HTTP status loop above is a transport precheck, **not** the final application gate. From the checked-out, CI-approved release SHA, run the repository's existing JSON-contract smoke validator against the same production origin:
 
 ```sh
+# Refuse to run release evidence from the wrong checkout or Node runtime.
+# Set APPROVED_SHA to the full, reviewed commit SHA recorded in the release log.
+: "${APPROVED_SHA:?Set APPROVED_SHA to the full CI-approved commit SHA}"
+case "$APPROVED_SHA" in
+  *[!0-9a-f]*|'') printf 'APPROVED_SHA must be lowercase hexadecimal\n' >&2; exit 1 ;;
+esac
+[ "${#APPROVED_SHA}" -eq 40 ] || { printf 'APPROVED_SHA must be a full 40-character SHA\n' >&2; exit 1; }
+[ "$(git rev-parse HEAD)" = "$APPROVED_SHA" ] || { printf 'Checkout does not match APPROVED_SHA\n' >&2; exit 1; }
+[ "$(node -p 'process.versions.node.split(".")[0]')" = 22 ] || { printf 'Smoke validator requires Node 22\n' >&2; exit 1; }
 node scripts/production-smoke.mjs "$BASE_URL"
 ```
 
