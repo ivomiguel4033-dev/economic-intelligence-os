@@ -43,8 +43,16 @@ Run these checks against the approved production hostname after deployment. Set 
 
 ```sh
 BASE_URL="https://<approved-production-host>"
+# Refuse accidental plaintext or credential-bearing origins before probing.
+case "$BASE_URL" in
+  https://* ) ;;
+  * ) printf 'BASE_URL must use HTTPS\\n' >&2; exit 1 ;;
+esac
+case "${BASE_URL#https://}" in
+  ""|*/*|*\?*|*\#*|*@* ) printf 'BASE_URL must be a bare HTTPS origin without credentials, path, query or fragment\\n' >&2; exit 1 ;;
+esac
 for endpoint in ready health; do
-  status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$BASE_URL/api/$endpoint") || {
+  status=$(curl --silent --show-error --proto '=https' --tlsv1.2 --max-redirs 0 --max-time 10 --output /dev/null --write-out '%{http_code}' "$BASE_URL/api/$endpoint") || {
     printf '%s: transport or timeout failure\n' "$endpoint" >&2
     exit 1
   }
@@ -56,7 +64,7 @@ for endpoint in ready health; do
 done
 ```
 
-- [ ] The loop exits zero only when both endpoints return exactly HTTP 200; HTTP 204 and redirects are rejected. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
+- [ ] The loop rejects non-HTTPS or credential-bearing origins and never follows redirects; TLS certificate verification remains enabled (do not add `--insecure`). It exits zero only when both endpoints return exactly HTTP 200; HTTP 204 and redirects are rejected. An HTTP success alone is insufficient: separately validate the health JSON contract and timestamp freshness using the existing smoke-test procedure.
 - [ ] Run authorized OIDC and AI smoke checks only through approved test identities and low-cost test requests; never paste bearer tokens or provider keys into release evidence.
 - [ ] Record the exact SHA, Railway deployment ID, UTC verification time, HTTP codes, response times and any failure/rollback decision in the release log. If either command fails, stop promotion and investigate before retrying.
 
