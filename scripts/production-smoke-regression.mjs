@@ -911,6 +911,11 @@ try {
   await rejectsInvalidOrigin("https://%65xample.com");
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "0x7f000001"));
   await rejectsInvalidOrigin(origin.replace("127.0.0.1", "127.1"));
+  // WHATWG URL also accepts octal and integer IPv4 forms; never allow these
+  // alternate spellings to inherit the local HTTP exception.
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "0177.0.0.1"));
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "2130706433"));
+  await rejectsInvalidOrigin(origin.replace("127.0.0.1", "localhost.evil.example"));
   await rejectsInvalidOrigin(origin + "/unexpected-path");
   // WHATWG URL silently resolves dot segments to the origin root. The smoke
   // gate must reject the literal path even when the parsed URL looks valid.
