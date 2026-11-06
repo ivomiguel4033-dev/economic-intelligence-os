@@ -33,6 +33,9 @@ Use this record for each failed first deployment, smoke-test gate, or rollback. 
 - Verify a representative read-only user journey through the public endpoint, with expected HTTP status and no sensitive response content in evidence:
 - If routing, DNS, or edge caching changed during the incident, record the observed target and cache behavior before declaring recovery:
 - OIDC authentication and AI provider checks (only when configured; mark blocked otherwise):
+- For OIDC, use a designated non-privileged test identity; verify valid-token acceptance and invalid/expired-token rejection without recording tokens or claims containing personal data:
+- For AI, use an approved low-cost synthetic request with a unique idempotency key; record provider outcome, timeout/failover behavior and duplicate-execution check without storing prompts, credentials or model responses:
+- If OIDC or AI is unavailable, record the exact failed dependency and owner; do not mark the full production recovery gate as passed based solely on liveness/readiness:
 - User impact resolved at (UTC), monitoring window and owner:
 
 ## Closure
