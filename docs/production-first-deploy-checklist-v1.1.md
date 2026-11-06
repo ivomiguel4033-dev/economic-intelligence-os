@@ -45,12 +45,12 @@ Run these checks against the approved production hostname after deployment. Set 
 BASE_URL="https://<approved-production-host>"
 for endpoint in ready health; do
   status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$BASE_URL/api/$endpoint") || {
-    printf '%s: transport or timeout failure\\n' "$endpoint" >&2
+    printf '%s: transport or timeout failure\n' "$endpoint" >&2
     exit 1
   }
-  printf '%s HTTP %s\\n' "$endpoint" "$status"
+  printf '%s HTTP %s\n' "$endpoint" "$status"
   if [ "$status" != 200 ]; then
-    printf '%s: expected exactly HTTP 200\\n' "$endpoint" >&2
+    printf '%s: expected exactly HTTP 200\n' "$endpoint" >&2
     exit 1
   fi
 done
