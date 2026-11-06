@@ -68,6 +68,18 @@ done
 - [ ] Run authorized OIDC and AI smoke checks only through approved test identities and low-cost test requests; never paste bearer tokens or provider keys into release evidence.
 - [ ] Record the exact SHA, Railway deployment ID, UTC verification time, HTTP codes, response times and any failure/rollback decision in the release log. If either command fails, stop promotion and investigate before retrying.
 
+### Strict application-level smoke gate
+
+The HTTP status loop above is a transport precheck, **not** the final application gate. From the checked-out, CI-approved release SHA, run the repository's existing JSON-contract smoke validator against the same production origin:
+
+```sh
+node scripts/production-smoke.mjs "$BASE_URL"
+```
+
+- [ ] Require exit code 0 from this command **in addition to** the HTTP 200 precheck. The validator checks the health/readiness response contracts, including application and database dependency status; do not substitute a plain `curl` success.
+- [ ] Run the command from the approved SHA and record its exit status, UTC execution time and deployed Railway ID. On any failure, declare **NO-GO** or initiate the agreed **ROLLBACK**; do not suppress errors with `|| true`.
+- [ ] The validator allows loopback HTTP for local regression tests, but production verification must always use the approved HTTPS `BASE_URL`. Do not pass credentials in the URL.
+
 ## 6. Release evidence record (one record per deployment)
 
 Complete this record during the staffed release window. Store it in the approved operations system, not in the repository if it contains internal hostnames, account details or incident information. A blank field means **not verified**, never an implicit pass.
