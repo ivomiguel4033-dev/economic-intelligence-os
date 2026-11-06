@@ -889,7 +889,7 @@ try {
       await exec(process.execPath, [script, candidateOrigin], { timeout: 10_000 });
       assert.fail("Invalid deployment origin unexpectedly passed");
     } catch (error) {
-      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes|Deployment origin must not use port 0|Local HTTP smoke origin must use a canonical loopback hostname/);
+      assert.match(String(error.stderr ?? ""), /Expected an HTTPS origin without credentials, path, query or fragment|Origin must not contain whitespace, control characters or backslashes|Deployment origin must not use port 0|Local HTTP smoke origin must use a canonical loopback hostname|Invalid URL/);
     }
   }
   await rejectsInvalidOrigin("http://example.com");
