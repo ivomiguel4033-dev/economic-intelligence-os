@@ -118,4 +118,14 @@ Do not declare GO until every required gate has recorded evidence. A failed chec
 4. If schema changes are not backward compatible, do **not** blindly reverse migrations. Escalate to a database recovery plan based on verified backups and migration history.
 5. Record incident timeline, cause, corrective action and follow-up CI coverage before retrying.
 
+
+## 8. Identity and AI dependency failure drill (non-production)
+
+Before the first production rollout, rehearse these failure cases in an isolated environment with test identities and test provider credentials. Do not disable production authentication, alter live DNS, or rotate live secrets to perform the drill.
+
+- [ ] **OIDC key rotation:** replace the test issuer's signing key while retaining the previous key for its documented overlap period. Confirm that a token signed by the newly published key is accepted only for the configured issuer/audience, and that unknown-key, wrong-issuer, wrong-audience and expired tokens are rejected. Record the JWKS refresh behavior and maximum observed recovery time; never copy tokens into logs.
+- [ ] **OIDC outage:** simulate an unavailable test JWKS endpoint and verify that unknown signing keys fail closed, existing-session behavior follows the documented policy, and health/readiness evidence does not conceal authentication failures. Restore the endpoint and verify recovery without relaxing issuer/audience checks.
+- [ ] **AI provider outage:** use an approved test provider or stub to simulate timeout, HTTP 429 and HTTP 5xx. Verify bounded request time, cancellation of timed-out calls, circuit-breaker/failover behavior and absence of duplicate billable execution where idempotency is required. Record the error classification and recovery behavior without recording prompts or API keys.
+- [ ] **Decision:** attach the test run, candidate SHA, UTC time, operator, observed behavior and unresolved risks to the release evidence. Any unverified security boundary or uncontrolled retry/cost behavior is **NO-GO**; do not compensate by bypassing preflight.
+
 **Source of truth:** `Dockerfile`, `railway.json`, `package.json` and the current PR #11 checks. This document does not assert that external Railway/OIDC/AI settings are already present.
