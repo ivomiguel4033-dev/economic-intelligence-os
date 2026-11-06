@@ -26,6 +26,8 @@ This is an operator checklist, not authorization to deploy. The PR #11 branch mu
 - [ ] Confirm the production pre-deploy command is `node scripts/production-preflight.mjs && npm run migrate`. Inspect migration compatibility and backups before proceeding: rolling back code does **not** automatically roll back a database migration.
 - [ ] Confirm the web service start command is `node node_modules/next/dist/bin/next start`.
 - [ ] Confirm Railway gates traffic on `/api/ready` (120-second healthcheck timeout); Docker liveness uses `/api/health`. Do not substitute liveness for readiness.
+- [ ] Before promotion, verify the successful CI run's `head_sha` matches the approved release SHA exactly; a green run for an older commit or another branch is not release evidence. Recheck the branch HEAD and PR #11 head immediately before deployment; if either moved, stop and reapprove the candidate.
+- [ ] Confirm there is no other Railway deployment, migration, rollback or configuration change in progress for this environment. Assign one release operator and serialize production changes; if another operation is active, defer rather than race it.
 - [ ] Deploy only the approved SHA during a staffed observation window. Record the deployment identifier and start time.
 
 ## 4. Post-deploy smoke checks
