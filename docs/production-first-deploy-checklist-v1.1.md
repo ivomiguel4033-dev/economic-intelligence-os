@@ -46,10 +46,10 @@ BASE_URL="https://<approved-production-host>"
 # Refuse accidental plaintext or credential-bearing origins before probing.
 case "$BASE_URL" in
   https://* ) ;;
-  * ) printf 'BASE_URL must use HTTPS\\n' >&2; exit 1 ;;
+  * ) printf 'BASE_URL must use HTTPS\n' >&2; exit 1 ;;
 esac
 case "${BASE_URL#https://}" in
-  ""|*/*|*\?*|*\#*|*@* ) printf 'BASE_URL must be a bare HTTPS origin without credentials, path, query or fragment\\n' >&2; exit 1 ;;
+  ""|*/*|*\?*|*\#*|*@* ) printf 'BASE_URL must be a bare HTTPS origin without credentials, path, query or fragment\n' >&2; exit 1 ;;
 esac
 for endpoint in ready health; do
   status=$(curl --silent --show-error --proto '=https' --tlsv1.2 --max-redirs 0 --max-time 10 --output /dev/null --write-out '%{http_code}' "$BASE_URL/api/$endpoint") || {
