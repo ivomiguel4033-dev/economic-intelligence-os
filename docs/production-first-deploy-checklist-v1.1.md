@@ -81,12 +81,13 @@ case "$APPROVED_SHA" in
 esac
 [ "${#APPROVED_SHA}" -eq 40 ] || { printf 'APPROVED_SHA must be a full 40-character SHA\n' >&2; exit 1; }
 [ "$(git rev-parse HEAD)" = "$APPROVED_SHA" ] || { printf 'Checkout does not match APPROVED_SHA\n' >&2; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=all)" ] || { printf 'Smoke validator checkout has local modifications or untracked files\n' >&2; exit 1; }
 [ "$(node -p 'process.versions.node.split(".")[0]')" = 22 ] || { printf 'Smoke validator requires Node 22\n' >&2; exit 1; }
 node scripts/production-smoke.mjs "$BASE_URL"
 ```
 
 - [ ] Require exit code 0 from this command **in addition to** the HTTP 200 precheck. The validator checks the health/readiness response contracts, including application and database dependency status; do not substitute a plain `curl` success.
-- [ ] Run the command from the approved SHA and record its exit status, UTC execution time and deployed Railway ID. On any failure, declare **NO-GO** or initiate the agreed **ROLLBACK**; do not suppress errors with `|| true`.
+- [ ] Run the command from a clean checkout of the approved SHA and record its exit status, UTC execution time and deployed Railway ID. Independently verify that Railway identifies the deployed image as built from the same approved SHA; a matching local checkout alone does not establish deployment provenance. On any failure, declare **NO-GO** or initiate the agreed **ROLLBACK**; do not suppress errors with `|| true`.
 - [ ] The validator allows loopback HTTP for local regression tests, but production verification must always use the approved HTTPS `BASE_URL`. Do not pass credentials in the URL.
 
 ## 6. Release evidence record (one record per deployment)
