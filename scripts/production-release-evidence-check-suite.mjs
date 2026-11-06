@@ -31,7 +31,7 @@ for (const name of checks) {
   console.log("Running release evidence check: " + name);
   const startedAt = Date.now();
   const result = spawnSync(process.execPath, [script, ...args], {
-    stdio: "inherit",
+    // Release gates are non-interactive: prevent inherited stdin from supplying\n    // operator input or causing a prompt to block the release validation.\n    stdio: ["ignore", "inherit", "inherit"],
     // Do not allow ambient NODE_OPTIONS (e.g. --require/--import) to inject
     // operator-local code into release gates; keep other CI environment intact.
     // NODE_PATH can also redirect CommonJS module resolution to ambient code.
