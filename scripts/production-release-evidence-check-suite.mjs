@@ -35,7 +35,9 @@ for (const name of checks) {
     // Do not allow ambient NODE_OPTIONS (e.g. --require/--import) to inject
     // operator-local code into release gates; keep other CI environment intact.
     // NODE_PATH can also redirect CommonJS module resolution to ambient code.
-    env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "" },
+    // Disable inherited V8 coverage output to prevent local instrumentation
+    // from writing unexpected artifacts during the release evidence gate.
+    env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "", NODE_V8_COVERAGE: "" },
     timeout: 15000,
     // Forcefully terminate hung gates even if they ignore SIGTERM.
     killSignal: "SIGKILL",
