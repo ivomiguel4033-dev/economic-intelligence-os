@@ -34,7 +34,7 @@ for (const name of checks) {
     const sourceBytes = readFileSync(script);
     // Recheck the actual bytes: the file may grow after lstatSync (TOCTOU).
     if (sourceBytes.length > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
-    const source = sourceBytes.toString("utf8");
+    // Reject malformed UTF-8 instead of silently replacing bytes with U+FFFD.\n    // Release evidence source must be unambiguous across runtimes and reviewers.\n    const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
     // A shebang is metadata, not an executable assertion.
     const executableText = source.replace(/^#![^\r\n]*/, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
     if (metadata.size === 0 || /^[;\s]*$/.test(executableText)) {
