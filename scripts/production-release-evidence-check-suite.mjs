@@ -55,7 +55,9 @@ for (const name of checks) {
     env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "", NODE_V8_COVERAGE: "" },
   });
   if (syntax.error || syntax.status !== 0) {
-    const detail = syntax.error?.message || syntax.stderr?.trim() || `exit status ${syntax.status}`;
+    const detail = syntax.error?.code === "ETIMEDOUT"
+      ? "syntax preflight timed out after 15 seconds"
+      : syntax.error?.message || syntax.stderr?.trim() || (syntax.signal ? `terminated by signal ${syntax.signal}` : `exit status ${syntax.status}`);
     console.error("Release evidence check syntax invalid: " + name + " (" + detail + ")");
     process.exit(1);
   }
