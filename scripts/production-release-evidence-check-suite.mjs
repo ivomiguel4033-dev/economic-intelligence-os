@@ -71,7 +71,10 @@ for (const name of checks) {
   try {
     const metadata = lstatSync(script);
     if (!metadata.isFile() || metadata.size > 2 * 1024 * 1024) throw new Error("gate is no longer a bounded regular file");
-    const currentHash = createHash("sha256").update(readFileSync(script)).digest("hex");
+    // Recheck bytes read after metadata inspection: a concurrent write can grow the file.
+    const currentBytes = readFileSync(script);
+    if (currentBytes.length > 2 * 1024 * 1024) throw new Error("gate exceeds 2 MiB source limit after read");
+    const currentHash = createHash("sha256").update(currentBytes).digest("hex");
     if (currentHash !== validatedHashes.get(name)) throw new Error("gate content changed after preflight");
   } catch (error) {
     console.error("Release evidence check changed: " + name + " (" + error.message + ")");
