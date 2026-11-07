@@ -1,23 +1,30 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN if [ -f package-lock.json ]; then npm ci --ignore-scripts --no-audit --no-fund; else npm install --ignore-scripts --no-audit --no-fund; fi
 
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+RUN npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
+COPY --chown=node:node --from=builder /app/package.json ./package.json
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/.next ./.next
+COPY --chown=node:node --from=builder /app/public ./public
+COPY --chown=node:node --from=builder /app/scripts ./scripts
+COPY --chown=node:node --from=builder /app/db ./db
+USER node
 EXPOSE 3000
-CMD ["npm", "start"]
+# Docker liveness requires bounded, complete, valid health JSON; /api/ready remains the Railway traffic gate.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node","-e","const http=require('http');const req=http.get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/api/health',timeout:4000},res=>{res.on('error',()=>process.exit(1));res.on('aborted',()=>process.exit(1));let bytes=0;const chunks=[];res.on('data',chunk=>{bytes+=chunk.length;if(bytes>65536){req.destroy(new Error('health body too large'));return}chunks.push(chunk)});res.on('end',()=>{let valid=false;try{const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));const ts=body?.timestamp;const ms=typeof ts==='string'?Date.parse(ts):NaN;const fresh=typeof ts==='string'&&Number.isFinite(ms)&&new Date(ms).toISOString()===ts&&Math.abs(Date.now()-ms)<=300000;valid=body?.service==='economic-intelligence-os'&&body?.status==='ok'&&body?.checks?.application==='ok'&&fresh}catch{}process.exit(res.complete&&bytes>0&&bytes<=65536&&res.statusCode===200&&(res.headers['content-type']||'').split(';')[0].trim().toLowerCase()==='application/json'&&valid?0:1)});res.resume()});req.on('timeout',()=>req.destroy(new Error('timeout')));req.on('error',()=>process.exit(1));"]
+CMD ["node", "node_modules/next/dist/bin/next", "start"]
