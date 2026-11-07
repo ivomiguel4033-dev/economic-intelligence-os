@@ -25,6 +25,8 @@ Use this record for each failed first deployment, smoke-test gate, or rollback. 
 - Confirm no concurrent deployment, migration, or configuration change:
 - Railway staged configuration review: compare pending changes against the last known-good deployment; record the reviewer and explicitly discard or quarantine unrelated legacy staged changes before rollback or redeploy. Never apply the staged patch as part of recovery without a separate approved change record:
 - Database migration compatibility: identify migrations applied after the last known-good release; confirm the restored application can safely use the current schema (or record the tested forward-fix plan and approver):
+- Migration rollback stop gate: if schema compatibility is unverified or incompatible, do not switch traffic to the old application image; keep the incident open and obtain approval for a tested forward-fix or compatible recovery deployment:
+- Post-recovery monitoring: record the baseline and observed 5xx rate, readiness failures, database errors, queue/outbox backlog and AI/OIDC dependency errors over a defined observation window; name the on-call owner and escalation threshold:
 - Data safety decision: do not automatically reverse database migrations or restore a database snapshot; record backup/PITR availability, potential data loss, and explicit authorization before any destructive recovery:
 - Railway rollback operation ID and completion time:
 - Independently verified restored image SHA:
