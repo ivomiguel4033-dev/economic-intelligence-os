@@ -35,6 +35,21 @@ for (const name of checks) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
     process.exit(1);
   }
+  // Parse all gates before running any: syntax errors must fail the preflight,
+  // rather than allowing earlier checks to run before the suite fails.
+  const syntax = spawnSync(process.execPath, ["--check", script], {
+    cwd: fileURLToPath(new URL("../", import.meta.url)),
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+    timeout: 15000,
+    killSignal: "SIGKILL",
+    env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "", NODE_V8_COVERAGE: "" },
+  });
+  if (syntax.error || syntax.status !== 0) {
+    const detail = syntax.error?.message || syntax.stderr?.trim() || `exit status ${syntax.status}`;
+    console.error("Release evidence check syntax invalid: " + name + " (" + detail + ")");
+    process.exit(1);
+  }
 }
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
