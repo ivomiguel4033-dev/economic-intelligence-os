@@ -37,6 +37,10 @@ for (const name of checks) {
     // Reject malformed UTF-8 instead of silently replacing bytes with U+FFFD.
     // Release evidence source must be unambiguous across runtimes and reviewers.
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
+    // Conflict markers indicate an unresolved merge and must never reach release gates.
+    if (/^(?:<<<<<<< |>>>>>>> |\\|\\|\\|\\|\\|\\|\\| )/m.test(source)) {
+      throw new Error("unresolved merge conflict marker in release evidence check");
+    }
     // A shebang is metadata, not an executable assertion.
     const executableText = source.replace(/^#![^\r\n]*/, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
     if (metadata.size === 0 || /^[;\s]*$/.test(executableText)) {
