@@ -41,6 +41,8 @@ for (const name of checks) {
     cwd: fileURLToPath(new URL("../", import.meta.url)),
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
+    // Bound captured diagnostics so malformed gates cannot exhaust CI memory.
+    maxBuffer: 64 * 1024,
     timeout: 15000,
     killSignal: "SIGKILL",
     env: { ...process.env, NODE_OPTIONS: "", NODE_PATH: "", NODE_V8_COVERAGE: "" },
