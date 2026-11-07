@@ -23,6 +23,7 @@ Use this record for each failed first deployment, smoke-test gate, or rollback. 
 - Decision time (UTC), approver, and reason:
 - Last known-good deployment ID and full image SHA:
 - Confirm no concurrent deployment, migration, or configuration change:
+- Railway staged configuration review: compare pending changes against the last known-good deployment; record the reviewer and explicitly discard or quarantine unrelated legacy staged changes before rollback or redeploy. Never apply the staged patch as part of recovery without a separate approved change record:
 - Database migration compatibility: identify migrations applied after the last known-good release; confirm the restored application can safely use the current schema (or record the tested forward-fix plan and approver):
 - Data safety decision: do not automatically reverse database migrations or restore a database snapshot; record backup/PITR availability, potential data loss, and explicit authorization before any destructive recovery:
 - Railway rollback operation ID and completion time:
