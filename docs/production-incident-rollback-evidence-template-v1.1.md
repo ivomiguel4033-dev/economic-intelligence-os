@@ -34,6 +34,7 @@ Use this record for each failed first deployment, smoke-test gate, or rollback. 
 - Liveness, readiness, database dependency and smoke outcomes:
 - Confirm public ingress and routing (production hostname, TLS, and any reverse proxy) reach the restored deployment; a passing internal health endpoint alone is insufficient:
 - Verify a representative read-only user journey through the public endpoint, with expected HTTP status and no sensitive response content in evidence:
+- Tenant isolation smoke gate: using two approved synthetic tenants and non-privileged test identities, confirm tenant A cannot read tenant B resources through the public endpoint; record only status codes and sanitized request IDs. A cross-tenant success response is an immediate stop/rollback escalation, not a warning:
 - If routing, DNS, or edge caching changed during the incident, record the observed target and cache behavior before declaring recovery:
 - OIDC authentication and AI provider checks (only when configured; mark blocked otherwise):
 - For OIDC, use a designated non-privileged test identity; verify valid-token acceptance and invalid/expired-token rejection without recording tokens or claims containing personal data:
