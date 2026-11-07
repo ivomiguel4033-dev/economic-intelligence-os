@@ -31,13 +31,16 @@ for (const name of checks) {
     if (metadata.size > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
     // An empty JavaScript file exits successfully without running any assertions.
     // Comments and empty statements alone are not executable validation; reject no-op gates.
-    const source = readFileSync(script, "utf8");
+    const sourceBytes = readFileSync(script);
+    // Recheck the actual bytes: the file may grow after lstatSync (TOCTOU).
+    if (sourceBytes.length > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
+    const source = sourceBytes.toString("utf8");
     // A shebang is metadata, not an executable assertion.
     const executableText = source.replace(/^#![^\r\n]*/, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
     if (metadata.size === 0 || /^[;\s]*$/.test(executableText)) {
       throw new Error("empty, comment-only, or empty-statement-only release evidence check");
     }
-    validatedHashes.set(name, createHash("sha256").update(source).digest("hex"));
+    validatedHashes.set(name, createHash("sha256").update(sourceBytes).digest("hex"));
   } catch (error) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
     process.exit(1);
