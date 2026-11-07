@@ -24,6 +24,8 @@ for (const name of checks) {
     // Reject symlinks so the release gate cannot execute a redirected script.
     const metadata = lstatSync(script);
     if (!metadata.isFile()) throw new Error("not a regular file or is a symbolic link");
+    // Bound source reads: an oversized gate must not exhaust runner memory during preflight.
+    if (metadata.size > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
     // An empty JavaScript file exits successfully without running any assertions.
     // Comments alone are not executable validation; reject no-op gates.
     const source = readFileSync(script, "utf8");
