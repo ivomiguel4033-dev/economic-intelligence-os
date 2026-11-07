@@ -21,7 +21,10 @@ for (const name of checks) {
   // Fail with a precise diagnostic if release evidence checks are missing or replaced.
   try {
     // Reject symlinks so the release gate cannot execute a redirected script.
-    if (!lstatSync(script).isFile()) throw new Error("not a regular file or is a symbolic link");
+    const metadata = lstatSync(script);
+    if (!metadata.isFile()) throw new Error("not a regular file or is a symbolic link");
+    // An empty JavaScript file exits successfully without running any assertions.
+    if (metadata.size === 0) throw new Error("empty release evidence check");
   } catch (error) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
     process.exitCode = 1;
