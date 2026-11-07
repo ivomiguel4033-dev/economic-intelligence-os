@@ -16,6 +16,7 @@ if (checks.length === 0 || new Set(checks).size !== checks.length || checks.some
   console.error("Release evidence gate configuration invalid: checks must be non-empty, unique, and local .mjs filenames");
   process.exit(1);
 }
+// Preflight every gate before executing any, avoiding partial runs with missing checks.
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
   // Fail with a precise diagnostic if release evidence checks are missing or replaced.
@@ -32,9 +33,11 @@ for (const name of checks) {
     }
   } catch (error) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
-    process.exitCode = 1;
-    break;
+    process.exit(1);
   }
+}
+for (const name of checks) {
+  const script = fileURLToPath(new URL("./" + name, import.meta.url));
   const args = name.endsWith("-regression.mjs") ? [] : ["--self-test"];
   console.log("Running release evidence check: " + name);
   const startedAt = Date.now();
