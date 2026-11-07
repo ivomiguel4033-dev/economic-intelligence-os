@@ -27,7 +27,8 @@ for (const name of checks) {
     // An empty JavaScript file exits successfully without running any assertions.
     // Comments alone are not executable validation; reject no-op gates.
     const source = readFileSync(script, "utf8");
-    // A shebang is metadata, not an executable assertion.\n    const executableText = source.replace(/^#![^\r\n]*/, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
+    // A shebang is metadata, not an executable assertion.
+    const executableText = source.replace(/^#![^\r\n]*/, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
     if (metadata.size === 0 || executableText.length === 0) {
       throw new Error("empty or comment-only release evidence check");
     }
