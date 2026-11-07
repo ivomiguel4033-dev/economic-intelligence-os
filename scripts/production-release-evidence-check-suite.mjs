@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Local, dependency-free release evidence regression gate.
 import { spawnSync } from "node:child_process";
-import { lstatSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const checks = [
@@ -24,7 +24,9 @@ for (const name of checks) {
     const metadata = lstatSync(script);
     if (!metadata.isFile()) throw new Error("not a regular file or is a symbolic link");
     // An empty JavaScript file exits successfully without running any assertions.
-    if (metadata.size === 0) throw new Error("empty release evidence check");
+    if (metadata.size === 0 || readFileSync(script, "utf8").trim().length === 0) {
+      throw new Error("empty or whitespace-only release evidence check");
+    }
   } catch (error) {
     console.error("Release evidence check unavailable: " + name + " (" + error.message + ")");
     process.exitCode = 1;
