@@ -24,7 +24,10 @@ for (const name of checks) {
     const metadata = lstatSync(script);
     if (!metadata.isFile()) throw new Error("not a regular file or is a symbolic link");
     // An empty JavaScript file exits successfully without running any assertions.
-    // Comments alone are not executable validation; reject no-op gates.\n    const source = readFileSync(script, "utf8");\n    const executableText = source.replace(/\\/\\*[\\s\\S]*?\\*\\//g, "").replace(/^\\s*\\/\\/.*$/gm, "").trim();\n    if (metadata.size === 0 || executableText.length === 0) {
+    // Comments alone are not executable validation; reject no-op gates.
+    const source = readFileSync(script, "utf8");
+    const executableText = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").trim();
+    if (metadata.size === 0 || executableText.length === 0) {
       throw new Error("empty or comment-only release evidence check");
     }
   } catch (error) {
