@@ -33,6 +33,8 @@ for (const name of checks) {
   const result = spawnSync(process.execPath, [script, ...args], {
     // Release gates are non-interactive: do not inherit operator stdin.
     stdio: ["ignore", "inherit", "inherit"],
+    // Run every gate from the repository root, independent of caller cwd.
+    cwd: fileURLToPath(new URL("../", import.meta.url)),
     // Do not allow ambient NODE_OPTIONS (e.g. --require/--import) to inject
     // operator-local code into release gates; keep other CI environment intact.
     // NODE_PATH can also redirect CommonJS module resolution to ambient code.
