@@ -131,6 +131,19 @@ for (const name of checks) {
     process.exitCode = 1;
     break;
   }
+  // A gate must not rewrite its own source while running; verify the approved bytes again.
+  try {
+    const after = lstatSync(script);
+    if (!after.isFile() || after.size > 2 * 1024 * 1024) throw new Error("gate is no longer a bounded regular file");
+    const bytes = readFileSync(script);
+    if (bytes.length !== after.size || createHash("sha256").update(bytes).digest("hex") !== validatedHashes.get(name)) {
+      throw new Error("gate content changed during execution");
+    }
+  } catch (error) {
+    console.error("Release evidence check changed: " + name + " (" + error.message + ")");
+    process.exitCode = 1;
+    break;
+  }
   console.log("Release evidence check passed: " + name + " (" + (Date.now() - startedAt) + " ms)");
 }
 if (!process.exitCode) console.log("Production release evidence suite passed");
