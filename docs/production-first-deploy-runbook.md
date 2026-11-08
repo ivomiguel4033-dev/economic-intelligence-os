@@ -1,0 +1,36 @@
+# First production web release: go/no-go and rollback
+
+Scope: the **web** service only. This is an operator checklist, not permission to deploy. Keep the legacy Railway worker inactive until its entrypoint and ownership are verified.
+
+## Before changing Railway
+
+1. Record the exact Git commit SHA, CI run URL, target Railway project/environment/service, current live deployment ID, and the operator responsible. Stop if any target is ambiguous.
+2. Require green CI for that **exact** SHA, including the production Docker image, in-container production preflight and smoke tests. A green run on an older SHA is not sufficient.
+3. Confirm the Railway web service has production OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URL set to the intended identity provider. Verify issuer/audience/JWKS compatibility without logging tokens or secret values.
+4. Confirm AI_PRIMARY_BASE_URL, AI_PRIMARY_API_KEY and AI_PRIMARY_MODEL are configured and point to the approved provider. Validate provider connectivity and credential scope without exposing the key.
+5. Review Railway's **14 legacy staged changes individually** against the current architecture. Do not apply the staged patch as a batch. Record which changes are retained, discarded or replaced.
+6. Confirm database connectivity, migration backup/restore plan, migration compatibility with the previously deployed application, and a tested recovery owner. Do not assume that rolling back application code reverses database migrations.
+7. Capture a baseline for readiness, error rate, latency, logs, and protected metrics. Verify alerting and on-call ownership. Record the previous known-good image/deployment as the rollback target.
+
+## Controlled release
+
+1. Run the production preflight against the actual target environment **before** any deployment; stop on missing configuration or failure.
+2. Deploy only the reviewed web image pinned to the verified commit. Do not deploy the legacy worker.
+3. Check liveness and database-aware readiness, then run authenticated smoke tests for tenant isolation, identity/authorization and one bounded AI provider request. Do not put credentials or user data in CI output.
+4. Compare error rate, latency and AI/provider failures with the recorded baseline. Observe through the agreed monitoring window before declaring success.
+
+## Stop conditions and rollback
+
+Stop promotion and initiate the approved rollback if readiness fails, migrations are unsafe, tenant authorization is incorrect, provider calls repeatedly fail, or error/latency budgets breach the agreed thresholds. Do not invent thresholds during an incident.
+
+1. Record incident time, deployment ID, symptoms and last known-good image.
+2. Stop further promotion and restore the **previous verified web deployment/image** using Railway's supported deployment controls. Do not roll back a database migration blindly.
+3. Re-run readiness, authentication/tenant-isolation and AI smoke tests on the restored deployment; verify metrics return to baseline.
+4. If schema incompatibility prevents application rollback, halt and follow the preapproved database recovery plan with the responsible operator. Preserve logs and evidence.
+5. Document root cause, rollback result, and a new go/no-go decision before another attempt.
+
+## Evidence to retain
+
+Commit SHA, CI run, image identifier, preflight outcome, migration decision, sanitized smoke-test results, monitoring window, release/rollback deployment IDs, and operator sign-off.
+
+**Default decision:** NO-GO while OIDC, AI provider or Railway staged configuration is unresolved. No automatic production deployment is authorized by this document.
