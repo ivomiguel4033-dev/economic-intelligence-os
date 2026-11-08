@@ -49,8 +49,8 @@ for (const name of checks) {
     if (/[\u200b-\u200d\u2060\ufeff]/u.test(source.replace(/^\ufeff/u, ""))) {
       throw new Error("invisible Unicode format character in release evidence check source");
     }
-    // Conflict markers indicate an unresolved merge and must never reach release gates.
-    if (/^(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$)/m.test(source)) {
+    // Conflict markers, including indented ones, indicate an unresolved merge and must never reach release gates.
+    if (/^[ \t]*(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$)/m.test(source)) {
       throw new Error("unresolved merge conflict marker in release evidence check");
     }
     // A shebang is metadata, not an executable assertion.
