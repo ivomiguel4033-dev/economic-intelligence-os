@@ -66,3 +66,15 @@ Run these checks against the **actual candidate web deployment** after readiness
 6. **Recovery:** verify liveness and readiness after the tests, then inspect sanitized error rates, latency, provider failures and database connectivity against the pre-recorded baseline.
 
 Use an approved secret store for tokens and credentials; never paste them into command-line arguments captured by shell history, CI artifacts, tickets, screenshots or PR comments. Do not perform destructive tenant tests on real customer data. If a route, test identity, baseline or approved timeout is unavailable, mark the gate **NOT RUN** and retain the NO-GO decision. After rollback, repeat at minimum steps 1–4 and 6 against the restored deployment, plus the bounded AI check when provider access is available.
+
+## Railway legacy staging reconciliation record
+
+Before applying **any** pending Railway change, export a sanitized inventory of the 14 staged items. Do not include secret values. For each item, record its service, setting/resource identifier, intended action, current live state, proposed state (redacted if sensitive), owner, and decision (**KEEP**, **REPLACE**, or **DISCARD**) with justification. Count the inventory and reconcile it against Railway's actual pending-change count; a mismatch is **NO-GO**. In particular, confirm that no staged change enables or redeploys the legacy worker.
+
+Apply only individually reviewed changes to the intended web service and environment, and re-read the pending-change diff before confirming. After applying, capture the resulting deployment/configuration identifier and verify the live configuration against the approved inventory. Unexpected differences, unreviewed variables, or an activated legacy worker require stopping the release and following the approved recovery process; never assume discarding a staged change reverts an already-live change.
+
+| Item # | Service / setting (no secret value) | Live vs staged change | Owner | KEEP / REPLACE / DISCARD | Reason / verification |
+| --- | --- | --- | --- | --- | --- |
+| 1–14 (one row per actual item) | NOT INVENTORIED | NOT VERIFIED | UNASSIGNED | UNDECIDED | NO-GO |
+
+**Rollback rehearsal gate:** before promotion, document the previous verified web image digest, Railway deployment identifier, operator authorized to restore it, expected restore duration, and database schema compatibility. Rehearse the recovery procedure in an isolated environment where feasible; if rehearsal is impossible, mark the limitation explicitly and obtain a documented risk decision. Never claim a rollback was tested based solely on a written procedure.
