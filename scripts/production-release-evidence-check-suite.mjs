@@ -40,7 +40,7 @@ for (const name of checks) {
     // Release evidence source must be unambiguous across runtimes and reviewers.
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
-    if (source.includes("\\0")) throw new Error("NUL byte in release evidence check source");
+    if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
     // Conflict markers indicate an unresolved merge and must never reach release gates.
     if (/^(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$)/m.test(source)) {
       throw new Error("unresolved merge conflict marker in release evidence check");
