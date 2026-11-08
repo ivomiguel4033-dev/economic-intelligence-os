@@ -129,7 +129,7 @@ for (const name of checks) {
           : "exit status " + result.status;
     console.error("Release evidence check failed: " + name + " (" + reason + ", " + (Date.now() - startedAt) + " ms)");
     process.exitCode = 1;
-    break;
+    // Still verify all gate sources below: a failed gate may have tampered with them.
   }
   // A running gate must not rewrite itself OR another approved gate. Check all
   // sources after each execution, including gates that have already passed.
@@ -150,6 +150,8 @@ for (const name of checks) {
     process.exitCode = 1;
     break;
   }
+  // A failed gate must never be reported as passed, even when integrity is intact.
+  if (result.error || result.status !== 0) break;
   console.log("Release evidence check passed: " + name + " (" + (Date.now() - startedAt) + " ms)");
 }
 if (!process.exitCode) console.log("Production release evidence suite passed");
