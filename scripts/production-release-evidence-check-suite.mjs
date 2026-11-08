@@ -139,6 +139,8 @@ for (const name of checks) {
       const metadata = lstatSync(checkedScript);
       if (!metadata.isFile() || metadata.size > 2 * 1024 * 1024) throw new Error(checkedName + ": no longer a bounded regular file");
       const bytes = readFileSync(checkedScript);
+      // A gate may grow after lstatSync; enforce the same bound on actual bytes.
+      if (bytes.length > 2 * 1024 * 1024) throw new Error(checkedName + ": exceeds 2 MiB source limit after execution");
       if (bytes.length !== metadata.size || createHash("sha256").update(bytes).digest("hex") !== validatedHashes.get(checkedName)) {
         throw new Error(checkedName + ": content changed during execution");
       }
