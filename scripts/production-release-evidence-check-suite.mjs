@@ -50,7 +50,7 @@ for (const name of checks) {
       throw new Error("bidirectional Unicode control character in release evidence check source");
     }
     // Invisible format and supplementary-plane Unicode tag characters can conceal changes to gate source.
-    if (/[\u00ad\u034f\u061c\u180e\u200b-\u200d\u2060\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}]/u.test(source.replace(/^\ufeff/u, ""))) {
+    if (/[\u00ad\u034f\u061c\u180e\u200b-\u200f\u2060-\u206f\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}]/u.test(source.replace(/^\ufeff/u, ""))) {
       throw new Error("invisible Unicode format character in release evidence check source");
     }
     // Conflict markers, including indented ones, indicate an unresolved merge and must never reach release gates.
