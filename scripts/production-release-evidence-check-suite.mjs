@@ -131,16 +131,20 @@ for (const name of checks) {
     process.exitCode = 1;
     break;
   }
-  // A gate must not rewrite its own source while running; verify the approved bytes again.
+  // A running gate must not rewrite itself OR another approved gate. Check all
+  // sources after each execution, including gates that have already passed.
   try {
-    const after = lstatSync(script);
-    if (!after.isFile() || after.size > 2 * 1024 * 1024) throw new Error("gate is no longer a bounded regular file");
-    const bytes = readFileSync(script);
-    if (bytes.length !== after.size || createHash("sha256").update(bytes).digest("hex") !== validatedHashes.get(name)) {
-      throw new Error("gate content changed during execution");
+    for (const checkedName of checks) {
+      const checkedScript = fileURLToPath(new URL("./" + checkedName, import.meta.url));
+      const metadata = lstatSync(checkedScript);
+      if (!metadata.isFile() || metadata.size > 2 * 1024 * 1024) throw new Error(checkedName + ": no longer a bounded regular file");
+      const bytes = readFileSync(checkedScript);
+      if (bytes.length !== metadata.size || createHash("sha256").update(bytes).digest("hex") !== validatedHashes.get(checkedName)) {
+        throw new Error(checkedName + ": content changed during execution");
+      }
     }
   } catch (error) {
-    console.error("Release evidence check changed: " + name + " (" + error.message + ")");
+    console.error("Release evidence check changed after " + name + " (" + error.message + ")");
     process.exitCode = 1;
     break;
   }
