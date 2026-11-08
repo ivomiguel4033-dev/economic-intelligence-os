@@ -93,3 +93,9 @@ In an isolated environment using approved test credentials, validate the **actua
 4. Restore primary connectivity and verify subsequent requests recover without requiring a service restart; inspect sanitized circuit-breaker/retry telemetry for unexpected repeated calls.
 
 Do not change live provider DNS, revoke production keys, or induce outages in production to satisfy this gate. Missing test isolation, unavailable provider access, or unverified recovery is **NOT RUN** and keeps the release at **NO-GO**.
+
+## Release concurrency and provenance gate
+
+Before approving deployment, re-read the remote branch HEAD and PR #11 head SHA. Both must match the release SHA recorded in the evidence table, and the CI success must belong to that exact SHA. If another commit arrives after approval, invalidate the approval and repeat CI, image-digest verification and go/no-go checks for the new candidate. Never deploy a mutable branch tag as evidence of the reviewed image; record and deploy the immutable image digest built for the approved commit.
+
+Assign one release owner and one rollback owner, record the start/end of the release window, and prohibit overlapping web deployments or configuration changes in the same Railway environment until the monitoring window closes. If a second deployment, drift in live configuration, or an unrecognized Railway staged change appears, stop promotion, preserve the current deployment identifiers and restart reconciliation rather than applying either set of changes blindly. A successful PR check does not prove that Railway is running the reviewed artifact.
