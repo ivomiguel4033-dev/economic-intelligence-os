@@ -53,3 +53,16 @@ Keep this record outside public CI logs. Mark every gate **PASS**, **FAIL**, or 
 | Rollback | Previous verified image/deployment ID, restore procedure and post-restore smoke evidence | NOT RUN |
 
 **Decision rule:** any FAIL or NOT RUN means **NO-GO**. Do not substitute a passing build for live OIDC, provider, tenant-isolation or rollback evidence. Record the approving operator and timestamp only after all gates pass. If a migration cannot be safely reversed, explicitly verify that the prior application image remains compatible with the new schema before authorizing deployment.
+
+## Smoke-test execution and evidence hygiene
+
+Run these checks against the **actual candidate web deployment** after readiness becomes healthy, using dedicated non-production test tenants and identities. Record the HTTP status, timestamp, sanitized correlation/request ID, and deployment/image identifier for every case. A skipped case is **NOT RUN**, not PASS.
+
+1. **Unauthenticated denial:** request a protected endpoint without an access token; require an explicit 401/403 response and no protected response body.
+2. **Invalid identity denial:** repeat with an expired token and a token with the wrong audience/issuer; require 401/403, without exposing either token in logs or evidence.
+3. **Authorized tenant access:** authenticate a least-privileged test identity in tenant A and verify a permitted read succeeds with only tenant A data.
+4. **Cross-tenant isolation:** use the same identity to request tenant B's known test resource; require 403/404 and verify no tenant B data appears in body, headers or logs.
+5. **AI request:** issue one small, bounded request using an approved test identity; require a successful provider-backed result within the agreed timeout. Repeat with a deliberately invalid test credential only in an isolated environment; require fail-closed behavior without credential disclosure.
+6. **Recovery:** verify liveness and readiness after the tests, then inspect sanitized error rates, latency, provider failures and database connectivity against the pre-recorded baseline.
+
+Use an approved secret store for tokens and credentials; never paste them into command-line arguments captured by shell history, CI artifacts, tickets, screenshots or PR comments. Do not perform destructive tenant tests on real customer data. If a route, test identity, baseline or approved timeout is unavailable, mark the gate **NOT RUN** and retain the NO-GO decision. After rollback, repeat at minimum steps 1–4 and 6 against the restored deployment, plus the bounded AI check when provider access is available.
