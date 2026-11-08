@@ -34,6 +34,8 @@ for (const name of checks) {
     const sourceBytes = readFileSync(script);
     // Recheck the actual bytes: the file may grow after lstatSync (TOCTOU).
     if (sourceBytes.length > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
+    // Fail closed if the file changed size between stat and read.
+    if (sourceBytes.length !== metadata.size) throw new Error("release evidence check size changed during preflight");
     // Reject malformed UTF-8 instead of silently replacing bytes with U+FFFD.
     // Release evidence source must be unambiguous across runtimes and reviewers.
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
