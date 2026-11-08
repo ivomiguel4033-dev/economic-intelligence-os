@@ -78,3 +78,7 @@ Apply only individually reviewed changes to the intended web service and environ
 | 1–14 (one row per actual item) | NOT INVENTORIED | NOT VERIFIED | UNASSIGNED | UNDECIDED | NO-GO |
 
 **Rollback rehearsal gate:** before promotion, document the previous verified web image digest, Railway deployment identifier, operator authorized to restore it, expected restore duration, and database schema compatibility. Rehearse the recovery procedure in an isolated environment where feasible; if rehearsal is impossible, mark the limitation explicitly and obtain a documented risk decision. Never claim a rollback was tested based solely on a written procedure.
+
+## OIDC key rotation and JWKS outage gate
+
+Before GO, verify the configured issuer and audience against the identity provider's published discovery metadata and ensure the JWKS endpoint is reachable over approved HTTPS. In an isolated test environment, exercise a token signed with an unknown `kid` and a token with an invalid signature; both must be denied without falling back to an unsigned or unverified identity. Record status codes and sanitized request IDs, not JWTs or signing keys. Confirm the application has an explicit policy for JWKS refresh/cache expiry and that an unavailable JWKS endpoint cannot authorize a previously unverified token. If the identity provider cannot supply safe test fixtures, mark this gate **NOT RUN** and retain NO-GO; never rotate production signing keys merely to perform the test.
