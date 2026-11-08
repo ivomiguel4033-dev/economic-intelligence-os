@@ -46,7 +46,7 @@ for (const name of checks) {
       throw new Error("bidirectional Unicode control character in release evidence check source");
     }
     // Invisible format characters can conceal changes to executable gate source in reviews.
-    if (/[\u200b-\u200d\u2060\ufeff]/u.test(source.replace(/^\ufeff/u, ""))) {
+    if (/[\u00ad\u034f\u061c\u180e\u200b-\u200d\u2060\ufe00-\ufe0f\ufeff]/u.test(source.replace(/^\ufeff/u, ""))) {
       throw new Error("invisible Unicode format character in release evidence check source");
     }
     // Conflict markers, including indented ones, indicate an unresolved merge and must never reach release gates.
