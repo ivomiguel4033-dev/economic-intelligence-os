@@ -82,3 +82,14 @@ Apply only individually reviewed changes to the intended web service and environ
 ## OIDC key rotation and JWKS outage gate
 
 Before GO, verify the configured issuer and audience against the identity provider's published discovery metadata and ensure the JWKS endpoint is reachable over approved HTTPS. In an isolated test environment, exercise a token signed with an unknown `kid` and a token with an invalid signature; both must be denied without falling back to an unsigned or unverified identity. Record status codes and sanitized request IDs, not JWTs or signing keys. Confirm the application has an explicit policy for JWKS refresh/cache expiry and that an unavailable JWKS endpoint cannot authorize a previously unverified token. If the identity provider cannot supply safe test fixtures, mark this gate **NOT RUN** and retain NO-GO; never rotate production signing keys merely to perform the test.
+
+## AI provider failure and recovery gate
+
+In an isolated environment using approved test credentials, validate the **actual configured provider** before promotion. Record the provider/model identifier (not the API key), request correlation ID, elapsed time, outcome and sanitized error category. Use a bounded, non-sensitive prompt and a strict request timeout.
+
+1. Confirm a normal request succeeds and that its response does not disclose provider credentials, internal URLs or another tenant's data.
+2. Simulate an unreachable or timing-out primary endpoint **only in an isolated test environment**; verify the request terminates within the documented timeout budget and that no orphaned primary request remains active after failover.
+3. If a secondary provider is configured, verify fallback uses only its approved endpoint and preserves tenant authorization. If none is configured, verify the service returns a bounded failure rather than silently succeeding or retrying indefinitely.
+4. Restore primary connectivity and verify subsequent requests recover without requiring a service restart; inspect sanitized circuit-breaker/retry telemetry for unexpected repeated calls.
+
+Do not change live provider DNS, revoke production keys, or induce outages in production to satisfy this gate. Missing test isolation, unavailable provider access, or unverified recovery is **NOT RUN** and keeps the release at **NO-GO**.
