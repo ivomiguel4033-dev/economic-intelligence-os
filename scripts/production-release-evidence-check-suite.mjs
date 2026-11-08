@@ -46,6 +46,11 @@ for (const name of checks) {
     if (/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(source)) {
       throw new Error("unexpected control character in release evidence check source");
     }
+    // Reject Unicode line/paragraph separators: tools disagree on whether these are line breaks,
+    // which can hide statement boundaries in review output and release evidence logs.
+    if (/[\u2028\u2029]/u.test(source)) {
+      throw new Error("Unicode line or paragraph separator in release evidence check source");
+    }
     // Reject Unicode bidirectional controls that can visually disguise executable code in reviews.
     if (/[\u202a-\u202e\u2066-\u2069]/u.test(source)) {
       throw new Error("bidirectional Unicode control character in release evidence check source");
