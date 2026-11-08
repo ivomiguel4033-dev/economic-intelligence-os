@@ -34,3 +34,22 @@ Stop promotion and initiate the approved rollback if readiness fails, migrations
 Commit SHA, CI run, image identifier, preflight outcome, migration decision, sanitized smoke-test results, monitoring window, release/rollback deployment IDs, and operator sign-off.
 
 **Default decision:** NO-GO while OIDC, AI provider or Railway staged configuration is unresolved. No automatic production deployment is authorized by this document.
+
+## Release evidence record (copy for each attempt)
+
+Keep this record outside public CI logs. Mark every gate **PASS**, **FAIL**, or **NOT RUN**; an empty field is not approval. Record identifiers and sanitized results only, never secrets or access tokens.
+
+| Gate | Required evidence | Result |
+| --- | --- | --- |
+| Change identity | Exact commit SHA, immutable image digest, PR #11 review decision | NOT RUN |
+| CI | Successful workflow run for the exact release SHA; Docker/preflight smoke steps visible | NOT RUN |
+| Railway target | Project, environment, web service, current deployment ID; worker explicitly inactive | NOT RUN |
+| Legacy staging | Each of the 14 old staged changes individually accepted/rejected with rationale | NOT RUN |
+| Identity | OIDC issuer, audience and JWKS compatibility verified; authenticated and rejected-token checks | NOT RUN |
+| AI | Primary provider base URL/model configured; bounded request succeeds; invalid credential fails closed | NOT RUN |
+| Database | Backup/recovery owner, migration compatibility decision, readiness after migration | NOT RUN |
+| Tenant isolation | Cross-tenant access denied using non-production test identities | NOT RUN |
+| Observability | Baseline, agreed error/latency thresholds, monitoring window, responsible operator | NOT RUN |
+| Rollback | Previous verified image/deployment ID, restore procedure and post-restore smoke evidence | NOT RUN |
+
+**Decision rule:** any FAIL or NOT RUN means **NO-GO**. Do not substitute a passing build for live OIDC, provider, tenant-isolation or rollback evidence. Record the approving operator and timestamp only after all gates pass. If a migration cannot be safely reversed, explicitly verify that the prior application image remains compatible with the new schema before authorizing deployment.
