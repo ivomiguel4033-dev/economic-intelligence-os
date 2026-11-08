@@ -41,6 +41,10 @@ for (const name of checks) {
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
+    // Other C0 controls (except tab, LF and CR) can hide or distort source in CI logs and reviews.
+    if (/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(source)) {
+      throw new Error("unexpected ASCII control character in release evidence check source");
+    }
     // Reject Unicode bidirectional controls that can visually disguise executable code in reviews.
     if (/[\u202a-\u202e\u2066-\u2069]/u.test(source)) {
       throw new Error("bidirectional Unicode control character in release evidence check source");
