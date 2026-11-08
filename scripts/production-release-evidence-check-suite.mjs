@@ -84,6 +84,8 @@ for (const name of checks) {
     // Recheck bytes read after metadata inspection: a concurrent write can grow the file.
     const currentBytes = readFileSync(script);
     if (currentBytes.length > 2 * 1024 * 1024) throw new Error("gate exceeds 2 MiB source limit after read");
+    // Detect concurrent size changes between lstat and read before executing a gate.
+    if (currentBytes.length !== metadata.size) throw new Error("gate size changed during integrity verification");
     const currentHash = createHash("sha256").update(currentBytes).digest("hex");
     if (currentHash !== validatedHashes.get(name)) throw new Error("gate content changed after preflight");
   } catch (error) {
