@@ -41,6 +41,10 @@ for (const name of checks) {
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
+    // Reject Unicode bidirectional controls that can visually disguise executable code in reviews.
+    if (/[\u202a-\u202e\u2066-\u2069]/u.test(source)) {
+      throw new Error("bidirectional Unicode control character in release evidence check source");
+    }
     // Conflict markers indicate an unresolved merge and must never reach release gates.
     if (/^(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$)/m.test(source)) {
       throw new Error("unresolved merge conflict marker in release evidence check");
