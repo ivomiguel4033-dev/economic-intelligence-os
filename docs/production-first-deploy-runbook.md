@@ -67,6 +67,18 @@ Run these checks against the **actual candidate web deployment** after readiness
 
 Use an approved secret store for tokens and credentials; never paste them into command-line arguments captured by shell history, CI artifacts, tickets, screenshots or PR comments. Do not perform destructive tenant tests on real customer data. If a route, test identity, baseline or approved timeout is unavailable, mark the gate **NOT RUN** and retain the NO-GO decision. After rollback, repeat at minimum steps 1–4 and 6 against the restored deployment, plus the bounded AI check when provider access is available.
 
+## Stripe webhook idempotency smoke gate
+
+Before production promotion, use an isolated Stripe test-mode endpoint and test tenant with no live payment effects. Record the candidate image digest, sanitized event ID, tenant ID reference, signature verification result, HTTP response, and resulting subscription/entitlement state.
+
+1. Deliver one correctly signed test-mode subscription event and verify the expected tenant-scoped state transition occurs exactly once.
+2. Redeliver the **same event ID** and verify that the handler acknowledges it without a second entitlement change, invoice action, or duplicate outbox effect.
+3. Deliver an event with an invalid signature and require rejection without persisting or processing its payload. Never log the signing secret or raw signature header.
+4. Deliver a correctly signed event referencing an unrecognized or mismatched tenant mapping and verify fail-closed handling without modifying another tenant.
+5. Verify the event processing status, retry/dead-letter counts and sanitized audit evidence after each case. Use a fresh isolated fixture and approved test keys; do not replay live Stripe payment events.
+
+Any missing test endpoint, unavailable fixture, duplicate business effect, signature bypass or cross-tenant mutation is **FAIL** or **NOT RUN** and retains **NO-GO**. Repeat the duplicate-delivery and tenant-binding checks against the restored candidate image during rollback rehearsal.
+
 ## Railway legacy staging reconciliation record
 
 Before applying **any** pending Railway change, export a sanitized inventory of the 14 staged items. Do not include secret values. For each item, record its service, setting/resource identifier, intended action, current live state, proposed state (redacted if sensitive), owner, and decision (**KEEP**, **REPLACE**, or **DISCARD**) with justification. Count the inventory and reconcile it against Railway's actual pending-change count; a mismatch is **NO-GO**. In particular, confirm that no staged change enables or redeploys the legacy worker.
