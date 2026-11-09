@@ -114,6 +114,25 @@ for (const name of checks) {
     process.exit(1);
   }
 }
+// Syntax checks are subprocesses too: verify that none altered another gate
+// before starting any executable release validation.
+for (const name of checks) {
+  const script = fileURLToPath(new URL("./" + name, import.meta.url));
+  try {
+    const metadata = lstatSync(script);
+    if (!metadata.isFile() || metadata.nlink !== 1 || (metadata.mode & 0o022) !== 0 || metadata.size > 2 * 1024 * 1024) {
+      throw new Error("gate is no longer a bounded, unlinked regular file");
+    }
+    const bytes = readFileSync(script);
+    if (bytes.length !== metadata.size || bytes.length > 2 * 1024 * 1024 ||
+        createHash("sha256").update(bytes).digest("hex") !== validatedHashes.get(name)) {
+      throw new Error("gate content changed during syntax preflight");
+    }
+  } catch (error) {
+    console.error("Release evidence check changed during syntax preflight: " + name + " (" + error.message + ")");
+    process.exit(1);
+  }
+}
 for (const name of checks) {
   const script = fileURLToPath(new URL("./" + name, import.meta.url));
   // Refuse a gate modified after preflight instead of executing unvalidated code.
