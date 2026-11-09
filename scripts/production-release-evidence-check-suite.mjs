@@ -68,7 +68,7 @@ for (const name of checks) {
       throw new Error("invisible Unicode format character in release evidence check source");
     }
     // Conflict markers, including indented ones, indicate an unresolved merge and must never reach release gates.
-    if (/^[ \t]*(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$)/m.test(source)) {
+    if (/^[ \t]*(?:<{7}|\|{7}|={7}|>{7})(?:[ \t]|$|(?=[A-Za-z0-9_-]))/m.test(source)) {
       throw new Error("unresolved merge conflict marker in release evidence check");
     }
     // A shebang is metadata, not an executable assertion.
