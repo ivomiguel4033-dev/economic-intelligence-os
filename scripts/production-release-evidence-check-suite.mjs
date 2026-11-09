@@ -39,6 +39,9 @@ for (const name of checks) {
     // Reject malformed UTF-8 instead of silently replacing bytes with U+FFFD.
     // Release evidence source must be unambiguous across runtimes and reviewers.
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
+    // Even well-formed UTF-8 can contain a literal replacement character, masking a
+    // previously corrupted source byte sequence in copied or regenerated gate files.
+    if (source.includes("\uFFFD")) throw new Error("Unicode replacement character in release evidence check source");
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
     // C0 (except tab, LF and CR), DEL and C1 controls can hide or distort source in CI logs and reviews.
