@@ -49,6 +49,11 @@ for (const name of checks) {
     if (/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(source)) {
       throw new Error("unexpected control character in release evidence check source");
     }
+    // Bare carriage returns can overwrite displayed log lines and obscure gate statements.
+    // CRLF is permitted for cross-platform checkouts; a standalone CR is not.
+    if (/\r(?!\n)/u.test(source)) {
+      throw new Error("standalone carriage return in release evidence check source");
+    }
     // Reject Unicode line/paragraph separators: tools disagree on whether these are line breaks,
     // which can hide statement boundaries in review output and release evidence logs.
     if (/[\u2028\u2029]/u.test(source)) {
