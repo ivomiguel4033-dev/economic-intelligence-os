@@ -29,6 +29,8 @@ for (const name of checks) {
     if (!metadata.isFile()) throw new Error("not a regular file or is a symbolic link");
     // Hard links can redirect writes through another path after validation.
     if (metadata.nlink !== 1) throw new Error("release evidence check must not be hard-linked");
+    // Shared runners must not execute validation scripts writable by group or other users.
+    if ((metadata.mode & 0o022) !== 0) throw new Error("release evidence check is group- or world-writable");
     // Bound source reads: an oversized gate must not exhaust runner memory during preflight.
     if (metadata.size > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
     // An empty JavaScript file exits successfully without running any assertions.
@@ -108,7 +110,7 @@ for (const name of checks) {
   // Refuse a gate modified after preflight instead of executing unvalidated code.
   try {
     const metadata = lstatSync(script);
-    if (!metadata.isFile() || metadata.nlink !== 1 || metadata.size > 2 * 1024 * 1024) throw new Error("gate is no longer a bounded, unlinked regular file");
+    if (!metadata.isFile() || metadata.nlink !== 1 || (metadata.mode & 0o022) !== 0 || metadata.size > 2 * 1024 * 1024) throw new Error("gate is no longer a bounded, unlinked regular file");
     // Recheck bytes read after metadata inspection: a concurrent write can grow the file.
     const currentBytes = readFileSync(script);
     if (currentBytes.length > 2 * 1024 * 1024) throw new Error("gate exceeds 2 MiB source limit after read");
@@ -157,7 +159,7 @@ for (const name of checks) {
     for (const checkedName of checks) {
       const checkedScript = fileURLToPath(new URL("./" + checkedName, import.meta.url));
       const metadata = lstatSync(checkedScript);
-      if (!metadata.isFile() || metadata.nlink !== 1 || metadata.size > 2 * 1024 * 1024) throw new Error(checkedName + ": no longer a bounded, unlinked regular file");
+      if (!metadata.isFile() || metadata.nlink !== 1 || (metadata.mode & 0o022) !== 0 || metadata.size > 2 * 1024 * 1024) throw new Error(checkedName + ": no longer a bounded, unlinked regular file");
       const bytes = readFileSync(checkedScript);
       // A gate may grow after lstatSync; enforce the same bound on actual bytes.
       if (bytes.length > 2 * 1024 * 1024) throw new Error(checkedName + ": exceeds 2 MiB source limit after execution");
