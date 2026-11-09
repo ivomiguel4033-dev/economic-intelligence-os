@@ -40,17 +40,16 @@ for (const name of checks) {
     if (sourceBytes.length > 2 * 1024 * 1024) throw new Error("release evidence check exceeds 2 MiB source limit");
     // Fail closed if the file changed size between stat and read.
     if (sourceBytes.length !== metadata.size) throw new Error("release evidence check size changed during preflight");
+    // Reject a leading BOM before decoding: TextDecoder strips it by default.
+    if (sourceBytes.length >= 3 && sourceBytes[0] === 0xef && sourceBytes[1] === 0xbb && sourceBytes[2] === 0xbf) {
+      throw new Error("UTF-8 BOM in release evidence check source");
+    }
     // Reject malformed UTF-8 instead of silently replacing bytes with U+FFFD.
     // Release evidence source must be unambiguous across runtimes and reviewers.
     const source = new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes);
     // Even well-formed UTF-8 can contain a literal replacement character, masking a
     // previously corrupted source byte sequence in copied or regenerated gate files.
     if (source.includes("\uFFFD")) throw new Error("Unicode replacement character in release evidence check source");
-    // TextDecoder strips a leading BOM by default, so inspect raw bytes instead.\n    // A leading BOM can be ignored by JavaScript parsers but displayed inconsistently
-    // by release evidence reviewers; require one canonical UTF-8 representation.
-    if (sourceBytes.length >= 3 && sourceBytes[0] === 0xef && sourceBytes[1] === 0xbb && sourceBytes[2] === 0xbf) {
-      throw new Error("UTF-8 BOM in release evidence check source");
-    }
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
     // C0 (except tab, LF and CR), DEL and C1 controls can hide or distort source in CI logs and reviews.
@@ -73,7 +72,7 @@ for (const name of checks) {
       throw new Error("bidirectional Unicode control character in release evidence check source");
     }
     // Invisible format and supplementary-plane Unicode tag characters can conceal changes to gate source.
-    if (/[\u00ad\u034f\u061c\u180e\u200b-\u200f\u2060-\u206f\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}]/u.test(source.replace(/^\ufeff/u, ""))) {
+    if (/[\u00ad\u034f\u061c\u180e\u200b-\u200f\u2060-\u206f\ufe00-\ufe0f\ufeff\u{e0000}-\u{e007f}]/u.test(source)) {
       throw new Error("invisible Unicode format character in release evidence check source");
     }
     // Conflict markers, including indented ones, indicate an unresolved merge and must never reach release gates.
