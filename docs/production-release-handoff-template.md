@@ -32,6 +32,9 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Stripe signed event, duplicate delivery and invalid signature (test mode) | NOT RUN | |
 | Error/latency/queue monitoring against approved baseline | NOT RUN | |
 | Rollback access, previous image and post-rollback smoke rehearsal | NOT RUN | |
+| Smoke-test command, exit status, UTC time, target environment and matching commit/image digest recorded | NOT RUN | |
+| Redacted evidence artifacts checksummed (SHA-256), access-restricted and retention approved | NOT RUN | |
+| Release freeze verified: no overlapping Railway deployments or unreviewed configuration changes | NOT RUN | |
 
 ## Decision and incident handoff
 
