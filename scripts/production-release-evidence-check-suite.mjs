@@ -46,9 +46,11 @@ for (const name of checks) {
     // Even well-formed UTF-8 can contain a literal replacement character, masking a
     // previously corrupted source byte sequence in copied or regenerated gate files.
     if (source.includes("\uFFFD")) throw new Error("Unicode replacement character in release evidence check source");
-    // A leading BOM can be ignored by JavaScript parsers but displayed inconsistently
+    // TextDecoder strips a leading BOM by default, so inspect raw bytes instead.\n    // A leading BOM can be ignored by JavaScript parsers but displayed inconsistently
     // by release evidence reviewers; require one canonical UTF-8 representation.
-    if (source.startsWith("\uFEFF")) throw new Error("UTF-8 BOM in release evidence check source");
+    if (sourceBytes.length >= 3 && sourceBytes[0] === 0xef && sourceBytes[1] === 0xbb && sourceBytes[2] === 0xbf) {
+      throw new Error("UTF-8 BOM in release evidence check source");
+    }
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
     // C0 (except tab, LF and CR), DEL and C1 controls can hide or distort source in CI logs and reviews.
