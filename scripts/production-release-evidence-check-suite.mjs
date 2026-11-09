@@ -152,7 +152,7 @@ for (const name of checks) {
     break;
   }
   const args = name.endsWith("-regression.mjs") ? [] : ["--self-test"];
-  console.log("Running release evidence check: " + name);
+  // Include the preflight-approved digest in CI logs so each gate execution can be\n  // matched to the exact source that passed syntax and integrity checks.\n  console.log("Running release evidence check: " + name + " (sha256=" + validatedHashes.get(name) + ")");
   const startedAt = Date.now();
   const result = spawnSync(process.execPath, [script, ...args], {
     // Release gates are non-interactive: do not inherit operator stdin.
