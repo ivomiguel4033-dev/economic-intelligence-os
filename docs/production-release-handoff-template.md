@@ -34,6 +34,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Error/latency/queue monitoring against approved baseline | NOT RUN | |
 | Alert routing tested: on-call and rollback owner acknowledge a synthetic critical alert within the agreed response window | NOT RUN | |
 | Rollback access, previous image and post-rollback smoke rehearsal | NOT RUN | |
+| Rollback drill timing: UTC trigger, rollback start, restored readiness, first successful authenticated smoke, measured recovery duration and approved RTO comparison | NOT RUN | |
 | Smoke-test command, exit status, UTC time, target environment and matching commit/image digest recorded | NOT RUN | |
 | Redacted evidence artifacts checksummed (SHA-256), access-restricted and retention approved | NOT RUN | |
 | Release freeze verified: no overlapping Railway deployments or unreviewed configuration changes | NOT RUN | |
