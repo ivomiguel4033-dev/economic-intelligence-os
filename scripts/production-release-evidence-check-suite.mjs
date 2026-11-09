@@ -50,6 +50,11 @@ for (const name of checks) {
     // Even well-formed UTF-8 can contain a literal replacement character, masking a
     // previously corrupted source byte sequence in copied or regenerated gate files.
     if (source.includes("\uFFFD")) throw new Error("Unicode replacement character in release evidence check source");
+    // Unicode noncharacters have no legitimate role in executable release gates and
+    // can render inconsistently in logs or code review tools.
+    if (/[\uFDD0-\uFDEF\uFFFE\uFFFF\u{1FFFE}\u{1FFFF}\u{2FFFE}\u{2FFFF}\u{3FFFE}\u{3FFFF}\u{4FFFE}\u{4FFFF}\u{5FFFE}\u{5FFFF}\u{6FFFE}\u{6FFFF}\u{7FFFE}\u{7FFFF}\u{8FFFE}\u{8FFFF}\u{9FFFE}\u{9FFFF}\u{AFFFE}\u{AFFFF}\u{BFFFE}\u{BFFFF}\u{CFFFE}\u{CFFFF}\u{DFFFE}\u{DFFFF}\u{EFFFE}\u{EFFFF}\u{FFFFE}\u{FFFFF}\u{10FFFE}\u{10FFFF}]/u.test(source)) {
+      throw new Error("Unicode noncharacter in release evidence check source");
+    }
     // NUL bytes are never valid in maintained JavaScript gate sources; reject binary contamination.
     if (source.includes("\0")) throw new Error("NUL byte in release evidence check source");
     // C0 (except tab, LF and CR), DEL and C1 controls can hide or distort source in CI logs and reviews.
