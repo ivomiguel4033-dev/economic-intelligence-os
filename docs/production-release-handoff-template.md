@@ -30,6 +30,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Primary AI URL, model and key configured; bounded provider smoke verified | NOT RUN | |
 | AI provider failure drill: timeout abort, failover, circuit breaker and no duplicate execution/cost verified with sanitized request IDs | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
+| Public HTTPS endpoint: valid certificate/hostname, enforced TLS, and no sensitive data in unauthenticated health responses | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
 | Migration compatibility with previous image and tested database restore | NOT RUN | |
 | Authorized tenant A request and cross-tenant denial | NOT RUN | |
