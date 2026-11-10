@@ -11,6 +11,7 @@ Copy this worksheet into the restricted release record for **each** candidate. T
 | PR #11 head SHA and branch HEAD SHA | NOT VERIFIED / NOT VERIFIED |
 | CI workflow run URL and successful conclusion for **that SHA** | NOT VERIFIED |
 | Immutable image digest and source commit | NOT VERIFIED |
+| Deployed image digest from Railway runtime and comparison with approved digest | NOT VERIFIED |
 | Railway project / environment / **web** service | NOT VERIFIED |
 | Current live deployment ID and previous known-good image digest | NOT VERIFIED |
 | Approved monitoring window and rollback thresholds | NOT APPROVED |
@@ -28,6 +29,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | OIDC JWKS rotation rehearsal: old/new key overlap, unknown `kid` rejection, expired token rejection and recovery without disabling authentication | NOT RUN | |
 | Primary AI URL, model and key configured; bounded provider smoke verified | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
+| Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
 | Migration compatibility with previous image and tested database restore | NOT RUN | |
 | Authorized tenant A request and cross-tenant denial | NOT RUN | |
 | Stripe signed event, duplicate delivery and invalid signature (test mode) | NOT RUN | |
