@@ -32,6 +32,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | AI provider failure drill: timeout abort, failover, circuit breaker and no duplicate execution/cost verified with sanitized request IDs | NOT RUN | |
 | AI primary API key rotation rehearsal in isolation: old key revoked, replacement accepted, unauthorized provider responses fail closed, and no credential appears in logs | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
+| Railway pre-deploy command parity: verify `railway.json` runs production preflight before migrations, fails on either nonzero exit, and starts only the reviewed web entrypoint; capture exact config revision | NOT RUN | |
 | Public HTTPS endpoint: valid certificate/hostname, enforced TLS, and no sensitive data in unauthenticated health responses | NOT RUN | |
 | Health/readiness cache safety: verify reverse proxy/CDN does not serve stale readiness after database failure or deployment switch; record Cache-Control and observed response against active deployment | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
