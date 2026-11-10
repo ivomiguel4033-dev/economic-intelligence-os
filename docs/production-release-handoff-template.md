@@ -34,6 +34,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Public HTTPS endpoint: valid certificate/hostname, enforced TLS, and no sensitive data in unauthenticated health responses | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
 | Migration compatibility with previous image and tested database restore | NOT RUN | |
+| Railway pre-deploy migration failure drill in isolation: nonzero migration exit blocks web promotion, existing healthy deployment remains serving, and no legacy worker starts | NOT RUN | |
 | Authorized tenant A request and cross-tenant denial | NOT RUN | |
 | Stripe signed event, duplicate delivery and invalid signature (test mode) | NOT RUN | |
 | Error/latency/queue monitoring against approved baseline | NOT RUN | |
