@@ -264,7 +264,7 @@ assert.ok(
    const empty = responseMode === "empty";
    const headers = { "Content-Length": noContent || empty ? "0" : String(Buffer.byteLength(body)) };
    if (responseMode !== "missing-type") headers["Content-Type"] = contentType;
-   const statusCode = responseMode === "created" ? 201 : responseMode === "partial-content" ? 206 : responseMode === "redirect" ? 302 : responseMode === "server-error" ? 500 : responseMode === "unavailable" ? 503 : responseMode === "rate-limited" ? 429 : responseMode === "unauthorized" ? 401 : responseMode === "forbidden" ? 403 : noContent ? 204 : 200;
+   const statusCode = responseMode === "created" ? 201 : responseMode === "partial-content" ? 206 : responseMode === "redirect" ? 302 : responseMode === "server-error" ? 500 : responseMode === "bad-gateway" ? 502 : responseMode === "gateway-timeout" ? 504 : responseMode === "unavailable" ? 503 : responseMode === "rate-limited" ? 429 : responseMode === "unauthorized" ? 401 : responseMode === "forbidden" ? 403 : noContent ? 204 : 200;
    response.writeHead(statusCode, headers);
    response.end(noContent || empty ? undefined : body);
  });
@@ -317,6 +317,8 @@ assert.ok(
      ["partial-content", false],
      ["redirect", false],
      ["server-error", false],
+     ["bad-gateway", false],
+     ["gateway-timeout", false],
      ["unavailable", false],
      ["rate-limited", false],
      ["unauthorized", false],
