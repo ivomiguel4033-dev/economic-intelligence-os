@@ -33,6 +33,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | AI primary API key rotation rehearsal in isolation: old key revoked, replacement accepted, unauthorized provider responses fail closed, and no credential appears in logs | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
 | Public HTTPS endpoint: valid certificate/hostname, enforced TLS, and no sensitive data in unauthenticated health responses | NOT RUN | |
+| Health/readiness cache safety: verify reverse proxy/CDN does not serve stale readiness after database failure or deployment switch; record Cache-Control and observed response against active deployment | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
 | Migration compatibility with previous image and tested database restore | NOT RUN | |
 | Railway pre-deploy migration failure drill in isolation: nonzero migration exit blocks web promotion, existing healthy deployment remains serving, and no legacy worker starts | NOT RUN | |
