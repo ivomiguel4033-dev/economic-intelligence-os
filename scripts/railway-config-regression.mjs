@@ -7,6 +7,21 @@ import { promisify } from "node:util";
 const railway = JSON.parse(fs.readFileSync("railway.json", "utf8"));
 const dockerfile = fs.readFileSync("Dockerfile", "utf8");
 
+// Reject unexpected top-level/build options as well as deploy options. These
+// can redirect builds to another source or silently change release behavior.
+assert.ok(railway && typeof railway === "object" && !Array.isArray(railway),
+  "Railway configuration must be an object");
+for (const key of Object.keys(railway)) {
+  assert.ok(new Set(["$schema", "build", "deploy"]).has(key),
+    "Unreviewed Railway top-level setting: " + key);
+}
+assert.ok(railway.build && typeof railway.build === "object" && !Array.isArray(railway.build),
+  "Railway build configuration must be an object");
+for (const key of Object.keys(railway.build)) {
+  assert.ok(new Set(["builder", "dockerfilePath"]).has(key),
+    "Unreviewed Railway build setting: " + key);
+}
+
 assert.equal(
   railway.build?.builder,
   "DOCKERFILE",
