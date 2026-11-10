@@ -18,6 +18,22 @@ assert.equal(
   "Railway Dockerfile path must remain explicit",
 );
 
+// Fail closed if a future config introduces an unreviewed deployment behavior.
+// In particular, cron scheduling or an alternate healthcheck/start path must
+// never silently bypass the reviewed web-only release procedure.
+const allowedDeployKeys = new Set([
+  "preDeployCommand", "startCommand", "healthcheckPath",
+  "healthcheckTimeout", "drainingSeconds", "restartPolicyType",
+  "restartPolicyMaxRetries",
+]);
+assert.ok(
+  railway.deploy && typeof railway.deploy === "object" && !Array.isArray(railway.deploy),
+  "Railway deploy configuration must be an object",
+);
+for (const key of Object.keys(railway.deploy)) {
+  assert.ok(allowedDeployKeys.has(key), "Unreviewed Railway deploy setting: " + key);
+}
+
 assert.equal(
   railway.deploy?.preDeployCommand,
   "node scripts/production-preflight.mjs && npm run migrate",
