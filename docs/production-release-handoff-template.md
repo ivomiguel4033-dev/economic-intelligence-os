@@ -30,6 +30,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | OIDC JWKS rotation rehearsal: old/new key overlap, unknown `kid` rejection, expired token rejection and recovery without disabling authentication | NOT RUN | |
 | Primary AI URL, model and key configured; bounded provider smoke verified | NOT RUN | |
 | AI provider failure drill: timeout abort, failover, circuit breaker and no duplicate execution/cost verified with sanitized request IDs | NOT RUN | |
+| AI primary API key rotation rehearsal in isolation: old key revoked, replacement accepted, unauthorized provider responses fail closed, and no credential appears in logs | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
 | Public HTTPS endpoint: valid certificate/hostname, enforced TLS, and no sensitive data in unauthenticated health responses | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
