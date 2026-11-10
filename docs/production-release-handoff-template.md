@@ -44,6 +44,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Post-rollback durable outbox/lease and Stripe webhook replay compatibility: isolated duplicate-event test, tenant binding, queue/dead-letter baseline, and legacy worker confirmed inactive | NOT RUN | |
 | Rollback drill timing: UTC trigger, rollback start, restored readiness, first successful authenticated smoke, measured recovery duration and approved RTO comparison | NOT RUN | |
 | Smoke-test command, exit status, UTC time, target environment and matching commit/image digest recorded | NOT RUN | |
+| Smoke evidence freshness: all post-deploy checks executed against the final active deployment ID after the last config/image change; any intervening redeploy invalidates prior PASS results | NOT RUN | |
 | Redacted evidence artifacts checksummed (SHA-256), access-restricted and retention approved | NOT RUN | |
 | Release freeze verified: no overlapping Railway deployments or unreviewed configuration changes | NOT RUN | |
 
