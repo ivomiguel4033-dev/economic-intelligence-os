@@ -26,6 +26,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | --- | --- | --- |
 | Railway's 14 legacy staged changes individually reconciled; legacy worker inactive | NOT RUN | |
 | Production OIDC issuer, audience, JWKS and invalid-token denial verified | NOT RUN | |
+| OIDC JWKS outage drill in isolated environment: uncached/unknown signing keys denied, cached verified keys obey expiry policy, recovery confirmed without fail-open authentication | NOT RUN | |
 | OIDC JWKS rotation rehearsal: old/new key overlap, unknown `kid` rejection, expired token rejection and recovery without disabling authentication | NOT RUN | |
 | Primary AI URL, model and key configured; bounded provider smoke verified | NOT RUN | |
 | AI provider failure drill: timeout abort, failover, circuit breaker and no duplicate execution/cost verified with sanitized request IDs | NOT RUN | |
