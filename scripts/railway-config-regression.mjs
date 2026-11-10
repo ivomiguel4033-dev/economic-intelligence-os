@@ -15,6 +15,11 @@ for (const key of Object.keys(railway)) {
   assert.ok(new Set(["$schema", "build", "deploy"]).has(key),
     "Unreviewed Railway top-level setting: " + key);
 }
+assert.equal(
+  railway.$schema,
+  "https://railway.com/railway.schema.json",
+  "Railway schema must remain pinned to the reviewed official schema URL",
+);
 assert.ok(railway.build && typeof railway.build === "object" && !Array.isArray(railway.build),
   "Railway build configuration must be an object");
 for (const key of Object.keys(railway.build)) {
