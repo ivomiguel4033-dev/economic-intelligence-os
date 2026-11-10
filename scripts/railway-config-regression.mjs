@@ -191,9 +191,9 @@ assert.ok(
  const [binary, flag, probeScript] = healthcheckArgs;
  assert.equal(typeof probeScript, "string", "Docker healthcheck probe must be a script string");
  assert.deepEqual([binary, flag], ["node", "-e"], "Docker healthcheck must use node -e");
- assert.match(probeScript, /host:\s*[\x27\x22]127\\.0\\.0\\.1[\x27\x22]/,
+ assert.match(probeScript, /host:\s*[\x27\x22]127\.0\.0\.1[\x27\x22]/,
    "Docker liveness must probe loopback, never an external endpoint");
- assert.match(probeScript, /path:\s*[\x27\x22]\\/api\\/health[\x27\x22]/,
+ assert.match(probeScript, /path:\s*[\x27\x22]\/api\/health[\x27\x22]/,
    "Docker liveness must target the local health endpoint");
  assert.match(probeScript, /timeout:\s*4000/,
    "Docker liveness request timeout must remain below the 5s container deadline");
