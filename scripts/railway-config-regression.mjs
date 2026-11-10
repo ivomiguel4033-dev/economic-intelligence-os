@@ -192,6 +192,15 @@ assert.ok(
 
    const contentType = responseMode === "html" ? "text/html" : responseMode === "problem-json" ? "application/problem+json" : responseMode === "json-seq" ? "application/json-seq" : responseMode === "plain-text" ? "text/plain" : responseMode === "uppercase-json" ? "APPLICATION/JSON; charset=utf-8" : "application/json; charset=utf-8";
    const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, timestamp: new Date().toISOString() };
+   if (responseMode === "aborted-chunked") {
+     // An interrupted chunked transfer has no declared Content-Length.
+     // A valid-looking JSON prefix must not be accepted without a complete response.
+     response.writeHead(200, { "Content-Type": contentType });
+     response.flushHeaders();
+     response.write(JSON.stringify(healthy));
+     setTimeout(() => response.socket?.destroy(), 50);
+     return;
+   }
    if (responseMode === "truncated") {
      response.writeHead(200, { "Content-Length": "100", "Content-Type": contentType });
      response.flushHeaders();
@@ -369,6 +378,7 @@ assert.ok(
      ["null-timestamp", false],
      ["empty-timestamp", false],
      ["truncated", false],
+     ["aborted-chunked", false],
    ]) {
      responseMode = mode;
      assert.equal(await runHealthcheck(), expected,
