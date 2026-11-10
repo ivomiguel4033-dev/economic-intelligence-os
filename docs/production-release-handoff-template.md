@@ -28,6 +28,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Production OIDC issuer, audience, JWKS and invalid-token denial verified | NOT RUN | |
 | OIDC JWKS rotation rehearsal: old/new key overlap, unknown `kid` rejection, expired token rejection and recovery without disabling authentication | NOT RUN | |
 | Primary AI URL, model and key configured; bounded provider smoke verified | NOT RUN | |
+| AI provider failure drill: timeout abort, failover, circuit breaker and no duplicate execution/cost verified with sanitized request IDs | NOT RUN | |
 | Production preflight and database-aware readiness on target deployment | NOT RUN | |
 | Runtime-deployed image digest matches CI-approved immutable digest (not just the tag) | NOT RUN | |
 | Migration compatibility with previous image and tested database restore | NOT RUN | |
