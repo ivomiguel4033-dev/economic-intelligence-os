@@ -15,6 +15,25 @@ for (const key of Object.keys(railway)) {
   assert.ok(new Set(["$schema", "build", "deploy"]).has(key),
     "Unreviewed Railway top-level setting: " + key);
 }
+// Railway config is committed to Git: credentials must only come from the
+// Railway environment, never from an inline variables/secrets configuration.
+function assertNoInlineCredentials(value, location = "railway") {
+  if (!value || typeof value !== "object") return;
+  for (const [key, nested] of Object.entries(value)) {
+    assert.ok(!/(?:secret|token|password|api[_-]?key|credential|private[_-]?key)/i.test(key),
+      "Potential inline credential in Railway configuration at " + location + "." + key);
+    assertNoInlineCredentials(nested, location + "." + key);
+  }
+}
+assertNoInlineCredentials(railway);
+for (const unsafe of [
+  { build: { apiKey: "test-only" } },
+  { deploy: { nested: { password: "test-only" } } },
+]) {
+  assert.throws(() => assertNoInlineCredentials(unsafe), /Potential inline credential/,
+    "Inline credential regression must fail closed");
+}
+
 assert.equal(
   railway.$schema,
   "https://railway.com/railway.schema.json",
