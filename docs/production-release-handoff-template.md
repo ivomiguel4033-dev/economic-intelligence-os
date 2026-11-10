@@ -47,6 +47,7 @@ Record **PASS**, **FAIL** or **NOT RUN** for each gate, with a sanitized evidenc
 | Smoke evidence freshness: all post-deploy checks executed against the final active deployment ID after the last config/image change; any intervening redeploy invalidates prior PASS results | NOT RUN | |
 | Redacted evidence artifacts checksummed (SHA-256), access-restricted and retention approved | NOT RUN | |
 | Release freeze verified: no overlapping Railway deployments or unreviewed configuration changes | NOT RUN | |
+| Configuration drift check: sanitized Railway web variable-name inventory and deployment configuration revision captured before preflight and rechecked immediately before promotion; unexpected additions, removals or revisions invalidate approval | NOT RUN | |
 
 ## Decision and incident handoff
 
