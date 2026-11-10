@@ -172,6 +172,11 @@ assert.ok(
  // A 200 header followed by a truncated response must never mark a container healthy.
  const healthcheckLine = dockerfile.split("\n").find((line) => line.startsWith("HEALTHCHECK "));
  assert.ok(healthcheckLine, "Docker liveness healthcheck must be configured");
+ assert.ok(
+   /^HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD \[/.test(healthcheckLine),
+   "Docker liveness must retain bounded 30s interval, 5s timeout, 20s startup grace and three retries",
+ );
+
  const cmdMarker = " CMD ";
  assert.ok(healthcheckLine.includes(cmdMarker), "Docker healthcheck must use exec-form CMD");
  const healthcheckJson = healthcheckLine.slice(healthcheckLine.indexOf(cmdMarker) + cmdMarker.length);
