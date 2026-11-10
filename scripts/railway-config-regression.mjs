@@ -203,6 +203,12 @@ assert.ok(
 
    const contentType = responseMode === "html" ? "text/html" : responseMode === "problem-json" ? "application/problem+json" : responseMode === "json-seq" ? "application/json-seq" : responseMode === "plain-text" ? "text/plain" : responseMode === "uppercase-json" ? "APPLICATION/JSON; charset=utf-8" : "application/json; charset=utf-8";
    const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, timestamp: new Date().toISOString() };
+   if (responseMode === "stalled-body") {
+     // A 200 JSON response that never completes must fail the bounded probe.
+     response.writeHead(200, { "Content-Type": contentType });
+     response.flushHeaders();
+     return;
+   }
    if (responseMode === "aborted-chunked") {
      // An interrupted chunked transfer has no declared Content-Length.
      // A valid-looking JSON prefix must not be accepted without a complete response.
@@ -390,6 +396,7 @@ assert.ok(
      ["empty-timestamp", false],
      ["truncated", false],
      ["aborted-chunked", false],
+     ["stalled-body", false],
    ]) {
      responseMode = mode;
      assert.equal(await runHealthcheck(), expected,
