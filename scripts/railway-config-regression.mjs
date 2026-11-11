@@ -245,6 +245,7 @@ assert.ok(
    const variants = {
      "invalid-json": "{",
      "whitespace-json": "   \n\t  ",
+     "duplicate-json": JSON.stringify(healthy) + JSON.stringify(healthy),
      "padded-valid-json": " \n" + JSON.stringify(healthy) + "\t ",
      "null-json": "null",
      "array-json": "[]",
@@ -371,6 +372,7 @@ assert.ok(
      ["missing-type", false],
      ["invalid-json", false],
      ["whitespace-json", false],
+     ["duplicate-json", false],
      ["padded-valid-json", true],
      ["null-json", false],
      ["array-json", false],
