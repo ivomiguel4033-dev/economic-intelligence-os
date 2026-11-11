@@ -44,6 +44,8 @@ Copy this template into the approved private release/incident tracking system fo
 - Unauthenticated protected request: denied as expected (status, time):
 - Authorized protected request: passed (status, time; no response payload):
 - Tenant isolation validation: passed (test reference; no tenant data):
+- Cross-tenant negative smoke: authenticated principal for tenant A must be denied access to a tenant B resource; record only expected/actual HTTP status, UTC time and test reference (never tenant IDs or resource contents):
+- Verify the negative smoke cannot mutate data; use an approved read-only fixture and stop on any unexpected access grant:
 - Minimal approved AI provider request: passed (latency/status; no prompt or credentials):
 - Observation window start/end (UTC), agreed minimum duration, and monitoring dashboard/reference:
 - Pre-deploy baseline and approved rollback thresholds for 5xx rate, p95 latency, database errors, and AI-provider failures (include units and measurement window):
