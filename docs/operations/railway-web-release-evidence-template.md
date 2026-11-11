@@ -23,6 +23,7 @@ Copy this template into the approved private release/incident tracking system fo
 | Legacy worker remains inactive | | |
 | OIDC issuer, audience, JWKS configured and validated without exposing secrets | | |
 | Primary AI endpoint, key and model configured and validated without exposing secrets | | |
+| AI provider failure-mode drill passed in isolated pre-production (timeout, rate limit, invalid response); no production fault injection | | |
 | Production preflight passed in target environment | | |
 | Database backup verified and restore procedure rehearsed | | |
 | Migrations reviewed for compatibility with previous application version | | |
@@ -49,6 +50,7 @@ Copy this template into the approved private release/incident tracking system fo
 - Cross-tenant negative smoke: authenticated principal for tenant A must be denied access to a tenant B resource; record only expected/actual HTTP status, UTC time and test reference (never tenant IDs or resource contents):
 - Verify the negative smoke cannot mutate data; use an approved read-only fixture and stop on any unexpected access grant:
 - Minimal approved AI provider request: passed (latency/status; no prompt or credentials):
+- Pre-production AI failure-mode drill reference: record isolated environment, tested timeout/429/malformed response, expected bounded retry/failover or controlled error, actual result, and confirmation that requests were aborted without duplicate side effects or leaked secrets. Never deliberately break the live production provider:
 - Observation window start/end (UTC), agreed minimum duration, and monitoring dashboard/reference:
 - Pre-deploy baseline and approved rollback thresholds for 5xx rate, p95 latency, database errors, and AI-provider failures (include units and measurement window):
 - Observed values for each threshold during the window, including source and UTC timestamp; mark missing telemetry as NOT VERIFIED:
