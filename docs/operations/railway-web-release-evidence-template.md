@@ -10,7 +10,7 @@ Copy this template into the approved private release/incident tracking system fo
 - Reviewed branch HEAD (full SHA):
 - GitHub Actions run URL, conclusion, and checked SHA:
 - Railway environment / web service:
-- Candidate deployment ID and image digest:
+- Candidate deployment ID and immutable image digest (verified against reviewed CI build):
 - Previous known-good deployment ID, commit SHA, image digest:
 - Previous configuration snapshot location (restricted access):
 
@@ -19,6 +19,7 @@ Copy this template into the approved private release/incident tracking system fo
 | Gate | Result | Evidence reference |
 | --- | --- | --- |
 | CI successful for the exact reviewed SHA | | |
+| Deployment image digest matches the reviewed CI artifact and intended Railway web revision (no mutable-tag-only evidence) | | |
 | Railway pending configuration diff reconciled individually; no legacy staged batch | | |
 | Legacy worker remains inactive | | |
 | OIDC issuer, audience, JWKS configured and validated without exposing secrets | | |
