@@ -145,6 +145,24 @@ assert.match(
   /COPY --chown=node:node --from=builder \/app\/db \.\/db/,
   "Production image database migrations must be present for Railway pre-deploy",
 );
+// Keep the runtime port and production mode explicit: a drifted image can pass
+// build CI but fail Railway traffic routing or silently run in dev mode.
+assert.match(
+  dockerfile,
+  /^ENV NODE_ENV=production$/m,
+  "Production image must set NODE_ENV=production",
+);
+assert.match(
+  dockerfile,
+  /^ENV PORT=3000$/m,
+  "Production image must use the reviewed default port",
+);
+assert.match(
+  dockerfile,
+  /^EXPOSE 3000$/m,
+  "Production image must expose the same port as its runtime",
+);
+
 assert.match(
   dockerfile,
   /USER node/,
