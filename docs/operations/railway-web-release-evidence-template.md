@@ -41,6 +41,8 @@ Copy this template into the approved private release/incident tracking system fo
 - `GET /api/ready` (database readiness) HTTP status and time:
 - Verify both endpoints return **HTTP 200**, not redirects or another 2xx status; capture their response times separately. If readiness is non-200, mark the release **HOLD** or **ROLLBACK** rather than treating liveness as sufficient.
 - During the observation window, repeat readiness after the initial healthy response; record any regression to non-200, its duration, and the deployment decision. Never record credentials, response bodies, or tenant identifiers in the evidence.
+- OIDC negative authentication smoke: missing token, invalid signature, wrong issuer, and wrong audience must each be denied; record expected/actual HTTP status and UTC time using approved synthetic tokens only (never log tokens):
+- OIDC key-rotation readiness: verify the documented JWKS refresh/recovery path and issuer availability without changing production signing keys; record evidence or NOT VERIFIED:
 - Unauthenticated protected request: denied as expected (status, time):
 - Authorized protected request: passed (status, time; no response payload):
 - Tenant isolation validation: passed (test reference; no tenant data):
