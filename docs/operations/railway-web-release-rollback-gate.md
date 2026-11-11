@@ -25,6 +25,14 @@ legacy worker service without a reviewed current worker entrypoint.
 5. Record the current healthy Railway deployment ID, image/commit SHA, and
    deployment configuration snapshot in the release record. Identify the
    operator authorized to restore that exact deployment.
+6. Before GO, perform a non-destructive rollback dry run: verify that the
+   recorded previous deployment remains selectable in Railway, its required
+   configuration snapshot is accessible to the authorized operator, and the
+   previous binary is compatible with the post-migration schema. Record the
+   rehearsal time, operator, evidence reference, and expected recovery time.
+   Do not actually switch production traffic during this rehearsal. A missing
+   deployment, inaccessible snapshot, or unverified schema compatibility is
+   NO GO.
 
 ## Controlled deployment
 
