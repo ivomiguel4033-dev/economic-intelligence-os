@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { gzipSync } from "node:zlib";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -203,6 +204,13 @@ assert.ok(
 
    const contentType = responseMode === "html" ? "text/html" : responseMode === "problem-json" ? "application/problem+json" : responseMode === "json-seq" ? "application/json-seq" : responseMode === "plain-text" ? "text/plain" : responseMode === "uppercase-json" ? "APPLICATION/JSON; charset=utf-8" : "application/json; charset=utf-8";
    const healthy = { service: "economic-intelligence-os", status: "ok", checks: { application: "ok" }, timestamp: new Date().toISOString() };
+   if (responseMode === "compressed-json") {
+     // Compressed JSON is not a valid uncompressed liveness payload.
+     const body = gzipSync(Buffer.from(JSON.stringify(healthy)));
+     response.writeHead(200, { "Content-Type": contentType, "Content-Encoding": "gzip", "Content-Length": String(body.length) });
+     response.end(body);
+     return;
+   }
    if (responseMode === "stalled-body") {
      // A 200 JSON response that never completes must fail the bounded probe.
      response.writeHead(200, { "Content-Type": contentType });
@@ -355,6 +363,7 @@ assert.ok(
      ["not-found", false],
      ["request-timeout", false],
      ["html", false],
+     ["compressed-json", false],
      ["problem-json", false],
      ["json-seq", false],
      ["plain-text", false],
