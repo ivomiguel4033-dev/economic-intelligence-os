@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { IdentityVerifier, VerifiedIdentity } from "@/security/identity";
-import type { AuthAssurance } from "@/security/step-up-auth";
+import { assuranceFromClaims, parseOidcJwksUrl } from "@/security/oidc";
 
 export interface OIDCVerifierConfig {
   issuer: string;
@@ -9,25 +9,11 @@ export interface OIDCVerifierConfig {
   providerName: string;
 }
 
-function assuranceFromClaims(amr: unknown, acr: unknown): AuthAssurance {
-  const methods = Array.isArray(amr) ? amr.map(String) : [];
-  const acrValue = typeof acr === "string" ? acr.toLowerCase() : "";
-  if (methods.some((m) => ["webauthn", "hwk", "fido", "fido2"].includes(m.toLowerCase())) || /phishing|aal3|phr/.test(acrValue)) {
-    return "phishing-resistant";
-  }
-  if (methods.some((m) => ["mfa", "otp", "totp", "sms"].includes(m.toLowerCase())) || /mfa|aal2/.test(acrValue)) {
-    return "mfa";
-  }
-  return "password";
-}
-
 export class OIDCVerifier implements IdentityVerifier {
   private readonly jwks;
 
   constructor(private readonly config: OIDCVerifierConfig) {
-    const jwksUrl = new URL(config.jwksUrl);
-    if (jwksUrl.protocol !== "https:") throw new Error("OIDC JWKS URL must use HTTPS");
-    this.jwks = createRemoteJWKSet(jwksUrl);
+    this.jwks = createRemoteJWKSet(parseOidcJwksUrl(config.jwksUrl));
   }
 
   async verify(token: string): Promise<VerifiedIdentity> {
