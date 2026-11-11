@@ -39,6 +39,8 @@ Copy this template into the approved private release/incident tracking system fo
 - Railway deployment URL/ID (restricted if necessary):
 - `GET /api/health` (liveness) HTTP status and time:
 - `GET /api/ready` (database readiness) HTTP status and time:
+- Verify both endpoints return **HTTP 200**, not redirects or another 2xx status; capture their response times separately. If readiness is non-200, mark the release **HOLD** or **ROLLBACK** rather than treating liveness as sufficient.
+- During the observation window, repeat readiness after the initial healthy response; record any regression to non-200, its duration, and the deployment decision. Never record credentials, response bodies, or tenant identifiers in the evidence.
 - Unauthenticated protected request: denied as expected (status, time):
 - Authorized protected request: passed (status, time; no response payload):
 - Tenant isolation validation: passed (test reference; no tenant data):
