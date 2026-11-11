@@ -45,7 +45,11 @@ Copy this template into the approved private release/incident tracking system fo
 - Authorized protected request: passed (status, time; no response payload):
 - Tenant isolation validation: passed (test reference; no tenant data):
 - Minimal approved AI provider request: passed (latency/status; no prompt or credentials):
+- Observation window start/end (UTC), agreed minimum duration, and monitoring dashboard/reference:
+- Pre-deploy baseline and approved rollback thresholds for 5xx rate, p95 latency, database errors, and AI-provider failures (include units and measurement window):
+- Observed values for each threshold during the window, including source and UTC timestamp; mark missing telemetry as NOT VERIFIED:
 - Error rate, latency, database and AI-provider metrics observation interval:
+- Any threshold breach: time, incident reference, HOLD/ROLLBACK decision, and approver:
 - Smoke test operator:
 - Post-deploy decision: ACCEPT / ROLLBACK / HOLD
 
