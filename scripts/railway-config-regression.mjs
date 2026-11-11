@@ -145,20 +145,29 @@ assert.match(
   /COPY --chown=node:node --from=builder \/app\/db \.\/db/,
   "Production image database migrations must be present for Railway pre-deploy",
 );
+// Assert against the final runtime stage, not the entire multi-stage Dockerfile:
+// a builder-only ENV could otherwise satisfy the check while the deployed
+// image silently runs with the wrong environment or port.
+const runtimeStages = dockerfile.split(/^FROM\\s+[^\\r\\n]+\\s+AS\\s+runner\\s*$/im);
+assert.equal(runtimeStages.length, 2,
+  "Dockerfile must define exactly one named runner stage");
+const runtimeDockerfile = runtimeStages[1];
+assert.match(runtimeDockerfile, /^USER node$/m,
+  "Production runner must explicitly switch to non-root");
 // Keep the runtime port and production mode explicit: a drifted image can pass
 // build CI but fail Railway traffic routing or silently run in dev mode.
 assert.match(
-  dockerfile,
+  runtimeDockerfile,
   /^ENV NODE_ENV=production$/m,
   "Production image must set NODE_ENV=production",
 );
 assert.match(
-  dockerfile,
+  runtimeDockerfile,
   /^ENV PORT=3000$/m,
   "Production image must use the reviewed default port",
 );
 assert.match(
-  dockerfile,
+  runtimeDockerfile,
   /^EXPOSE 3000$/m,
   "Production image must expose the same port as its runtime",
 );
