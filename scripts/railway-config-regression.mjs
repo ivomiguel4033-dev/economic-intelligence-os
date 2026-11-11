@@ -298,6 +298,9 @@ assert.ok(
     // Date.parse accepts or normalizes the supplied representation.
     "invalid-calendar-timestamp": JSON.stringify({ ...healthy, timestamp: "2026-02-30T12:00:00.000Z" }),
     "microsecond-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace("Z", "000Z") }),
+    // Reject timestamps that Date.parse might normalize rather than accepting canonical UTC. 
+    "padded-timestamp": JSON.stringify({ ...healthy, timestamp: " " + healthy.timestamp + " " }),
+    "lowercase-utc-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace(/Z$/, "z") }),
     "numeric-timestamp": JSON.stringify({ ...healthy, timestamp: Date.now() }),
     "null-timestamp": JSON.stringify({ ...healthy, timestamp: null }),
     "empty-timestamp": JSON.stringify({ ...healthy, timestamp: "" }),
@@ -444,7 +447,9 @@ assert.ok(
      ["no-milliseconds-timestamp", false],
      ["invalid-calendar-timestamp", false],
      ["microsecond-timestamp", false],
-     ["numeric-timestamp", false],
+     ["padded-timestamp", false],
+    ["lowercase-utc-timestamp", false],
+    ["numeric-timestamp", false],
      ["null-timestamp", false],
      ["empty-timestamp", false],
      ["truncated", false],
