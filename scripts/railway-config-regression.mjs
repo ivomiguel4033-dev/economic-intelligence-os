@@ -292,6 +292,10 @@ assert.ok(
     // ISO-8601 representations must match the canonical UTC millisecond format.
     "offset-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace("Z", "+00:00") }),
     "no-milliseconds-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace(/\.\d{3}Z$/, "Z") }),
+    // Reject calendar rollover and non-canonical fractional precision even when
+    // Date.parse accepts or normalizes the supplied representation.
+    "invalid-calendar-timestamp": JSON.stringify({ ...healthy, timestamp: "2026-02-30T12:00:00.000Z" }),
+    "microsecond-timestamp": JSON.stringify({ ...healthy, timestamp: healthy.timestamp.replace("Z", "000Z") }),
     "numeric-timestamp": JSON.stringify({ ...healthy, timestamp: Date.now() }),
     "null-timestamp": JSON.stringify({ ...healthy, timestamp: null }),
     "empty-timestamp": JSON.stringify({ ...healthy, timestamp: "" }),
@@ -434,6 +438,8 @@ assert.ok(
      ["invalid-timestamp", false],
      ["offset-timestamp", false],
      ["no-milliseconds-timestamp", false],
+     ["invalid-calendar-timestamp", false],
+     ["microsecond-timestamp", false],
      ["numeric-timestamp", false],
      ["null-timestamp", false],
      ["empty-timestamp", false],
