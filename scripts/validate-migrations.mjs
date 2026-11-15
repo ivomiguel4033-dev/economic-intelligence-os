@@ -1,7 +1,11 @@
 import { readdir } from "node:fs/promises";
 
 const dir = new URL("../db/migrations/", import.meta.url);
-const files = (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort();
+const entries = (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.name.endsWith(".sql"));
+for (const entry of entries) {
+  if (!entry.isFile()) throw new Error(`Migration must be a regular file: ${entry.name}`);
+}
+const files = entries.map((entry) => entry.name).sort();
 if (files.length === 0) throw new Error("Migration directory must contain at least one SQL migration");
 const seenNumbers = new Set();
 const seenNames = new Set();
