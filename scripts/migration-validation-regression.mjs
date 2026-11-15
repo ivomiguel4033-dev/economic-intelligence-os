@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, cp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, cp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -73,6 +73,16 @@ try {
   await reset();
   result = await validate(["001_Create-Tenants.sql"]);
   assert(result.status !== 0 && /NNN_snake_case/.test(result.output), "Non-canonical migration names must fail closed");
+  await reset();
+  await mkdir(join(migrationsDir, "001_directory.sql"));
+  result = await validate([]);
+  assert(result.status !== 0 && /must be a regular file/.test(result.output), "SQL directory must fail closed");
+
+  await reset();
+  await writeFile(join(root, "external.sql"), "-- fixture\n");
+  await symlink(join(root, "external.sql"), join(migrationsDir, "001_link.sql"));
+  result = await validate([]);
+  assert(result.status !== 0 && /must be a regular file/.test(result.output), "SQL symlink must fail closed");
 } finally {
   await rm(root, { recursive: true, force: true });
 }
