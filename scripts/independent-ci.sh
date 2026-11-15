@@ -11,8 +11,17 @@ docker info >/dev/null
 # Never use production credentials or a shared database.
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_test
 export NEXT_TELEMETRY_DISABLED=1
-db="eios-ci-$$"
-cleanup() { docker rm -f "$db" >/dev/null 2>&1 || true; }
+# Reject inherited credentials and runtime overrides before executing any test.
+for name in $(compgen -e); do
+  case "${name^^}" in
+    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*)
+      echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
+  esac
+done
+db="eios-ci-$"
+image="economic-intelligence-os:ci-$"
+export image
+cleanup() { docker rm -f "$db" >/dev/null 2>&1 || true; docker image rm "$image" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker run -d --name "$db" -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
 for i in {1..60}; do
@@ -143,12 +152,12 @@ npm run test:production-readiness
 EIOS_STEP_28
 echo 'CI step 30/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_29'
-docker build --tag economic-intelligence-os:ci .
+docker build --tag "$image" .
 EIOS_STEP_29
 echo 'CI step 31/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_30'
 node scripts/production-image-contract.mjs --self-test
-node scripts/production-image-contract.mjs economic-intelligence-os:ci
+node scripts/production-image-contract.mjs "$image"
 EIOS_STEP_30
 echo 'CI step 32/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_31'
@@ -163,7 +172,7 @@ docker run --rm \
   -e AI_PRIMARY_BASE_URL=https://api.example.com/v1 \
   -e AI_PRIMARY_API_KEY=test-provider-key \
   -e AI_PRIMARY_MODEL=reasoning-model \
-  economic-intelligence-os:ci \
+  "$image" \
   node scripts/production-preflight.mjs
 EIOS_STEP_31
 echo 'CI step 33/39'
