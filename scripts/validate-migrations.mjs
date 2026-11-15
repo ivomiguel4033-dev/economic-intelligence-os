@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 
 const dir = new URL("../db/migrations/", import.meta.url);
 const files = (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort();
+if (files.length === 0) throw new Error("Migration directory must contain at least one SQL migration");
 const seenNumbers = new Set();
 const seenNames = new Set();
 let previous = 0;
