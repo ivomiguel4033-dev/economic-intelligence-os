@@ -19,7 +19,7 @@ docker info >/dev/null
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_test
 export NEXT_TELEMETRY_DISABLED=1
 
-db="eios-ci-$"
+db="eios-ci-$$"
 image="economic-intelligence-os:ci-$$"
 export image
 cleanup() { docker rm -f "$db" >/dev/null 2>&1 || true; docker image rm "$image" >/dev/null 2>&1 || true; }
