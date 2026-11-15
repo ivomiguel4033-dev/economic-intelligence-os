@@ -2,6 +2,13 @@
 # Independent CI replay. Run only on a disposable Linux host with Docker and Node 22.
 # Generated from CI at 307190c03856c28ba3d2b0bd21e7fe1d326d40b2; review parity when CI changes.
 set -euo pipefail
+# Reject inherited credentials and runtime overrides before executing any test.
+for name in $(compgen -e); do
+  case "${name^^}" in
+    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*)
+      echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
+  esac
+done
 cd "$(git rev-parse --show-toplevel)"
 [[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
 command -v docker >/dev/null
@@ -11,15 +18,9 @@ docker info >/dev/null
 # Never use production credentials or a shared database.
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_test
 export NEXT_TELEMETRY_DISABLED=1
-# Reject inherited credentials and runtime overrides before executing any test.
-for name in $(compgen -e); do
-  case "${name^^}" in
-    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*)
-      echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
-  esac
-done
+
 db="eios-ci-$"
-image="economic-intelligence-os:ci-$"
+image="economic-intelligence-os:ci-$$"
 export image
 cleanup() { docker rm -f "$db" >/dev/null 2>&1 || true; docker image rm "$image" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
