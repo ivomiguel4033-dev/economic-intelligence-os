@@ -12,6 +12,7 @@ cd "$(git rev-parse --show-toplevel)"
 [[ -z "$(git status --porcelain)" ]] || { echo 'Clean checkout required' >&2; exit 1; }
 checks=(
   scripts/railway-config-contract.mjs
+  scripts/production-preflight-regression.mjs
   scripts/validate-migrations.mjs
   scripts/validate-prometheus-alerts.mjs
   scripts/production-smoke-regression.mjs
