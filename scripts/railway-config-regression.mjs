@@ -148,7 +148,7 @@ assert.match(
 // Assert against the final runtime stage, not the entire multi-stage Dockerfile:
 // a builder-only ENV could otherwise satisfy the check while the deployed
 // image silently runs with the wrong environment or port.
-const runtimeStages = dockerfile.split(/^FROM\\s+[^\\r\\n]+\\s+AS\\s+runner\\s*$/im);
+const runtimeStages = dockerfile.split(/^FROM\s+[^\r\n]+\s+AS\s+runner\s*$/im);
 assert.equal(runtimeStages.length, 2,
   "Dockerfile must define exactly one named runner stage");
 const runtimeDockerfile = runtimeStages[1];
