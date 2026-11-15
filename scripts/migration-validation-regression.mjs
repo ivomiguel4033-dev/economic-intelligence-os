@@ -55,7 +55,11 @@ try {
     "Invalid checksum baseline must fail before attempting a PostgreSQL connection",
   );
 
-  let result = await validate(["001_create_tenants.sql", "002_add_outbox.sql"]);
+  let result = await validate([]);
+  assert(result.status !== 0 && /must contain at least one SQL migration/.test(result.output), "Empty migration directory must fail closed");
+
+  await reset();
+  result = await validate(["001_create_tenants.sql", "002_add_outbox.sql"]);
   assert(result.status === 0, `Canonical migrations should pass: ${result.output}`);
 
   await reset();
