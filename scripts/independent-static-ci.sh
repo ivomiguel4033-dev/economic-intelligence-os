@@ -14,6 +14,7 @@ checks=(
   scripts/railway-config-contract.mjs
   scripts/production-preflight-regression.mjs
   scripts/validate-migrations.mjs
+  scripts/migration-validation-regression.mjs
   scripts/validate-prometheus-alerts.mjs
   scripts/production-smoke-regression.mjs
   scripts/production-smoke-boundary-regression.mjs
