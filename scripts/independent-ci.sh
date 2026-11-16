@@ -22,9 +22,15 @@ export NEXT_TELEMETRY_DISABLED=1
 db="eios-ci-$$"
 image="economic-intelligence-os:ci-$$"
 export image
-cleanup() { docker rm -f "$db" >/dev/null 2>&1 || true; docker image rm "$image" >/dev/null 2>&1 || true; }
+db_created=0
+image_created=0
+cleanup() {
+  if [[ "$db_created" == 1 ]]; then docker rm -f "$db" >/dev/null 2>&1 || true; fi
+  if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
+}
 trap cleanup EXIT
 docker run -d --name "$db" -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
+db_created=1
 for i in {1..60}; do
   if docker exec "$db" pg_isready -U postgres -d app_test >/dev/null 2>&1; then break; fi
   sleep 1
@@ -155,6 +161,7 @@ echo 'CI step 30/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_29'
 docker build --tag "$image" .
 EIOS_STEP_29
+image_created=1
 echo 'CI step 31/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_30'
 node scripts/production-image-contract.mjs --self-test
