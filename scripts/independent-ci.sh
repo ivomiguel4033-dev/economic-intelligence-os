@@ -26,7 +26,7 @@ export image
 db_created=0
 image_created=0
 cleanup() {
-  if [[ "$db_created" == 1 ]]; then docker rm -f "$db" >/dev/null 2>&1 || true; fi
+  if [[ "$db_created" == 1 ]]; then docker rm -f -v "$db" >/dev/null 2>&1 || true; fi
   if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
@@ -43,10 +43,10 @@ if (( 10#$port < 1 || 10#$port > 65535 )); then
 fi
 export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$port/app_test"
 for i in {1..60}; do
-  if docker exec "$db" pg_isready -U postgres -d app_test >/dev/null 2>&1; then break; fi
+  if docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test >/dev/null 2>&1; then break; fi
   sleep 1
 done
-docker exec "$db" pg_isready -U postgres -d app_test
+docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test
 echo "Independent CI commit: $(git rev-parse HEAD)"
 echo 'CI step 1/39'
 timeout 600 bash -euo pipefail <<'EIOS_STEP_0'
