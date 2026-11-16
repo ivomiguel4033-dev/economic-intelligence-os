@@ -5,7 +5,7 @@ set -euo pipefail
 # Reject inherited credentials and runtime overrides before executing any test.
 for name in $(compgen -e); do
   case "${name^^}" in
-    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*)
+    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*|DATABASE_URL|ALLOW_MIGRATION_CHECKSUM_BASELINE|MIGRATION_*|BASH_ENV|ENV|NODE_PATH|ALLOW_INSECURE_AUTH|DOCKER_HOST|DOCKER_CONTEXT|DOCKER_TLS_VERIFY|DOCKER_CERT_PATH)
       echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
   esac
 done
