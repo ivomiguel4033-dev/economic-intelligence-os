@@ -30,6 +30,9 @@ cleanup() {
   if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
+# Preserve conventional signal exit codes and run EXIT cleanup on interruption.
+trap 'exit 130' INT
+trap 'exit 143' TERM
 docker run -d --name "$db" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
 db_created=1
 # Use the actual ephemeral host port, never an unrelated local PostgreSQL.
