@@ -10,6 +10,13 @@ for name in $(compgen -e); do
   esac
 done
 cd "$(git rev-parse --show-toplevel)"
+# Ignored dotenv files can contain production credentials even in a clean checkout.
+for env_file in .env .env.local .env.development .env.development.local .env.production .env.production.local .env.test .env.test.local; do
+  if [[ -e "$env_file" || -L "$env_file" ]]; then
+    echo "Unsafe local environment file: $env_file" >&2
+    exit 1
+  fi
+done
 [[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
 command -v docker >/dev/null
 command -v timeout >/dev/null
