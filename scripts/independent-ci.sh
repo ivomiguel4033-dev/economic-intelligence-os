@@ -16,7 +16,7 @@ command -v timeout >/dev/null
 docker info >/dev/null
 [[ -z "$(git status --porcelain)" ]] || { echo "Use a clean checkout"; exit 1; }
 # Never use production credentials or a shared database.
-export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_test
+
 export NEXT_TELEMETRY_DISABLED=1
 
 run_id="$(node -p 'require("node:crypto").randomUUID()')"
@@ -30,8 +30,18 @@ cleanup() {
   if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
-docker run -d --name "$db" -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
+docker run -d --name "$db" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
 db_created=1
+# Use the actual ephemeral host port, never an unrelated local PostgreSQL.
+binding="$(docker port "$db" 5432/tcp)"
+if [[ ! "$binding" =~ ^127\.0\.0\.1:([0-9]{1,5})$ ]]; then
+  echo "Unexpected PostgreSQL port binding" >&2; exit 1
+fi
+port="${BASH_REMATCH[1]}"
+if (( 10#$port < 1 || 10#$port > 65535 )); then
+  echo "Invalid PostgreSQL port" >&2; exit 1
+fi
+export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$port/app_test"
 for i in {1..60}; do
   if docker exec "$db" pg_isready -U postgres -d app_test >/dev/null 2>&1; then break; fi
   sleep 1
