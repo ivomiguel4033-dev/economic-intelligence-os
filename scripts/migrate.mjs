@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import pg from "pg";
-
-const { Client } = pg;
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
@@ -39,16 +36,6 @@ const migrationIdleInTransactionTimeoutMs = boundedIntegerEnv(
   600_000,
 );
 
-const client = new Client({
-  connectionString,
-  application_name: "economic-intelligence-os:migrate",
-  connectionTimeoutMillis: migrationConnectionTimeoutMs,
-  statement_timeout: migrationStatementTimeoutMs,
-  query_timeout: migrationQueryTimeoutMs,
-  lock_timeout: migrationLockTimeoutMs,
-  idle_in_transaction_session_timeout: migrationIdleInTransactionTimeoutMs,
-});
-
 const migrationLockKey = "economic-intelligence-os:schema-migrations:v1";
 const allowChecksumBaseline = process.env.ALLOW_MIGRATION_CHECKSUM_BASELINE === "true";
 const checksumBaselineFiles = new Set(
@@ -64,6 +51,18 @@ if (allowChecksumBaseline && checksumBaselineFiles.size === 0) {
 }
 // Reject invalid checksum-baseline authorization before opening a database connection.
 // Configuration failures must remain actionable even during a Railway outage.
+const { default: pg } = await import("pg");
+const { Client } = pg;
+const client = new Client({
+  connectionString,
+  application_name: "economic-intelligence-os:migrate",
+  connectionTimeoutMillis: migrationConnectionTimeoutMs,
+  statement_timeout: migrationStatementTimeoutMs,
+  query_timeout: migrationQueryTimeoutMs,
+  lock_timeout: migrationLockTimeoutMs,
+  idle_in_transaction_session_timeout: migrationIdleInTransactionTimeoutMs,
+});
+
 await client.connect();
 let migrationLockHeld = false;
 
