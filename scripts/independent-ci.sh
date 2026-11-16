@@ -19,8 +19,9 @@ docker info >/dev/null
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_test
 export NEXT_TELEMETRY_DISABLED=1
 
-db="eios-ci-$$"
-image="economic-intelligence-os:ci-$$"
+run_id="$(node -p 'require("node:crypto").randomUUID()')"
+db="eios-ci-$run_id"
+image="economic-intelligence-os:ci-$run_id"
 export image
 db_created=0
 image_created=0
