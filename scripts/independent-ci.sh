@@ -43,8 +43,8 @@ image_created=0
 npm_config_dir=""
 cleanup() {
   if [[ -n "$npm_config_dir" ]]; then rm -rf -- "$npm_config_dir"; fi
-  if [[ "$db_created" == 1 ]]; then docker rm -f -v "$db" >/dev/null 2>&1 || true; fi
-  if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
+  if [[ "$db_created" == 1 ]]; then timeout --kill-after=5s 30s docker rm -f -v "$db" >/dev/null 2>&1 || true; fi
+  if [[ "$image_created" == 1 ]]; then timeout --kill-after=5s 30s docker image rm "$image" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 # Preserve conventional signal exit codes and run EXIT cleanup on interruption.
