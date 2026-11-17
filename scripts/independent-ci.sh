@@ -5,11 +5,14 @@ set -euo pipefail
 # Reject inherited credentials and runtime overrides before executing any test.
 for name in $(compgen -e); do
   case "${name^^}" in
-    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*|DATABASE_URL|ALLOW_MIGRATION_CHECKSUM_BASELINE|MIGRATION_*|BASH_ENV|ENV|NODE_PATH|ALLOW_INSECURE_AUTH|DOCKER_HOST|DOCKER_CONTEXT|DOCKER_TLS_VERIFY|DOCKER_CERT_PATH|DOCKER_CONFIG|NPM_CONFIG_*|NPM_TOKEN|NODE_AUTH_TOKEN)
+    OIDC_*|AI_*|STRIPE_*|SECURITY_*|METRICS_*|RAILWAY_*|OPENAI_*|ANTHROPIC_*|NODE_OPTIONS|NODE_TLS_REJECT_UNAUTHORIZED|PG*|DATABASE_URL|ALLOW_MIGRATION_CHECKSUM_BASELINE|MIGRATION_*|BASH_ENV|ENV|NODE_PATH|ALLOW_INSECURE_AUTH|DOCKER_HOST|DOCKER_CONTEXT|DOCKER_TLS_VERIFY|DOCKER_CERT_PATH|DOCKER_CONFIG|GIT_*|NPM_CONFIG_*|NPM_TOKEN|NODE_AUTH_TOKEN)
       echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
   esac
 done
-cd "$(git rev-parse --show-toplevel)"
+if ! repo_root="$(git rev-parse --show-toplevel)" || [[ -z "$repo_root" ]]; then
+  echo "Unable to resolve checkout root" >&2; exit 2
+fi
+cd -- "$repo_root"
 # Ignored dotenv files can contain production credentials even in a clean checkout.
 for env_file in .npmrc .env .env.local .env.development .env.development.local .env.production .env.production.local .env.test .env.test.local; do
   if [[ -e "$env_file" || -L "$env_file" ]]; then
