@@ -56,10 +56,11 @@ touch "$npm_config_dir/user" "$npm_config_dir/global"
 export npm_config_userconfig="$npm_config_dir/user"
 export npm_config_globalconfig="$npm_config_dir/global"
 export npm_config_cache="$npm_config_dir/cache"
-docker run -d --name "$db" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
+# Register cleanup before Docker can create a resource and then fail or be interrupted.
 db_created=1
+timeout --kill-after=5s 120s docker run -d --name "$db" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
 # Use the actual ephemeral host port, never an unrelated local PostgreSQL.
-binding="$(docker port "$db" 5432/tcp)"
+binding="$(timeout --kill-after=5s 30s docker port "$db" 5432/tcp)"
 if [[ ! "$binding" =~ ^127\.0\.0\.1:([0-9]{1,5})$ ]]; then
   echo "Unexpected PostgreSQL port binding" >&2; exit 1
 fi
@@ -194,11 +195,11 @@ echo 'CI step 29/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_28'
 npm run test:production-readiness
 EIOS_STEP_28
+image_created=1
 echo 'CI step 30/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_29'
 docker build --tag "$image" .
 EIOS_STEP_29
-image_created=1
 echo 'CI step 31/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_30'
 node scripts/production-image-contract.mjs --self-test
