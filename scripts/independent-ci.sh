@@ -190,7 +190,8 @@ node scripts/production-image-contract.mjs "$image"
 EIOS_STEP_30
 echo 'CI step 32/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_31'
-docker run --rm \
+# Preflight validates configuration only; prohibit network access and remote image pulls.
+docker run --rm --network none --pull never \
   -e NODE_ENV=production \
   -e DATABASE_URL=postgresql://app:secret@db.internal:5432/app \
   -e OIDC_ISSUER=https://identity.example.com/tenant \
