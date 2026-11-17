@@ -26,7 +26,10 @@ done
 if ! timeout --kill-after=5s 30 docker info >/dev/null; then
   echo "Docker daemon unavailable or unresponsive" >&2; exit 1
 fi
-[[ -z "$(git status --porcelain)" ]] || { echo "Use a clean checkout"; exit 1; }
+if ! checkout_status="$(git status --porcelain)"; then
+  echo "Unable to verify checkout cleanliness" >&2; exit 2
+fi
+[[ -z "$checkout_status" ]] || { echo "Use a clean checkout"; exit 1; }
 # Never use production credentials or a shared database.
 
 export NEXT_TELEMETRY_DISABLED=1
