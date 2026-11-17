@@ -235,6 +235,12 @@ timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_37'
 if grep -R -n -E 'x-actor-id|x-organization-id' src/app/api; then
   echo 'Legacy trusted identity headers found in API routes.'
   exit 1
+else
+  status=$?
+  if (( status != 1 )); then
+    echo "Security scan failed (exit $status)." >&2
+    exit "$status"
+  fi
 fi
 EIOS_STEP_37
 echo 'CI step 39/39'
@@ -242,6 +248,12 @@ timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_38'
 if git grep -n -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
   echo 'Potential committed secret detected.'
   exit 1
+else
+  status=$?
+  if (( status != 1 )); then
+    echo "Security scan failed (exit $status)." >&2
+    exit "$status"
+  fi
 fi
 EIOS_STEP_38
 echo "Independent CI passed (not a GitHub required check)."
