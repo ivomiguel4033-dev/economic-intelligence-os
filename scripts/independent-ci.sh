@@ -41,10 +41,16 @@ export image
 db_created=0
 image_created=0
 npm_config_dir=""
+cleanup_resource() {
+  if ! timeout --kill-after=5s 30s docker "$@" >/dev/null 2>&1; then
+    echo "Warning: Docker cleanup failed: $*" >&2
+    return 1
+  fi
+}
 cleanup() {
   if [[ -n "$npm_config_dir" ]]; then rm -rf -- "$npm_config_dir"; fi
-  if [[ "$db_created" == 1 ]]; then timeout --kill-after=5s 30s docker rm -f -v "$db" >/dev/null 2>&1 || true; fi
-  if [[ "$image_created" == 1 ]]; then timeout --kill-after=5s 30s docker image rm "$image" >/dev/null 2>&1 || true; fi
+  if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || true; fi
+  if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || true; fi
 }
 trap cleanup EXIT
 # Preserve conventional signal exit codes and run EXIT cleanup on interruption.
