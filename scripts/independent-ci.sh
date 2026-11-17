@@ -48,7 +48,11 @@ cleanup_resource() {
   fi
 }
 cleanup() {
-  if [[ -n "$npm_config_dir" ]]; then rm -rf -- "$npm_config_dir"; fi
+  if [[ -n "$npm_config_dir" ]]; then
+    if ! rm -rf -- "$npm_config_dir"; then
+      echo "Warning: npm temporary directory cleanup failed" >&2
+    fi
+  fi
   if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || true; fi
   if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || true; fi
 }
