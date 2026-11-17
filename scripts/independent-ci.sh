@@ -18,9 +18,14 @@ for env_file in .env .env.local .env.development .env.development.local .env.pro
   fi
 done
 [[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
-command -v docker >/dev/null
-command -v timeout >/dev/null
-docker info >/dev/null
+for dependency in docker timeout; do
+  if ! command -v "$dependency" >/dev/null; then
+    echo "Missing required executable: $dependency" >&2; exit 1
+  fi
+done
+if ! timeout --kill-after=5s 30 docker info >/dev/null; then
+  echo "Docker daemon unavailable or unresponsive" >&2; exit 1
+fi
 [[ -z "$(git status --porcelain)" ]] || { echo "Use a clean checkout"; exit 1; }
 # Never use production credentials or a shared database.
 
