@@ -11,7 +11,7 @@ for name in $(compgen -e); do
 done
 cd "$(git rev-parse --show-toplevel)"
 # Ignored dotenv files can contain production credentials even in a clean checkout.
-for env_file in .env .env.local .env.development .env.development.local .env.production .env.production.local .env.test .env.test.local; do
+for env_file in .npmrc .env .env.local .env.development .env.development.local .env.production .env.production.local .env.test .env.test.local; do
   if [[ -e "$env_file" || -L "$env_file" ]]; then
     echo "Unsafe local environment file: $env_file" >&2
     exit 1
@@ -40,7 +40,9 @@ image="economic-intelligence-os:ci-$run_id"
 export image
 db_created=0
 image_created=0
+npm_config_dir=""
 cleanup() {
+  if [[ -n "$npm_config_dir" ]]; then rm -rf -- "$npm_config_dir"; fi
   if [[ "$db_created" == 1 ]]; then docker rm -f -v "$db" >/dev/null 2>&1 || true; fi
   if [[ "$image_created" == 1 ]]; then docker image rm "$image" >/dev/null 2>&1 || true; fi
 }
@@ -48,6 +50,12 @@ trap cleanup EXIT
 # Preserve conventional signal exit codes and run EXIT cleanup on interruption.
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# Ignore host npm configuration and caches, which may contain private registry credentials.
+npm_config_dir="$(mktemp -d)"
+touch "$npm_config_dir/user" "$npm_config_dir/global"
+export npm_config_userconfig="$npm_config_dir/user"
+export npm_config_globalconfig="$npm_config_dir/global"
+export npm_config_cache="$npm_config_dir/cache"
 docker run -d --name "$db" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=app_test postgres:16-alpine >/dev/null
 db_created=1
 # Use the actual ephemeral host port, never an unrelated local PostgreSQL.
