@@ -26,6 +26,9 @@ for dependency in docker timeout; do
     echo "Missing required executable: $dependency" >&2; exit 1
   fi
 done
+# Pin every Docker invocation, including child scripts, to the local daemon.
+# A saved Docker context can otherwise point at a remote production host.
+export DOCKER_HOST=unix:///var/run/docker.sock
 if ! timeout --kill-after=5s 30 docker info >/dev/null; then
   echo "Docker daemon unavailable or unresponsive" >&2; exit 1
 fi
