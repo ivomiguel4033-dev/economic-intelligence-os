@@ -61,10 +61,10 @@ if (( 10#$port < 1 || 10#$port > 65535 )); then
 fi
 export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$port/app_test"
 for i in {1..60}; do
-  if docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test >/dev/null 2>&1; then break; fi
+  if timeout --kill-after=2s 5 docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test >/dev/null 2>&1; then break; fi
   sleep 1
 done
-docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test
+timeout --kill-after=2s 5 docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d app_test
 echo "Independent CI commit: $(git rev-parse HEAD)"
 echo 'CI step 1/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_0'
