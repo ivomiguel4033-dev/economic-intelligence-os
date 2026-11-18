@@ -25,12 +25,14 @@ if [[ ! -f package-lock.json || -L package-lock.json ]] || ! git cat-file -e HEA
   echo "Missing or modified committed regular package-lock.json; generate, review and commit it before replay." >&2
   exit 1
 fi
-[[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
-for dependency in docker timeout; do
+for dependency in node npm docker timeout; do
   if ! command -v "$dependency" >/dev/null; then
     echo "Missing required executable: $dependency" >&2; exit 1
   fi
 done
+if [[ "$(node -p 'process.versions.node.split(".")[0]')" != 22 ]]; then
+  echo "Node.js 22 is required" >&2; exit 1
+fi
 # Scan before starting containers or installing dependencies; never print matches.
 scan_secrets() {
   local status
