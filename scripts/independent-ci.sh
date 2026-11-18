@@ -20,6 +20,11 @@ for env_file in .npmrc .env .env.local .env.development .env.development.local .
     exit 1
   fi
 done
+# Require a committed lockfile before allocating any Docker resources.
+if [[ ! -f package-lock.json || -L package-lock.json ]] || ! git ls-files --error-unmatch -- package-lock.json >/dev/null 2>&1; then
+  echo "Missing committed regular package-lock.json; generate and review it before replay." >&2
+  exit 1
+fi
 [[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
 for dependency in docker timeout; do
   if ! command -v "$dependency" >/dev/null; then
@@ -116,11 +121,7 @@ timeout --kill-after=2s 5 docker exec "$db" pg_isready -h 127.0.0.1 -U postgres 
 echo "Independent CI commit: $(git rev-parse HEAD)"
 echo 'CI step 1/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_0'
-if [ -f package-lock.json ]; then
-  npm ci --ignore-scripts
-else
-  npm install --ignore-scripts --no-audit --no-fund
-fi
+npm ci --ignore-scripts
 EIOS_STEP_0
 echo 'CI step 2/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_1'
