@@ -14,6 +14,16 @@ for (const section of ["build", "deploy"]) {
   assert.ok(config[section] !== null && typeof config[section] === "object" && !Array.isArray(config[section]),
     `Railway ${section} must be an object`);
 }
+// Reject unreviewed overrides, including environment-specific deployment settings.
+for (const [section, object, allowed] of [
+  ["root", config, ["$schema", "build", "deploy"]],
+  ["build", config.build, ["builder", "dockerfilePath"]],
+  ["deploy", config.deploy, ["preDeployCommand", "startCommand", "healthcheckPath", "healthcheckTimeout", "drainingSeconds", "restartPolicyType", "restartPolicyMaxRetries"]],
+]) {
+  for (const key of Object.keys(object)) {
+    assert.ok(allowed.includes(key), `Unreviewed Railway configuration key: ${section}.${key}`);
+  }
+}
 assert.equal(config.build?.builder, "DOCKERFILE", "Production must use the reviewed Dockerfile");
 assert.equal(config.build?.dockerfilePath, "Dockerfile", "Unexpected production Dockerfile");
 assert.equal(config.deploy?.preDeployCommand, "node scripts/production-preflight.mjs && npm run migrate",
@@ -140,5 +150,14 @@ for (const section of ["build", "deploy"]) {
 for (const invalid of [null, [], "invalid", 42, true, { ...config, build: null }, { ...config, deploy: null }]) {
   assert.throws(() => validate(invalid), { name: "AssertionError" },
     `Railway contract must reject malformed configuration: ${JSON.stringify(invalid)}`);
+}
+for (const [section, key, value] of [
+  ["root", "environments", { production: { deploy: { startCommand: "node worker.js" } } }],
+  ["build", "buildCommand", "npm run dev"],
+  ["deploy", "numReplicas", 10],
+]) {
+  const altered = structuredClone(config);
+  (section === "root" ? altered : altered[section])[key] = value;
+  assert.throws(() => validate(altered), { name: "AssertionError" });
 }
 console.log("Railway production configuration contract and negative regression checks passed");
