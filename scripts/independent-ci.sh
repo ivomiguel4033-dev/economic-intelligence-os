@@ -26,6 +26,17 @@ for dependency in docker timeout; do
     echo "Missing required executable: $dependency" >&2; exit 1
   fi
 done
+# Scan before starting containers or installing dependencies; never print matches.
+if git grep -q -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
+  echo 'Potential committed secret detected.' >&2
+  exit 1
+else
+  status=$?
+  if (( status != 1 )); then
+    echo "Security scan failed (exit $status)." >&2
+    exit "$status"
+  fi
+fi
 # Pin every Docker invocation, including child scripts, to the local daemon.
 # A saved Docker context can otherwise point at a remote production host.
 export DOCKER_HOST=unix:///var/run/docker.sock
