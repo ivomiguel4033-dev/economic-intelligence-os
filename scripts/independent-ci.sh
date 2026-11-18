@@ -50,17 +50,6 @@ scan_secrets() {
 scan_secrets HEAD
 scan_secrets
 export -f scan_secrets
-# Pin every Docker invocation, including child scripts, to the local daemon.
-# A saved Docker context can otherwise point at a remote production host.
-export DOCKER_HOST=unix:///var/run/docker.sock
-# Do not read registry credentials or credential helpers from the host Docker config.
-docker_config_dir="$(mktemp -d)"
-export DOCKER_CONFIG="$docker_config_dir"
-# Cover failures before the full resource cleanup trap is installed.
-trap 'rm -rf -- "$docker_config_dir"' EXIT
-if ! timeout --kill-after=5s 30 docker info >/dev/null; then
-  echo "Docker daemon unavailable or unresponsive" >&2; exit 1
-fi
 # Reject index flags that can hide modified tracked files from git status.
 check_index_flags() {
   local index_entries entry
@@ -79,6 +68,17 @@ if ! checkout_status="$(git status --porcelain --ignored --untracked-files=all)"
   echo "Unable to verify checkout cleanliness" >&2; exit 2
 fi
 [[ -z "$checkout_status" ]] || { echo "Use a pristine checkout without ignored or untracked files"; exit 1; }
+# Pin every Docker invocation, including child scripts, to the local daemon.
+# A saved Docker context can otherwise point at a remote production host.
+export DOCKER_HOST=unix:///var/run/docker.sock
+# Do not read registry credentials or credential helpers from the host Docker config.
+docker_config_dir="$(mktemp -d)"
+export DOCKER_CONFIG="$docker_config_dir"
+# Cover failures before the full resource cleanup trap is installed.
+trap 'rm -rf -- "$docker_config_dir"' EXIT
+if ! timeout --kill-after=5s 30 docker info >/dev/null; then
+  echo "Docker daemon unavailable or unresponsive" >&2; exit 1
+fi
 # Never use production credentials or a shared database.
 
 export NEXT_TELEMETRY_DISABLED=1
