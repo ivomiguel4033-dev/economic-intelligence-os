@@ -21,8 +21,8 @@ for env_file in .npmrc .env .env.local .env.development .env.development.local .
   fi
 done
 # Require a committed lockfile before allocating any Docker resources.
-if [[ ! -f package-lock.json || -L package-lock.json ]] || ! git ls-files --error-unmatch -- package-lock.json >/dev/null 2>&1; then
-  echo "Missing committed regular package-lock.json; generate and review it before replay." >&2
+if [[ ! -f package-lock.json || -L package-lock.json ]] || ! git cat-file -e HEAD:package-lock.json 2>/dev/null || ! git diff --quiet HEAD -- package-lock.json; then
+  echo "Missing or modified committed regular package-lock.json; generate, review and commit it before replay." >&2
   exit 1
 fi
 [[ "$(node -p 'process.versions.node.split(".")[0]')" == 22 ]]
