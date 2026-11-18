@@ -29,6 +29,11 @@ done
 # Pin every Docker invocation, including child scripts, to the local daemon.
 # A saved Docker context can otherwise point at a remote production host.
 export DOCKER_HOST=unix:///var/run/docker.sock
+# Do not read registry credentials or credential helpers from the host Docker config.
+docker_config_dir="$(mktemp -d)"
+export DOCKER_CONFIG="$docker_config_dir"
+# Cover failures before the full resource cleanup trap is installed.
+trap 'rm -rf -- "$docker_config_dir"' EXIT
 if ! timeout --kill-after=5s 30 docker info >/dev/null; then
   echo "Docker daemon unavailable or unresponsive" >&2; exit 1
 fi
@@ -61,6 +66,9 @@ cleanup() {
   fi
   if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || true; fi
   if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || true; fi
+  if ! rm -rf -- "$docker_config_dir"; then
+    echo "Warning: Docker temporary configuration cleanup failed" >&2
+  fi
 }
 trap cleanup EXIT
 # Preserve conventional signal exit codes and run EXIT cleanup on interruption.
