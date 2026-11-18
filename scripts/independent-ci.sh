@@ -49,6 +49,9 @@ run_id="$(node -p 'require("node:crypto").randomUUID()')"
 db="eios-ci-$run_id"
 image="economic-intelligence-os:ci-$run_id"
 export image
+smoke="eios-smoke-$run_id"
+export smoke
+smoke_created=0
 db_created=0
 image_created=0
 npm_config_dir=""
@@ -64,6 +67,7 @@ cleanup() {
       echo "Warning: npm temporary directory cleanup failed" >&2
     fi
   fi
+  if [[ "$smoke_created" == 1 ]]; then cleanup_resource rm -f -v "$smoke" || true; fi
   if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || true; fi
   if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || true; fi
   if ! rm -rf -- "$docker_config_dir"; then
@@ -229,10 +233,11 @@ timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_30'
 node scripts/production-image-contract.mjs --self-test
 node scripts/production-image-contract.mjs "$image"
 EIOS_STEP_30
+smoke_created=1
 echo 'CI step 32/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_31'
 # Preflight validates configuration only; prohibit network access and remote image pulls.
-docker run --rm --network none --pull never \
+docker run --rm --name "$smoke" --network none --pull never \
   -e NODE_ENV=production \
   -e DATABASE_URL=postgresql://app:secret@db.internal:5432/app \
   -e OIDC_ISSUER=https://identity.example.com/tenant \
@@ -246,6 +251,7 @@ docker run --rm --network none --pull never \
   "$image" \
   node scripts/production-preflight.mjs
 EIOS_STEP_31
+smoke_created=0
 echo 'CI step 33/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_32'
 node scripts/orchestrate-payload-regression.mjs
