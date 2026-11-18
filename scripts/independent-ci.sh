@@ -287,7 +287,8 @@ fi
 EIOS_STEP_37
 echo 'CI step 39/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_38'
-if git grep -n -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
+# Never print matching secret material into CI logs.
+if git grep -q -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
   echo 'Potential committed secret detected.'
   exit 1
 else
