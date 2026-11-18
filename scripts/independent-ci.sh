@@ -61,10 +61,12 @@ trap 'rm -rf -- "$docker_config_dir"' EXIT
 if ! timeout --kill-after=5s 30 docker info >/dev/null; then
   echo "Docker daemon unavailable or unresponsive" >&2; exit 1
 fi
-if ! checkout_status="$(git status --porcelain)"; then
+# Ignored files can influence npm, tests and the Docker build context.
+# Require a pristine disposable checkout, including ignored/untracked files.
+if ! checkout_status="$(git status --porcelain --ignored --untracked-files=all)"; then
   echo "Unable to verify checkout cleanliness" >&2; exit 2
 fi
-[[ -z "$checkout_status" ]] || { echo "Use a clean checkout"; exit 1; }
+[[ -z "$checkout_status" ]] || { echo "Use a pristine checkout without ignored or untracked files"; exit 1; }
 # Never use production credentials or a shared database.
 
 export NEXT_TELEMETRY_DISABLED=1
