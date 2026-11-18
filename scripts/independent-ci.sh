@@ -32,16 +32,22 @@ for dependency in docker timeout; do
   fi
 done
 # Scan before starting containers or installing dependencies; never print matches.
-if git grep -q -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
-  echo 'Potential committed secret detected.' >&2
-  exit 1
-else
-  status=$?
-  if (( status != 1 )); then
-    echo "Security scan failed (exit $status)." >&2
-    exit "$status"
+scan_secrets() {
+  local status
+  if git grep -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' "$@" -- ':!package-lock.json' >/dev/null 2>&1; then
+    echo 'Potential secret detected.' >&2
+    return 1
+  else
+    status=$?
+    if (( status != 1 )); then
+      echo "Security scan failed (exit $status)." >&2
+      return "$status"
+    fi
   fi
-fi
+}
+scan_secrets HEAD
+scan_secrets
+export -f scan_secrets
 # Pin every Docker invocation, including child scripts, to the local daemon.
 # A saved Docker context can otherwise point at a remote production host.
 export DOCKER_HOST=unix:///var/run/docker.sock
@@ -300,15 +306,7 @@ EIOS_STEP_37
 echo 'CI step 39/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_38'
 # Never print matching secret material into CI logs.
-if git grep -q -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' -- ':!package-lock.json'; then
-  echo 'Potential committed secret detected.'
-  exit 1
-else
-  status=$?
-  if (( status != 1 )); then
-    echo "Security scan failed (exit $status)." >&2
-    exit "$status"
-  fi
-fi
+scan_secrets HEAD
+scan_secrets
 EIOS_STEP_38
 echo "Independent CI passed (not a GitHub required check)."
