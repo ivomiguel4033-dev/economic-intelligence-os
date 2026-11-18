@@ -263,7 +263,7 @@ smoke_created=1
 echo 'CI step 32/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_31'
 # Preflight validates configuration only; prohibit network access and remote image pulls.
-docker run --rm --name "$smoke" --network none --pull never \
+docker run --name "$smoke" --network none --pull never \
   -e NODE_ENV=production \
   -e DATABASE_URL=postgresql://app:secret@db.internal:5432/app \
   -e OIDC_ISSUER=https://identity.example.com/tenant \
@@ -277,7 +277,7 @@ docker run --rm --name "$smoke" --network none --pull never \
   "$image" \
   node scripts/production-preflight.mjs
 EIOS_STEP_31
-smoke_created=0
+# Retain the named container until EXIT cleanup, including failed preflight runs.
 echo 'CI step 33/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_32'
 node scripts/orchestrate-payload-regression.mjs
