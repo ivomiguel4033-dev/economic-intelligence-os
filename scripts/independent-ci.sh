@@ -86,17 +86,23 @@ cleanup_resource() {
   fi
 }
 cleanup() {
+  local original_status=$? cleanup_failed=0
+  trap - EXIT
   if [[ -n "$npm_config_dir" ]]; then
     if ! rm -rf -- "$npm_config_dir"; then
       echo "Warning: npm temporary directory cleanup failed" >&2
+      cleanup_failed=1
     fi
   fi
-  if [[ "$smoke_created" == 1 ]]; then cleanup_resource rm -f -v "$smoke" || true; fi
-  if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || true; fi
-  if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || true; fi
+  if [[ "$smoke_created" == 1 ]]; then cleanup_resource rm -f -v "$smoke" || cleanup_failed=1; fi
+  if [[ "$db_created" == 1 ]]; then cleanup_resource rm -f -v "$db" || cleanup_failed=1; fi
+  if [[ "$image_created" == 1 ]]; then cleanup_resource image rm "$image" || cleanup_failed=1; fi
   if ! rm -rf -- "$docker_config_dir"; then
     echo "Warning: Docker temporary configuration cleanup failed" >&2
+    cleanup_failed=1
   fi
+  if (( original_status == 0 && cleanup_failed != 0 )); then exit 1; fi
+  exit "$original_status"
 }
 trap cleanup EXIT
 # Preserve conventional signal exit codes and run EXIT cleanup on interruption.
@@ -311,4 +317,5 @@ timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_38'
 scan_secrets HEAD
 scan_secrets
 EIOS_STEP_38
-echo "Independent CI passed (not a GitHub required check)."
+cleanup
+
