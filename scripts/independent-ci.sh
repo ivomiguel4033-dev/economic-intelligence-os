@@ -34,7 +34,7 @@ done
 # Scan before starting containers or installing dependencies; never print matches.
 scan_secrets() {
   local status
-  if git grep -E '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' "$@" -- ':!package-lock.json' >/dev/null 2>&1; then
+  if git grep -E '(sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|BEGIN ([A-Z0-9]+ )*PRIVATE KEY)' "$@" -- ':!package-lock.json' >/dev/null 2>&1; then
     echo 'Potential secret detected.' >&2
     return 1
   else
