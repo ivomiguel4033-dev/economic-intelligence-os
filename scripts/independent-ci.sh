@@ -314,7 +314,8 @@ node scripts/health-readiness-route-regression.mjs
 EIOS_STEP_36
 echo 'CI step 38/39'
 timeout --kill-after=30s 600 bash -euo pipefail <<'EIOS_STEP_37'
-if grep -R -n -E 'x-actor-id|x-organization-id' src/app/api; then
+# Suppress matching source lines and filesystem diagnostics in shared CI logs.
+if grep -R -E 'x-actor-id|x-organization-id' src/app/api >/dev/null 2>&1; then
   echo 'Legacy trusted identity headers found in API routes.'
   exit 1
 else
