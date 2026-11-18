@@ -61,6 +61,18 @@ trap 'rm -rf -- "$docker_config_dir"' EXIT
 if ! timeout --kill-after=5s 30 docker info >/dev/null; then
   echo "Docker daemon unavailable or unresponsive" >&2; exit 1
 fi
+# Reject index flags that can hide modified tracked files from git status.
+check_index_flags() {
+  local index_entries entry
+  index_entries="$(git ls-files -v)" || return 2
+  while IFS= read -r entry; do
+    [[ -z "$entry" || "$entry" == 'H '* ]] || return 1
+  done <<< "$index_entries"
+}
+if ! check_index_flags; then
+  echo "Use a normal Git index without assume-unchanged or skip-worktree entries." >&2
+  exit 1
+fi
 # Ignored files can influence npm, tests and the Docker build context.
 # Require a pristine disposable checkout, including ignored/untracked files.
 if ! checkout_status="$(git status --porcelain --ignored --untracked-files=all)"; then
