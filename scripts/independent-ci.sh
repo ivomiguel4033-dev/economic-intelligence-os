@@ -149,7 +149,7 @@ if [[ ! "$binding" =~ ^127\.0\.0\.1:([0-9]{1,5})$ ]]; then
   echo "Unexpected PostgreSQL port binding" >&2; exit 1
 fi
 port="${BASH_REMATCH[1]}"
-if (( 10#$port < 1 || 10#$port > 65535 )); then
+if (( 10#$port < 1 || 10#$port > 65535 )) || [[ "$port" != "$((10#$port))" ]]; then
   echo "Invalid PostgreSQL port" >&2; exit 1
 fi
 export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$port/app_test"
