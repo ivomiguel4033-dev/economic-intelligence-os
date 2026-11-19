@@ -94,7 +94,9 @@ function isNonPublicIpv6(host) {
 
 function isUnsafeEndpointHostname(hostname) {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
-  return host === "localhost" || host.endsWith(".localhost") ||
+  // Single-label DNS names can resolve through a private search suffix.
+  return (!host.includes(".") && !host.includes(":")) ||
+    host === "localhost" || host.endsWith(".localhost") ||
     host === "local" || host.endsWith(".local") ||
     host === "localdomain" || host.endsWith(".localdomain") ||
     // Public OIDC/JWKS and AI endpoints must not use private DNS namespaces.
