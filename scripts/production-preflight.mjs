@@ -180,6 +180,14 @@ function validateDatabaseUrl(value) {
   }
 
   if (isUnsafeDatabaseHostname(url.hostname)) fail("DATABASE_URL must not use a loopback or link-local hostname");
+  // PostgreSQL's non-special URL parser accepts malformed DNS authorities.
+  // Reject ambiguous host lists and invalid labels before the driver connects.
+  const databaseHost = url.hostname.replace(/\.$/, "");
+  if (!databaseHost.includes(":") && (databaseHost.length > 253 ||
+      databaseHost.split(".").some((part) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(part)))) {
+    fail("DATABASE_URL must use a valid DNS hostname");
+  }
+
   // Reject unusable database endpoints before attempting production migrations.
   if (url.port === "0") fail("DATABASE_URL must not use port 0");
   // WHATWG URL removes literal and percent-encoded dot path segments before
