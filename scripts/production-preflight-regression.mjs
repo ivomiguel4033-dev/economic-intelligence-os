@@ -1,3 +1,7 @@
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { validateProductionPreflight } from "./production-preflight.mjs";
 
@@ -447,6 +451,21 @@ for (const [name, env, expected] of [
     (error) => error instanceof Error && error.message.includes(expected),
     `${name} must fail with ${expected}`,
   );
+}
+
+// A checkout path containing # must not silently skip the CLI validation.
+const cliDirectory = mkdtempSync(join(tmpdir(), "preflight # "));
+try {
+  const cliPath = join(cliDirectory, "production-preflight.mjs");
+  copyFileSync(new URL("./production-preflight.mjs", import.meta.url), cliPath);
+  const valid = spawnSync(process.execPath, [cliPath], { env: base, encoding: "utf8" });
+  assert.equal(valid.status, 0, valid.stderr);
+  assert.match(valid.stdout, /Production preflight checks passed/);
+  const invalid = spawnSync(process.execPath, [cliPath], { env: { ...base, NODE_ENV: "test" }, encoding: "utf8" });
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /NODE_ENV must be production/);
+} finally {
+  rmSync(cliDirectory, { recursive: true, force: true });
 }
 
 console.log("Production preflight regression checks passed.");
