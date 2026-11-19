@@ -473,6 +473,16 @@ for (const [name, env, expected] of [
   );
 }
 
+// IPv6 transition mechanisms can embed non-public IPv4 destinations.
+for (const address of ["2002:7f00:1::", "2002:a00:1::", "2001:0:4136:e378:8000:63bf:3fff:fdd2", "2001::1"]) {
+  for (const key of ["OIDC_ISSUER", "OIDC_JWKS_URL", "AI_PRIMARY_BASE_URL"]) {
+    assert.throws(() => validateProductionPreflight({ ...base, [key]: `https://[${address}]/endpoint` }), new RegExp(key + " must not use a local hostname"));
+  }
+}
+for (const address of ["2606:4700::1111", "2001:4860::8888"]) {
+  assert.equal(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: `https://[${address}]/v1` }).ready, true);
+}
+
 // A checkout path containing # must not silently skip the CLI validation.
 const cliDirectory = mkdtempSync(join(tmpdir(), "preflight # "));
 try {
