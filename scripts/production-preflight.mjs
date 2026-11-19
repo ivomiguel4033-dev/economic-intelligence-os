@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 
 function fail(message) {
   throw new Error(`Production preflight failed: ${message}`);
@@ -398,8 +399,18 @@ export function validateProductionPreflight(env = process.env) {
   return { ready: true };
 }
 
-const invokedPath = process.argv[1];
-if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
+// Node resolves symlinks for the main module unless explicitly told otherwise.
+function isDirectInvocation(invokedPath) {
+  if (!invokedPath) return false;
+  if (import.meta.url === pathToFileURL(invokedPath).href) return true;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(invokedPath)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation(process.argv[1])) {
   validateProductionPreflight();
   console.log("Production preflight checks passed.");
 }
