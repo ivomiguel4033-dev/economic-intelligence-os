@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 function fail(message) {
   throw new Error(`Production preflight failed: ${message}`);
 }
@@ -397,7 +399,7 @@ export function validateProductionPreflight(env = process.env) {
 }
 
 const invokedPath = process.argv[1];
-if (invokedPath && import.meta.url === new URL(`file://${invokedPath}`).href) {
+if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
   validateProductionPreflight();
   console.log("Production preflight checks passed.");
 }
