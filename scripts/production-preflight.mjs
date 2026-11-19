@@ -25,6 +25,13 @@ function validateHttpsUrl(value, label) {
     fail(`${label} must be a valid URL`);
   }
   if (url.protocol !== "https:") fail(`${label} must use HTTPS`);
+  // WHATWG accepts malformed DNS labels that cannot identify a valid HTTPS host.
+  // Preserve IP literals and a single DNS root dot.
+  const dnsHost = url.hostname.replace(/\.$/, "");
+  if (!dnsHost.includes(":") && (dnsHost.length > 253 ||
+      dnsHost.split(".").some((part) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(part)))) {
+    fail(`${label} must use a valid DNS hostname`);
+  }
   // Port zero is reserved and cannot identify a reachable production endpoint.
   if (url.port === "0") fail(`${label} must not use port 0`);
   // WHATWG URL normalizes malformed slash prefixes and strips empty userinfo.
