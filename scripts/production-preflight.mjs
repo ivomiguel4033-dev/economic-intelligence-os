@@ -92,7 +92,10 @@ function isNonPublicIpv6(host) {
   // Only global unicast (2000::/3) is eligible for public endpoints.
   // This also rejects deprecated site-local, mapped and reserved addresses.
   if (!/^[23][0-9a-f]{3}:/i.test(ipv6)) return true;
-  return /^2001:0*2:/i.test(ipv6) ||
+  // Reject 6to4 and Teredo transition addresses: their embedded IPv4
+  // destinations can bypass the public endpoint policy.
+  return /^2002:/i.test(ipv6) || /^2001:(?:0*:|:)/i.test(ipv6) ||
+    /^2001:0*2:/i.test(ipv6) ||
     /^2001:db8:/i.test(ipv6) ||
     /^3fff:/i.test(ipv6);
 }
