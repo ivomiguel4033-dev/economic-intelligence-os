@@ -20,6 +20,17 @@ const base = {
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
 
+// Reject malformed DNS labels accepted by WHATWG URL parsing.
+for (const host of [".example.com", "example..com", "-example.com", "example-.com", "example.com..", "api_example.com", "a".repeat(64) + ".com", Array(5).fill("a".repeat(63)).join(".")]) {
+  for (const key of ["OIDC_ISSUER", "OIDC_JWKS_URL", "AI_PRIMARY_BASE_URL"]) {
+    assert.throws(() => validateProductionPreflight({ ...base, [key]: `https://${host}/path` }), new RegExp(`${key} must use a valid DNS hostname`));
+  }
+}
+for (const host of ["example.com.", "api-1.example.com", "8.8.8.8", "[2606:4700::1111]", "bücher.example.com"]) {
+  assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: `https://${host}/v1` }), { ready: true });
+}
+
+
 // Public endpoints must use global-unicast IPv6 literals.
 for (const host of ["fec0::1", "::2", "4000::1", "100::1", "64:ff9b::808:808", "::ffff:8.8.8.8", "2001:db8::1", "3fff::1"]) {
   for (const [key, suffix] of [["OIDC_ISSUER", "tenant"], ["OIDC_JWKS_URL", "keys"], ["AI_PRIMARY_BASE_URL", "v1"]]) {
