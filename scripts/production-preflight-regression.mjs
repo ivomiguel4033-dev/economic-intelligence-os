@@ -1,4 +1,4 @@
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -464,6 +464,19 @@ try {
   const invalid = spawnSync(process.execPath, [cliPath], { env: { ...base, NODE_ENV: "test" }, encoding: "utf8" });
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /NODE_ENV must be production/);
+  const alias = join(cliDirectory, "alias.mjs");
+  symlinkSync(cliPath, alias);
+  const linked = spawnSync(process.execPath, [alias], { env: base, encoding: "utf8" });
+  assert.equal(linked.status, 0, linked.stderr);
+  assert.match(linked.stdout, /Production preflight checks passed/);
+  const linkedInvalid = spawnSync(process.execPath, [alias], { env: { ...base, NODE_ENV: "test" }, encoding: "utf8" });
+  assert.equal(linkedInvalid.status, 1);
+  assert.match(linkedInvalid.stderr, /NODE_ENV must be production/);
+  const importer = join(cliDirectory, "importer.mjs");
+  writeFileSync(importer, 'import "./alias.mjs";\n');
+  const imported = spawnSync(process.execPath, [importer], { env: { NODE_ENV: "test" }, encoding: "utf8" });
+  assert.equal(imported.status, 0, imported.stderr);
+  assert.equal(imported.stdout, "");
 } finally {
   rmSync(cliDirectory, { recursive: true, force: true });
 }
