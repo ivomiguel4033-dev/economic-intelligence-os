@@ -109,6 +109,12 @@ function isUnsafeEndpointHostname(hostname) {
 // Keep RFC1918 addresses available for Railway private networking.
 function isUnsafeDatabaseHostname(hostname) {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
+  // PostgreSQL URLs are non-special WHATWG URLs: numeric IPv4 aliases
+  // remain unnormalized, but OS resolution may interpret them as loopback.
+  if (/^(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*$/i.test(host)) {
+    if (!/^(?:0|[1-9][0-9]{0,2})(?:\.(?:0|[1-9][0-9]{0,2})){3}$/.test(host) ||
+        host.split(".").some((part) => Number(part) > 255)) return true;
+  }
   // .local names resolve via mDNS and may target a nearby workstation.
   // Preserve Railway private .internal hostnames while blocking local DNS drift.
   if (host === "localhost" || host.endsWith(".localhost") ||
