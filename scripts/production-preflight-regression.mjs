@@ -20,6 +20,15 @@ const base = {
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
 
+// PostgreSQL authorities must identify one syntactically valid host.
+for (const host of ["db..internal", "-db.internal", "db_.internal", "db.internal,other.internal", "db.internal.."]) {
+  assert.throws(() => validateProductionPreflight({ ...base, DATABASE_URL: `postgresql://app:fixture@${host}/app` }), /DATABASE_URL must use a valid DNS hostname/);
+}
+for (const host of ["db.internal", "db.internal.", "10.0.0.1", "[fd00::1]"]) {
+  assert.deepEqual(validateProductionPreflight({ ...base, DATABASE_URL: `postgresql://app:fixture@${host}/app` }), { ready: true });
+}
+
+
 // Reject malformed DNS labels accepted by WHATWG URL parsing.
 for (const host of [".example.com", "example..com", "-example.com", "example-.com", "example.com..", "api_example.com", "a".repeat(64) + ".com", Array(5).fill("a".repeat(63)).join(".")]) {
   for (const key of ["OIDC_ISSUER", "OIDC_JWKS_URL", "AI_PRIMARY_BASE_URL"]) {
