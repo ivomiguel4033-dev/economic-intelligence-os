@@ -62,14 +62,14 @@ if ! check_index_flags; then
   echo "Use a normal Git index without assume-unchanged or skip-worktree entries." >&2
   exit 1
 fi
-# Gitlinks can introduce unchecked code from a separate repository.
-check_gitlinks() {
+# Gitlinks and symlinks can introduce unchecked code or host files.
+check_external_index_entries() {
   local entries
   entries="$(git ls-files --stage)" || return 2
-  if [[ "$entries" =~ (^|$'\n')160000[[:space:]] ]]; then return 1; fi
+  if [[ "$entries" =~ (^|$'\n')(120000|160000)[[:space:]] ]]; then return 1; fi
 }
-if ! check_gitlinks; then
-  echo "Git submodules or unreadable index are not supported by this replay." >&2
+if ! check_external_index_entries; then
+  echo "Git symlinks, submodules or unreadable index are not supported by this replay." >&2
   exit 1
 fi
 # Ignored files can influence npm, tests and the Docker build context.
