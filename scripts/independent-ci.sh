@@ -9,6 +9,8 @@ for name in $(compgen -e); do
       echo "Unsafe inherited environment variable: $name" >&2; exit 1 ;;
   esac
 done
+# Ignore local replacement refs so HEAD and object checks use actual committed objects.
+export GIT_NO_REPLACE_OBJECTS=1
 if ! repo_root="$(git rev-parse --show-toplevel)" || [[ -z "$repo_root" ]]; then
   echo "Unable to resolve checkout root" >&2; exit 2
 fi
