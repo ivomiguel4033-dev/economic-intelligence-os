@@ -15,6 +15,17 @@ const base = {
 };
 
 assert.deepEqual(validateProductionPreflight(base), { ready: true });
+
+// Public endpoints must use global-unicast IPv6 literals.
+for (const host of ["fec0::1", "::2", "4000::1", "100::1", "64:ff9b::808:808", "::ffff:8.8.8.8", "2001:db8::1", "3fff::1"]) {
+  for (const [key, suffix] of [["OIDC_ISSUER", "tenant"], ["OIDC_JWKS_URL", "keys"], ["AI_PRIMARY_BASE_URL", "v1"]]) {
+    assert.throws(() => validateProductionPreflight({ ...base, [key]: `https://[${host}]/${suffix}` }), new RegExp(`${key} must not use a local hostname`));
+  }
+}
+for (const host of ["2606:4700::1111", "2001:4860:4860::8888"]) {
+  assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: `https://[${host}]/v1` }), { ready: true });
+}
+
 // An insecure auth override must fail closed even when its value is not the
 // literal "true". Preserve compatibility with an explicitly disabled flag.
 assert.deepEqual(validateProductionPreflight({ ...base, ALLOW_INSECURE_AUTH: "false" }), { ready: true });
