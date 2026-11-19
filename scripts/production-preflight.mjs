@@ -78,18 +78,13 @@ function isNonPublicIpv4(host) {
 // Match the runtime AI provider policy for non-public IPv6 literal endpoints.
 function isNonPublicIpv6(host) {
   const ipv6 = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
-  if (ipv6 === "::" || ipv6 === "::1") return true;
-  return /^f[cd][0-9a-f]{2}:/i.test(ipv6) ||
-    /^fe[89ab][0-9a-f]:/i.test(ipv6) ||
-    /^100:0*:/i.test(ipv6) ||
-    /^2001:0*2:/i.test(ipv6) ||
+  if (!ipv6.includes(":")) return false;
+  // Only global unicast (2000::/3) is eligible for public endpoints.
+  // This also rejects deprecated site-local, mapped and reserved addresses.
+  if (!/^[23][0-9a-f]{3}:/i.test(ipv6)) return true;
+  return /^2001:0*2:/i.test(ipv6) ||
     /^2001:db8:/i.test(ipv6) ||
-    /^3fff:/i.test(ipv6) ||
-    /^ff[0-9a-f]{2}:/i.test(ipv6) ||
-    /^64:ff9b::/i.test(ipv6) ||
-    /^64:ff9b:0:0:0:0:/i.test(ipv6) ||
-    /^64:ff9b:1:/i.test(ipv6) ||
-    /^::ffff:/i.test(ipv6);
+    /^3fff:/i.test(ipv6);
 }
 
 function isUnsafeEndpointHostname(hostname) {
