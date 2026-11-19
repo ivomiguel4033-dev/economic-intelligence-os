@@ -46,6 +46,15 @@ for (const [label, config] of [
     `${label} must fail closed before production deployment`,
   );
 }
+// Single-label endpoints may resolve through private DNS search suffixes.
+for (const config of [
+  { OIDC_ISSUER: "https://identity/tenant" },
+  { OIDC_JWKS_URL: "https://keys./jwks" },
+  { AI_PRIMARY_BASE_URL: "https://AI/v1" },
+]) {
+  assert.throws(() => validateProductionPreflight({ ...base, ...config }), /must not use a local hostname/);
+}
+assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://[2606:4700::1111]/v1" }), { ready: true });
 // A public domain containing "internal" as an ordinary label remains valid.
 assert.deepEqual(validateProductionPreflight({ ...base, AI_PRIMARY_BASE_URL: "https://internal-api.example.com/v1" }), { ready: true });
 
